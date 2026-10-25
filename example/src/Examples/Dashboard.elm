@@ -17,8 +17,8 @@ The pattern:
 1.  One `Remote` per panel in the model, never one for the page.
 2.  Every component takes its `Remote` once (`Stat.remote`, `Chart.lineRemote`, `Chart.donutRemote`,
     `Timeline.viewRemote`, `Tree.viewRemote`) and an `onRetry` message for that panel only. The
-    data is shaped with `Remote.map`; a chart's categories come from the same `Remote` with
-    `Remote.withDefault`, so old data counts.
+    data is shaped with `Remote.map`; a chart's categories travel with its series in
+    `Chart.byCategory`, so the labels always belong to the values, old data included.
 3.  Changing the period or retrying calls `Remote.refresh` on the panel and sends the request; the answer goes in with `Remote.refreshWith panel result time`. Data that is there stays (dimmed), a failed refresh keeps it as old data ("Old data from 14:05"), and a panel with no data shows its skeleton or failure. `Alert.stale` with `Remote.staleIn` gives one notice for the page. The message carries
     the period it was asked for, and an answer for another period is dropped.
 4.  The zone of "Old data from 14:05" is in the model's `Klar.Settings` (`Time.here` at the start, `Settings.withZone`) and each panel is given it (`Stat.settings`, `Chart.settings`, `Timeline.settings`).
@@ -434,12 +434,16 @@ viewStats model =
 viewSales : Model -> Html Msg
 viewSales model =
     Chart.lineRemote
-        [ Chart.categories (Remote.withDefault [] (Remote.map .labels model.sales))
-        , Chart.settings model.settings
+        [ Chart.settings model.settings
         , Chart.onRetry (Retry SalesPanel)
         ]
         (Remote.map
-            (\sales -> [ Chart.series "This period" sales.thisPeriod, Chart.series "Last period" sales.lastPeriod |> Chart.dashed ])
+            (\sales ->
+                Chart.byCategory sales.labels
+                    [ Chart.series "This period" sales.thisPeriod
+                    , Chart.series "Last period" sales.lastPeriod |> Chart.dashed
+                    ]
+            )
             model.sales
         )
 

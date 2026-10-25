@@ -1,7 +1,7 @@
 module Klar.JsonViewer exposing
     ( view
     , State, init, Msg, update
-    , isExpanded, expand, collapse, toggle, expandAll, collapseAll, setExpandedIds, path
+    , isExpanded, expand, collapse, toggle, expandAll, collapseAll, expandedIds, setExpandedIds, path
     , Attribute, toolbar, rootLabel, ariaLabel, maxHeight, maxDepth, maxItems, maxStringLength, locale
     )
 
@@ -75,7 +75,7 @@ server sent byte for byte, show that text with `codeBlock` instead.
 
 # Opening and closing
 
-@docs isExpanded, expand, collapse, toggle, expandAll, collapseAll, setExpandedIds, path
+@docs isExpanded, expand, collapse, toggle, expandAll, collapseAll, expandedIds, setExpandedIds, path
 
 
 # Attributes
@@ -257,6 +257,47 @@ it should stay open; use `expand` to open a deep node with everything above it.
 setExpandedIds : List String -> State -> State
 setExpandedIds paths (State state) =
     State { state | openDepth = 0, flipped = Set.fromList paths, revealed = state.revealed }
+
+
+{-| The paths of the open objects and arrays of this value, in document order:
+what to keep when the application stores the view, and to give back with
+`setExpandedIds`. The value is needed because a fresh state opens nodes by their
+depth (the first two levels, after `init`; every level, after `expandAll`) rather
+than by name. A node inside a closed one counts if it is open itself, as with
+`isExpanded`.
+
+    JsonViewer.setExpandedIds (JsonViewer.expandedIds value state) state -- the same view
+
+-}
+expandedIds : Value -> State -> List String
+expandedIds value (State state) =
+    let
+        walk at depth node =
+            case node of
+                JObject fields ->
+                    openHere at depth
+                        ++ List.concatMap (\( key, child ) -> walk (pathOf at key) (depth + 1) child) fields
+
+                JArray items ->
+                    openHere at depth
+                        ++ List.concat (List.indexedMap (\i child -> walk (pathOf at (String.fromInt i)) (depth + 1) child) items)
+
+                _ ->
+                    []
+
+        openHere at depth =
+            if openAt state.openDepth state.flipped at depth then
+                [ at ]
+
+            else
+                []
+    in
+    case Decode.decodeValue nodeDecoder value of
+        Ok node ->
+            walk "" 0 node
+
+        Err _ ->
+            []
 
 
 {-| Opens every node. This is what the "Expand all" button of the `toolbar`
@@ -630,7 +671,7 @@ view toMsg attributes ((State state) as current) value =
                         [ Internal.cls [ "klar-json__tree" ]
                         , Attr.attribute "role" "tree"
                         , Attr.attribute "aria-label" (Maybe.withDefault t.json config.ariaLabel)
-                        , keyHandler toMsg state.id (keyBindings rows stop)
+                        , keyHandler toMsg state.id rows
                         ]
                         [ viewNode context "" 0 (Maybe.map (\label -> ( label, False )) config.rootLabel) True root ]
                     ]
@@ -733,7 +774,7 @@ rowsOf config state at depth parent node =
             leaf
 
 
-{-| The keys of the row that is the tab stop. Keys that lead nowhere (Up on the
+{-| The keys of the row with this key (a path, or "+" and a path). Keys that lead nowhere (Up on the
 first row) still do nothing, so that they never scroll the page.
 -}
 keyBindings : List Row -> String -> List ( String, Msg )
@@ -806,30 +847,32 @@ keyBindings rows stop =
     ]
 
 
-{-| One key handler on the tree, for the keys of the row that is the tab stop. It
-only takes key presses on a row, without Ctrl, Alt or Meta.
+{-| One key handler on the tree. It acts for the row the key press came from (its
+DOM id), not for the stored tab stop, so two presses before the next render (a
+held arrow key, a key right after a click) each start from their own row. It only
+takes key presses on a row, without Ctrl, Alt or Meta.
 -}
-keyHandler : (Msg -> msg) -> String -> List ( String, Msg ) -> Html.Attribute msg
-keyHandler toMsg viewerId bindings =
+keyHandler : (Msg -> msg) -> String -> List Row -> Html.Attribute msg
+keyHandler toMsg viewerId rows =
     Events.preventDefaultOn "keydown"
         (Decode.map2 Tuple.pair (Decode.at [ "target", "id" ] Decode.string) Internal.keyEvent
             |> Decode.andThen
                 (\( targetId, event ) ->
-                    if
-                        not (String.startsWith (viewerId ++ "-row-") targetId || String.startsWith (viewerId ++ "-more-") targetId)
-                            || event.ctrl
-                            || event.meta
-                            || event.alt
-                    then
-                        Decode.fail "not a key of the tree"
+                    case List.filter (\row -> rowDomId viewerId row.key == targetId) rows |> List.head of
+                        Just row ->
+                            if event.ctrl || event.meta || event.alt then
+                                Decode.fail "not a key of the tree"
 
-                    else
-                        case List.filter (\( key, _ ) -> key == event.key) bindings |> List.head of
-                            Just ( _, msg ) ->
-                                Decode.succeed ( toMsg msg, True )
+                            else
+                                case List.filter (\( key, _ ) -> key == event.key) (keyBindings rows row.key) |> List.head of
+                                    Just ( _, msg ) ->
+                                        Decode.succeed ( toMsg msg, True )
 
-                            Nothing ->
-                                Decode.fail "unhandled key"
+                                    Nothing ->
+                                        Decode.fail "unhandled key"
+
+                        Nothing ->
+                            Decode.fail "not a row of the tree"
                 )
         )
 
@@ -1080,7 +1123,7 @@ viewContainer context at depth keyView colon comma brackets children =
                         [ Keyed.ul [ Internal.cls [ "klar-json__children" ], Attr.attribute "role" "group" ]
                             (List.indexedMap
                                 (\i ( childPath, childKey, child ) ->
-                                    ( String.fromInt i ++ "|" ++ childPath
+                                    ( childPath
                                     , viewNode context childPath (depth + 1) childKey (i == lastShown && hiddenCount == 0) child
                                     )
                                 )

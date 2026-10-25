@@ -260,10 +260,14 @@ deltaBy : Float -> Attribute msg
 ```
 
 The change since last time as a difference in the tile's own units: `12` is
-shown as "+12" and `-3.5` as "−3.5", in the separators of the `locale`, rounded to
-one decimal. Use it when a percentage would mislead: "+12 orders" on a small
-count. The sign picks the arrow and the color, as with `delta`; `delta`,
-`deltaBy` and `deltaPoints` replace each other.
+shown as "+12" and `-3.5` as "−3.5", in the separators of the `locale`. It is
+written the way the tile writes its value: whole for `int`, with the same decimals
+for `decimal` (`0.03` on a `decimal 2` tile is "+0.03"), abbreviated for
+`abbreviated` ("+1.5M" next to "4.2M"), and otherwise rounded to one decimal. It
+counts as unchanged (a dash) only when that writing rounds it to zero. Use it
+when a percentage would mislead: "+12 orders" on a small count. The sign picks the
+arrow and the color, as with `delta`; `delta`, `deltaBy` and `deltaPoints`
+replace each other.
 
     Stat.view [ Stat.label "Open orders", Stat.int 112, Stat.deltaBy 12, Stat.deltaLabel "since Monday" ]
 

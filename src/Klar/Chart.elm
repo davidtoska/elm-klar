@@ -1,6 +1,6 @@
 module Klar.Chart exposing
     ( line, bar, donut, gauge, meter, sparkline
-    , lineRemote, barRemote, donutRemote, gaugeRemote, meterRemote, sparklineRemote
+    , lineRemote, barRemote, Data, byCategory, byDate, donutRemote, gaugeRemote, meterRemote, sparklineRemote
     , Series, series, seriesMaybe, withSlot, withTone, dashed
     , Segment, segment, segmentSlot, segmentTone
     , Attribute, title, description, ariaLabel, id, width, height, tone, locale, settings, unit, valueFormat
@@ -15,7 +15,7 @@ or SVG package.
 
 Use when: numbers are shown as a trend, a comparison of categories, parts of a whole or one value against a scale.
 Do not use when: the progress of a task is shown, use `Klar.Progress`; or the reader must look up exact values row by row, use `Klar.Table`.
-Quick path: `line` or `bar` with `categories` and a list of `series`; data from the backend goes to `lineRemote` (and its sisters) with `onRetry`.
+Quick path: `line` or `bar` with `categories` and a list of `series`; data from the backend goes to `lineRemote` (and its sisters) with `onRetry`, its categories and series together in `byCategory` or `byDate`.
 
     import Klar.Chart as Chart
     import Klar.Theme exposing (Tone(..))
@@ -40,12 +40,11 @@ Quick path: `line` or `bar` with `categories` and a list of `series`; data from 
         82
 
     -- from the backend: model.sales is a Remote (List { month : String, amount : Float })
-    Chart.lineRemote
-        [ Chart.title "Revenue"
-        , Chart.categories (List.map .month (Remote.withDefault [] model.sales))
-        , Chart.onRetry ReloadSales
-        ]
-        (Remote.map (\sales -> [ Chart.series "Revenue" (List.map .amount sales) ]) model.sales)
+    Chart.lineRemote [ Chart.title "Revenue", Chart.onRetry ReloadSales ]
+        (Remote.map
+            (\sales -> Chart.byCategory (List.map .month sales) [ Chart.series "Revenue" (List.map .amount sales) ])
+            model.sales
+        )
 
 Here `months` and `warehouses` are lists of strings with one name per value.
 
@@ -88,7 +87,9 @@ Data from the backend goes to the sister of the chart that takes a `Remote`
 (`lineRemote`, `barRemote`, `donutRemote`, `sparklineRemote`, `gaugeRemote`,
 `meterRemote`): it draws the skeleton, the failure with "Try again" (`onRetry`),
 the empty state, the data, a refresh (dimmed) and old data ("Old data from 14:05").
-Shape the data with `Remote.map`. The built-in text ("No data to show", the names
+Shape the data with `Remote.map`. A line or bar chart from a `Remote` takes its
+categories in the same value as its series (`byCategory`, `byDate`), so the names
+under the axis always belong to the values above them. The built-in text ("No data to show", the names
 of the chart kinds and so on) is English unless you set `locale`. Numbers on the
 axes and in the tooltips follow the locale too, or your own `valueFormat`.
 
@@ -100,7 +101,7 @@ axes and in the tooltips follow the locale too, or your own `valueFormat`.
 
 # Charts from a Remote
 
-@docs lineRemote, barRemote, donutRemote, gaugeRemote, meterRemote, sparklineRemote
+@docs lineRemote, barRemote, Data, byCategory, byDate, donutRemote, gaugeRemote, meterRemote, sparklineRemote
 
 
 # Series
@@ -522,8 +523,9 @@ legend =
 {-| Leaves out the legend of a line, bar or donut chart, for a chart whose series
 or slices are named in some other way (a title that says it, a table next to it).
 Without the legend of a donut the slices are only named in the tooltips and in
-the hidden data table, and a donut with `onSelect` has no keyboard path to its
-slices: keep the legend there.
+the hidden data table. A donut with `onSelect` keeps its legend buttons, because
+they are the keyboard path to the slices: out of sight until one of them has the
+keyboard focus.
 -}
 hideLegend : Attribute msg
 hideLegend =
@@ -659,14 +661,27 @@ selectable config =
 
 {-| A category button: its click, and its values as the accessible name and the
 tooltip. Without `onSelect` the category is a plain element with a native tooltip.
+The tooltip of a category in the first or last third of the plot is aligned with
+its start or its end, so it stays over the chart instead of sticking out past it.
 -}
-categoryElement : Config msg -> Int -> String -> List (Html.Attribute msg) -> List (Html msg) -> Html msg
-categoryElement config index tip attributes children =
+categoryElement : Config msg -> Int -> Int -> String -> List (Html.Attribute msg) -> List (Html msg) -> Html msg
+categoryElement config count index tip attributes children =
     case config.onSelect of
         Just toMsg ->
+            let
+                align =
+                    if 3 * index < count - 1 then
+                        "klar-chart__slot--tip-start"
+
+                    else if 3 * index > 2 * (count - 1) then
+                        "klar-chart__slot--tip-end"
+
+                    else
+                        ""
+            in
             Html.button
                 ([ Attr.type_ "button"
-                 , Internal.cls [ "klar-chart__slot", "klar-chart__slot--button" ]
+                 , Internal.cls [ "klar-chart__slot", "klar-chart__slot--button", align ]
                  , Events.onClick (toMsg index)
                  , Attr.attribute "aria-label" (String.join ". " (String.lines tip))
                  , Attr.attribute "data-tip" tip
@@ -2022,6 +2037,7 @@ linePlot config axis prepared showPoints =
 
         slot i =
             categoryElement config
+                prepared.n
                 i
                 (slotTip config prepared i)
                 []
@@ -2561,6 +2577,7 @@ barPlot config axis prepared =
                                 )
             in
             categoryElement config
+                prepared.n
                 i
                 (barTip config prepared i)
                 []
@@ -2792,6 +2809,12 @@ donutBody config slices total =
                 ]
             , if Maybe.withDefault True config.legend then
                 legendView "bar" legendItems
+
+              else if selectable config then
+                -- hideLegend with onSelect: the legend buttons are the only
+                -- keyboard path to the slices, so they stay, out of sight until
+                -- one of them has the focus.
+                Html.div [ Internal.cls [ "klar-chart__legend-hidden" ] ] [ legendView "bar" legendItems ]
 
               else
                 Html.text ""
@@ -3339,40 +3362,93 @@ sparkline attributes rawValues =
 {-| A line chart from a `Remote`: the skeleton while it loads, the problem with
 "Try again" (`onRetry`) when it failed, the empty state, the chart, and the
 chart dimmed while it is refreshed or with "Old data from 14:05" when the last
-refresh failed. Shape the data with `Remote.map`; the categories come from the
-same `Remote`.
+refresh failed. Shape the data with `Remote.map` into a `Data`: the categories
+(`byCategory`) or days (`byDate`) and the series together, so they come from the
+same response. `categories` and `dates` in the attributes are replaced by those of
+the `Data`.
 
     Chart.lineRemote
         [ Chart.title "Orders per day"
-        , Chart.dates (List.map .day (Remote.withDefault [] model.orders))
         , Chart.onRetry ReloadOrders
         , Chart.settings model.settings
         ]
-        (Remote.map (\days -> [ Chart.series "Orders" (List.map .count days) ]) model.orders)
+        (Remote.map
+            (\days -> Chart.byDate (List.map .day days) [ Chart.series "Orders" (List.map .count days) ])
+            model.orders
+        )
 
 The chart keeps the same elements around it in every state with data, so the
 keyboard focus on a category (`onSelect`) survives a refresh. Give it an `id`
 to move focus there with `Klar.focus` when "Try again" goes away.
 
 -}
-lineRemote : List (Attribute msg) -> Remote (List Series) -> Html msg
+lineRemote : List (Attribute msg) -> Remote Data -> Html msg
 lineRemote =
-    remoteWith line []
+    remoteWith (withData line) noData
 
 
 {-| A bar chart from a `Remote`, with every state of `lineRemote`.
 
-    Chart.barRemote
-        [ Chart.categories (List.map .name (Remote.withDefault [] model.warehouses))
-        , Chart.horizontal
-        , Chart.onRetry ReloadWarehouses
-        ]
-        (Remote.map (\rows -> [ Chart.series "Late orders" (List.map .late rows) ]) model.warehouses)
+    Chart.barRemote [ Chart.horizontal, Chart.onRetry ReloadWarehouses ]
+        (Remote.map
+            (\rows -> Chart.byCategory (List.map .name rows) [ Chart.series "Late orders" (List.map .late rows) ])
+            model.warehouses
+        )
 
 -}
-barRemote : List (Attribute msg) -> Remote (List Series) -> Html msg
+barRemote : List (Attribute msg) -> Remote Data -> Html msg
 barRemote =
-    remoteWith bar []
+    remoteWith (withData bar) noData
+
+
+{-| The data of a line or bar chart from a `Remote` (`lineRemote`, `barRemote`):
+its categories and its series in one value, made in the `Remote.map` that shapes
+the response, so the labels can never come from another request than the values.
+-}
+type Data
+    = Data { categories : List String, dates : List Date, series : List Series }
+
+
+{-| Categories named by text, one per value, and the series: what `categories` and
+the list of series are to `line` and `bar`.
+
+    Remote.map
+        (\rows -> Chart.byCategory (List.map .warehouse rows) [ Chart.series "Orders" (List.map .orders rows) ])
+        model.warehouses
+
+-}
+byCategory : List String -> List Series -> Data
+byCategory names list =
+    Data { categories = names, dates = [], series = list }
+
+
+{-| Categories that are days, one per value, and the series: what `dates` and the
+list of series are to `line` and `bar`. The axis writes the days short and the
+tooltips write them whole.
+
+    Remote.map
+        (\days -> Chart.byDate (List.map .day days) [ Chart.series "Orders" (List.map .count days) ])
+        model.orders
+
+-}
+byDate : List Date -> List Series -> Data
+byDate days list =
+    Data { categories = [], dates = days, series = list }
+
+
+noData : Data
+noData =
+    Data { categories = [], dates = [], series = [] }
+
+
+{-| Draws a line or bar chart from a `Data`: its categories (or days) come last, so
+they replace any given in the attributes.
+-}
+withData : (List (Attribute msg) -> List Series -> Html msg) -> List (Attribute msg) -> Data -> Html msg
+withData draw attributes (Data value) =
+    draw
+        (attributes ++ [ Attribute (\config -> { config | categories = value.categories, dates = value.dates }) ])
+        value.series
 
 
 {-| A donut from a `Remote`, with every state of `lineRemote`.

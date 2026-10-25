@@ -123,6 +123,18 @@ selectTests =
                     |> Query.find [ Selector.tag "button", ariaLabel "Mar. Orders: 4" ]
                     |> Event.simulate Event.click
                     |> Event.expect (Picked 2)
+        , test "a selectable donut keeps its legend buttons with hideLegend, out of sight, for the keyboard" <|
+            \_ ->
+                Chart.donut [ Chart.onSelect Picked, Chart.hideLegend ] [ Chart.segment "Shipped" 420, Chart.segment "Late" 30 ]
+                    |> Query.fromHtml
+                    |> Query.find [ Selector.class "klar-chart__legend-hidden" ]
+                    |> Query.findAll [ Selector.tag "button" ]
+                    |> Query.count (Expect.equal 2)
+        , test "a donut with hideLegend and no onSelect has no legend" <|
+            \_ ->
+                Chart.donut [ Chart.hideLegend ] [ Chart.segment "Shipped" 420, Chart.segment "Late" 30 ]
+                    |> Query.fromHtml
+                    |> Query.hasNot [ Selector.class "klar-chart__legend" ]
         , test "a donut's legend items are the buttons, and send the position of the segment" <|
             \_ ->
                 Chart.donut [ Chart.onSelect Picked ] [ Chart.segment "Empty" 0, Chart.segment "Shipped" 420, Chart.segment "Late" 30 ]
@@ -199,11 +211,21 @@ remoteTests =
                     |> Query.find [ Selector.tag "button", Selector.containing [ Selector.text "Try again" ] ]
                     |> Event.simulate Event.click
                     |> Event.expect Retry
+        , test "the categories travel with the series in byCategory and replace those of the attributes" <|
+            \_ ->
+                Chart.lineRemote [ Chart.categories [ "Elsewhere" ] ]
+                    (Remote.Loaded (Chart.byCategory [ "Jan", "Feb" ] [ Chart.series "Orders" [ 3, 5 ] ]))
+                    |> Query.fromHtml
+                    |> Expect.all
+                        [ Query.has [ Selector.text "Jan" ]
+                        , Query.has [ Selector.text "Feb" ]
+                        , Query.hasNot [ Selector.text "Elsewhere" ]
+                        ]
         , test "fresh, refreshing and old data have the same elements around the chart" <|
             \_ ->
                 let
                     loaded =
-                        Remote.Loaded [ Chart.series "a" [ 1, 2 ] ]
+                        Remote.Loaded (Chart.byCategory [] [ Chart.series "a" [ 1, 2 ] ])
 
                     -- the outermost element is the same wrapper in both
                     wrappers data =
@@ -270,6 +292,39 @@ statTests =
                         , Query.hasNot [ Selector.text "+12%" ]
                         , Query.has [ Selector.class "klar-stat__delta--success" ]
                         ]
+        , test "deltaBy on a tile with decimals keeps them, so a small change is not a dash" <|
+            \_ ->
+                Stat.view [ Stat.decimal 2 0.12, Stat.deltaBy 0.03 ]
+                    |> Query.fromHtml
+                    |> Expect.all
+                        [ Query.has [ Selector.text "+0.03" ]
+                        , Query.has [ Selector.class "klar-stat__delta--success" ]
+                        ]
+        , test "deltaBy on an abbreviated tile is abbreviated like the value" <|
+            \_ ->
+                Stat.view [ Stat.abbreviated 4200000, Stat.deltaBy -1500000 ]
+                    |> Query.fromHtml
+                    |> Query.has [ Selector.text "−1.5M" ]
+        , test "deltaBy on a whole number that rounds to zero is unchanged" <|
+            \_ ->
+                Stat.view [ Stat.int 112, Stat.deltaBy 0.4 ]
+                    |> Query.fromHtml
+                    |> Query.has [ Selector.text ", unchanged" ]
+        , test "a tile has one live region in every state, and a failure is said in it" <|
+            \_ ->
+                let
+                    regions data =
+                        Stat.view [ Stat.label "Orders", Stat.remote data (\n -> [ Stat.int n ]) ]
+                            |> Query.fromHtml
+                            |> Query.findAll [ Selector.class "klar-sr-only", Selector.attribute (Attr.attribute "role" "status") ]
+                in
+                Expect.all
+                    [ \_ -> regions Remote.Loading |> Query.count (Expect.equal 1)
+                    , \_ -> regions (Remote.Loaded 4) |> Query.count (Expect.equal 1)
+                    , \_ -> regions (Remote.Failed (Remote.problem Remote.server)) |> Query.count (Expect.equal 1)
+                    , \_ -> regions (Remote.Failed (Remote.problem Remote.server)) |> Query.first |> Query.has [ Selector.text (Remote.title Locale.en (Remote.problem Remote.server)) ]
+                    ]
+                    ()
         , test "deltaPoints is in percentage points" <|
             \_ ->
                 Stat.view [ Stat.decimal 1 3.5, Stat.deltaPoints -0.3 ]

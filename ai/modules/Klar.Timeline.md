@@ -104,10 +104,10 @@ there is more after what is shown).
         )
 
     GotPage (Err problem) ->
-        ( { model | morePages = Remote.Failed problem }, Cmd.none ) The clock times and the day an
+        ( { model | morePages = Remote.Failed problem }, Cmd.none )
 
-event belongs to are those of the zone in the settings (UTC, with "UTC" after the
-time, until the application has given it).
+The clock times and the day an event belongs to are those of the zone in the
+settings (UTC, with "UTC" after the time, until the application has given it).
 
 Events are shown in the order you give them (newest first is usual), and grouped
 under a heading per calendar day: events that follow each other on the same day
@@ -367,10 +367,12 @@ maxHeight : Int -> Attribute msg
 Makes the timeline, footer included, scroll inside itself when it is taller
 than this many pixels: for a log in a side panel. Default: no limit.
 
-A scroll area must be reachable with the keyboard. With `onLoadMore` the button
-in the footer is a tab stop inside it; without, the timeline itself takes the
-keyboard focus (`tabindex="0"`) and is a region named by `ariaLabel` ("Events" if
-you gave none), so that the arrow keys scroll it.
+A scroll area must be reachable with the keyboard. With `loadMore` the button in
+the footer is a tab stop inside it, in every state: after the last page it stays,
+unavailable (`aria-disabled`) but still focusable, so the scroll area can still be
+reached. Without `loadMore`, the timeline itself takes the keyboard focus
+(`tabindex="0"`) and is a region named by `ariaLabel` ("Events" if you gave none),
+so that the arrow keys scroll it.
 
 ### `headingLevel`
 
@@ -423,8 +425,10 @@ and its `Bool` says whether there is more after the events shown:
     shows a spinner and does nothing, and the status says "Loading more events ...".
 
   - `Failed`, or data whose refresh failed: the title of the problem, and the
-    button turns into "Try again" and sends the message again. The events already
-    loaded stay.
+    button turns into "Try again" and sends the message again, when the problem
+    is worth retrying (`Klar.Remote.isRetryable`). For any other problem (no
+    access, a refused request) the button stays, unavailable, so the keyboard
+    focus is kept. The events already loaded stay.
 
   - `Loaded False`: that was all. The button stays, dimmed and unavailable, so
     that the keyboard focus on it is not thrown away, and the status says "No more

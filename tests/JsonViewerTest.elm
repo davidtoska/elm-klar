@@ -113,6 +113,19 @@ suite =
                     in
                     List.map (\p -> JsonViewer.isExpanded p state) [ "", "/owner", "/owner/address" ]
                         |> Expect.equal [ True, True, False ]
+            , test "expandedIds lists the open objects and arrays in document order" <|
+                \_ -> JsonViewer.expandedIds value (JsonViewer.init "v") |> Expect.equal [ "", "/items", "/owner" ]
+            , test "expandedIds given back to setExpandedIds keeps the view" <|
+                \_ ->
+                    let
+                        before =
+                            JsonViewer.init "v" |> JsonViewer.collapse "/owner"
+
+                        after =
+                            JsonViewer.init "v" |> JsonViewer.setExpandedIds (JsonViewer.expandedIds value before)
+                    in
+                    List.map (\p -> JsonViewer.isExpanded p after) [ "", "/items", "/owner" ]
+                        |> Expect.equal [ True, True, False ]
             , test "expand opens a deep node and every node above it" <|
                 \_ ->
                     let
@@ -179,6 +192,19 @@ suite =
                     press "" "End" (JsonViewer.init "v")
                         |> Result.andThen (press "/owner/name" "Home")
                         |> tabStopIs ""
+            , test "a key acts on the row it was pressed on, even before the tab stop moved there" <|
+                \_ ->
+                    -- the stored tab stop is still the root: Left must close /owner, not the root
+                    press "/owner" "ArrowLeft" (JsonViewer.init "v")
+                        |> Result.map (\state -> ( JsonViewer.isExpanded "/owner" state, JsonViewer.isExpanded "" state ))
+                        |> Expect.equal (Ok ( False, True ))
+            , test "a key on an element that is not a row is left to the browser" <|
+                \_ ->
+                    render (JsonViewer.init "v")
+                        |> Query.find [ Selector.attribute (Attr.attribute "role" "tree") ]
+                        |> Event.simulate (keyOn "elsewhere" "ArrowDown")
+                        |> Event.toResult
+                        |> Expect.err
             , test "a row that gets the focus becomes the tab stop" <|
                 \_ -> focusOn "/items" (JsonViewer.init "v") |> tabStopIs "/items"
             , test "Left on an open node closes it" <|

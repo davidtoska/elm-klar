@@ -489,7 +489,7 @@ chartExample settings locale model =
                 , Chart.onRetry Refresh
                 , Chart.height 160
                 ]
-                (Remote.map (\values -> [ Chart.series "Sales" values ]) sales)
+                (Remote.map (\values -> Chart.byCategory [] [ Chart.series "Sales" values ]) sales)
             , Chart.sparklineRemote [ Chart.ariaLabel "Sales trend", Chart.locale locale, Chart.settings settings ] sales
             ]
         )

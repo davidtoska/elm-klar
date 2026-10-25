@@ -532,7 +532,7 @@ sparklineExamples locale =
 stateExamples : Locale -> Model -> List (Html Msg)
 stateExamples locale model =
     let
-        row example kind =
+        row example kind empty =
             Layout.grid [ Layout.minColumn 280, Layout.gap 5 ]
                 [ kind [] Remote.Loading
                 , kind
@@ -540,22 +540,23 @@ stateExamples locale model =
                     , Chart.onRetry (Retry example)
                     ]
                     (Pretend.down locale (List.member example model.retrying))
-                , kind [ Chart.emptyText "No orders in this period" ] (Remote.Loaded [])
+                , kind [ Chart.emptyText "No orders in this period" ] (Remote.Loaded empty)
                 ]
     in
     [ Doc.example
         { title = "Loading, failed and empty"
         , description = Just "Every chart from a Remote (lineRemote, barRemote, donutRemote, ...) shows a skeleton of the right height while it loads, a short message with “Try again” when it failed, and an empty state when there is no data. Here the backend is down on purpose: “Try again” loads for a moment and fails again."
-        , code = Just """Chart.lineRemote [ Chart.onRetry Reload ] (Remote.map toSeries model.visits)
+        , code = Just """Chart.lineRemote [ Chart.onRetry Reload ]
+    (Remote.map (\\days -> Chart.byDate (List.map .day days) [ Chart.series "Visits" (List.map .count days) ]) model.visits)
 
 Chart.barRemote [ Chart.onRetry Reload, Chart.id "visits" ] (Remote.Failed problem)
 
 Chart.donut [ Chart.emptyText "No data" ] []"""
         }
         (Layout.stack [ Layout.gap 6 ]
-            [ row "line" (\attrs data -> Chart.lineRemote ([ Chart.title "Line", Chart.height 120, Chart.locale locale ] ++ attrs) data)
-            , row "bar" (\attrs data -> Chart.barRemote ([ Chart.title "Bars", Chart.height 120, Chart.locale locale ] ++ attrs) data)
-            , row "donut" (\attrs data -> Chart.donutRemote ([ Chart.title "Donut", Chart.locale locale ] ++ attrs) data)
+            [ row "line" (\attrs data -> Chart.lineRemote ([ Chart.title "Line", Chart.height 120, Chart.locale locale ] ++ attrs) data) (Chart.byCategory [] [])
+            , row "bar" (\attrs data -> Chart.barRemote ([ Chart.title "Bars", Chart.height 120, Chart.locale locale ] ++ attrs) data) (Chart.byCategory [] [])
+            , row "donut" (\attrs data -> Chart.donutRemote ([ Chart.title "Donut", Chart.locale locale ] ++ attrs) data) []
             ]
         )
     ]

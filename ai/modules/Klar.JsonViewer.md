@@ -25,6 +25,7 @@ collapse : String -> State -> State
 toggle : String -> State -> State
 expandAll : State -> State
 collapseAll : State -> State
+expandedIds : Json.Decode.Value -> State -> List String
 setExpandedIds : List String -> State -> State
 path : List String -> String
 
@@ -213,6 +214,21 @@ collapseAll : State -> State
 
 Closes every node except the root. This is what the "Collapse all" button of
 the `toolbar` does.
+
+### `expandedIds`
+
+```elm
+expandedIds : Json.Decode.Value -> State -> List String
+```
+
+The paths of the open objects and arrays of this value, in document order:
+what to keep when the application stores the view, and to give back with
+`setExpandedIds`. The value is needed because a fresh state opens nodes by their
+depth (the first two levels, after `init`; every level, after `expandAll`) rather
+than by name. A node inside a closed one counts if it is open itself, as with
+`isExpanded`.
+
+    JsonViewer.setExpandedIds (JsonViewer.expandedIds value state) state -- the same view
 
 ### `setExpandedIds`
 

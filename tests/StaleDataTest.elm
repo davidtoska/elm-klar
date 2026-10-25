@@ -226,7 +226,7 @@ components =
                     |> Query.has [ ariaBusy, text "4" ]
         , test "a chart with old data keeps drawing it and says so" <|
             \_ ->
-                html (Chart.lineRemote [ Chart.title "Sales", Chart.onRetry Retry ] (Remote.map (\_ -> [ Chart.series "2026" [ 1, 2, 3 ] ]) stale))
+                html (Chart.lineRemote [ Chart.title "Sales", Chart.onRetry Retry ] (Remote.map (\_ -> Chart.byCategory [] [ Chart.series "2026" [ 1, 2, 3 ] ]) stale))
                     |> Query.has [ text "Old data from 14:05", Selector.class "klar-chart" ]
         , test "a sparkline says it in its label" <|
             \_ ->
@@ -343,7 +343,7 @@ traps =
                     |> Query.has [ text "Can't reach the service" ]
         , test "a line chart from a loaded Remote draws the data" <|
             \_ ->
-                html (Chart.lineRemote [ Chart.categories [ "Jan" ] ] (Loaded [ Chart.series "a" [ 1 ] ]))
+                html (Chart.lineRemote [] (Loaded (Chart.byCategory [ "Jan" ] [ Chart.series "a" [ 1 ] ])))
                     |> Expect.all [ Query.hasNot [ ariaBusy ], Query.has [ Selector.class "klar-chart--line" ] ]
         , test "a donut, a gauge and a meter from a loading Remote are busy" <|
             \_ ->

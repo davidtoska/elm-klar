@@ -59,10 +59,10 @@ there is more after what is shown).
         )
 
     GotPage (Err problem) ->
-        ( { model | morePages = Remote.Failed problem }, Cmd.none ) The clock times and the day an
+        ( { model | morePages = Remote.Failed problem }, Cmd.none )
 
-event belongs to are those of the zone in the settings (UTC, with "UTC" after the
-time, until the application has given it).
+The clock times and the day an event belongs to are those of the zone in the
+settings (UTC, with "UTC" after the time, until the application has given it).
 
 Events are shown in the order you give them (newest first is usual), and grouped
 under a heading per calendar day: events that follow each other on the same day
@@ -133,6 +133,7 @@ import Klar.Settings as Settings exposing (Settings)
 import Klar.Skeleton as Skeleton
 import Klar.Spinner as Spinner
 import Klar.Theme as Theme exposing (Size(..), Tone(..))
+import Klar.Timeline.Days exposing (dayKeys)
 import Time
 
 
@@ -485,8 +486,10 @@ and its `Bool` says whether there is more after the events shown:
     shows a spinner and does nothing, and the status says "Loading more events ...".
 
   - `Failed`, or data whose refresh failed: the title of the problem, and the
-    button turns into "Try again" and sends the message again. The events already
-    loaded stay.
+    button turns into "Try again" and sends the message again, when the problem
+    is worth retrying (`Klar.Remote.isRetryable`). For any other problem (no
+    access, a refused request) the button stays, unavailable, so the keyboard
+    focus is kept. The events already loaded stay.
 
   - `Loaded False`: that was all. The button stays, dimmed and unavailable, so
     that the keyboard focus on it is not thrown away, and the status says "No more
@@ -530,10 +533,12 @@ emptyDescription text =
 {-| Makes the timeline, footer included, scroll inside itself when it is taller
 than this many pixels: for a log in a side panel. Default: no limit.
 
-A scroll area must be reachable with the keyboard. With `onLoadMore` the button
-in the footer is a tab stop inside it; without, the timeline itself takes the
-keyboard focus (`tabindex="0"`) and is a region named by `ariaLabel` ("Events" if
-you gave none), so that the arrow keys scroll it.
+A scroll area must be reachable with the keyboard. With `loadMore` the button in
+the footer is a tab stop inside it, in every state: after the last page it stays,
+unavailable (`aria-disabled`) but still focusable, so the scroll area can still be
+reached. Without `loadMore`, the timeline itself takes the keyboard focus
+(`tabindex="0"`) and is a region named by `ariaLabel` ("Events" if you gave none),
+so that the arrow keys scroll it.
 
 -}
 maxHeight : Int -> Attribute msg
@@ -829,35 +834,6 @@ groupByDay given events =
         events
 
 
-{-| A key per day group: its date, with a count after it for a day that comes
-back later in the list (events that were not sorted), so that keys never repeat.
--}
-dayKeys : List ( Date, List (Event msg) ) -> List ( String, ( Date, List (Event msg) ) )
-dayKeys groups =
-    groups
-        |> List.foldl
-            (\(( day, _ ) as group) ( seen, done ) ->
-                let
-                    iso =
-                        Date.toIso day
-
-                    count =
-                        List.length (List.filter (\earlier -> earlier == iso) seen)
-
-                    key =
-                        if count == 0 then
-                            iso
-
-                        else
-                            iso ++ "#" ++ String.fromInt (count + 1)
-                in
-                ( iso :: seen, ( key, group ) :: done )
-            )
-            ( [], [] )
-        |> Tuple.second
-        |> List.reverse
-
-
 viewDay : Config msg -> ( Date, List (Event msg) ) -> Html msg
 viewDay config ( day, events ) =
     let
@@ -1141,8 +1117,15 @@ viewFooter config count =
                         MoreLoading ->
                             Button.view [ Button.small, Button.loading True ] t.loadMore
 
-                        MoreFailed _ ->
-                            Button.view [ Button.small, Button.icon Icon.refresh, Button.onClick paging.onLoadMore ] t.retry
+                        MoreFailed problem ->
+                            if Remote.isRetryable problem then
+                                Button.view [ Button.small, Button.icon Icon.refresh, Button.onClick paging.onLoadMore ] t.retry
+
+                            else
+                                -- Trying the same request again would fail the
+                                -- same way (no access, a refused cursor): the
+                                -- button stays, unavailable, so focus is kept.
+                                Button.view [ Button.small, Button.ariaDisabled True ] t.loadMore
 
                         MoreAvailable ->
                             Button.view [ Button.small, Button.onClick paging.onLoadMore ] t.loadMore

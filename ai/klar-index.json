@@ -4266,7 +4266,9 @@
         "categories",
         "series",
         "lineRemote",
-        "onRetry"
+        "onRetry",
+        "byCategory",
+        "byDate"
       ],
       "mainFunctions": [
         "line",

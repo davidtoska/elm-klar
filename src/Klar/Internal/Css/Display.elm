@@ -720,7 +720,7 @@ css =
 }
 
 .klar-chart__legend-label {
-  max-width: 240px;
+  max-width: calc(5 * var(--klar-space-12));
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -970,7 +970,7 @@ css =
   left: 50%;
   z-index: var(--klar-z-tooltip);
   width: max-content;
-  max-width: 240px;
+  max-width: calc(5 * var(--klar-space-12));
   padding: var(--klar-space-1) var(--klar-space-2);
   border-radius: var(--klar-radius-sm);
   background: var(--klar-text);
@@ -983,12 +983,41 @@ css =
   translate: -50% 0;
 }
 
+/* A category in the first or last third of the plot aligns its tooltip with its
+   start or its end, so the tooltip stays over the chart and never widens the page. */
+.klar-chart__slot--tip-start:hover::after,
+.klar-chart__slot--tip-start:focus-visible::after {
+  left: 0;
+  translate: none;
+}
+
+.klar-chart__slot--tip-end:hover::after,
+.klar-chart__slot--tip-end:focus-visible::after {
+  left: auto;
+  right: 0;
+  translate: none;
+}
+
+/* A horizontal bar's slot is a whole row: the tooltip sits inside it, at its end. */
 .klar-chart__plot--horizontal .klar-chart__slot--button:hover::after,
 .klar-chart__plot--horizontal .klar-chart__slot--button:focus-visible::after {
   bottom: auto;
   top: 50%;
-  left: 100%;
-  translate: var(--klar-space-1) -50%;
+  left: auto;
+  right: var(--klar-space-1);
+  translate: 0 -50%;
+}
+
+/* A donut with hideLegend and onSelect keeps its legend buttons for the keyboard,
+   out of sight until one of them has the focus. */
+.klar-chart__legend-hidden:not(:focus-within) {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  margin: -1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
 }
 
 .klar-chart__segment--button { cursor: pointer; }
@@ -1408,7 +1437,7 @@ css =
 
 /* Until the application gives the zone every time ends in " UTC": the time
    column is wide enough for "14:05 UTC", so the text never runs under the rail. */
-.klar-timeline--utc { --_time-w: 84px; }
+.klar-timeline--utc { --_time-w: calc(var(--klar-space-12) + var(--klar-space-8) + var(--klar-space-1)); }
 
 .klar-timeline__days {
   display: flex;

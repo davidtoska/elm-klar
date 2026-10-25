@@ -282,10 +282,14 @@ delta percent =
 
 
 {-| The change since last time as a difference in the tile's own units: `12` is
-shown as "+12" and `-3.5` as "−3.5", in the separators of the `locale`, rounded to
-one decimal. Use it when a percentage would mislead: "+12 orders" on a small
-count. The sign picks the arrow and the color, as with `delta`; `delta`,
-`deltaBy` and `deltaPoints` replace each other.
+shown as "+12" and `-3.5` as "−3.5", in the separators of the `locale`. It is
+written the way the tile writes its value: whole for `int`, with the same decimals
+for `decimal` (`0.03` on a `decimal 2` tile is "+0.03"), abbreviated for
+`abbreviated` ("+1.5M" next to "4.2M"), and otherwise rounded to one decimal. It
+counts as unchanged (a dash) only when that writing rounds it to zero. Use it
+when a percentage would mislead: "+12 orders" on a small count. The sign picks the
+arrow and the color, as with `delta`; `delta`, `deltaBy` and `deltaPoints`
+replace each other.
 
     Stat.view [ Stat.label "Open orders", Stat.int 112, Stat.deltaBy 12, Stat.deltaLabel "since Monday" ]
 
@@ -624,8 +628,6 @@ view attributes =
                     Html.span [ Internal.cls [ "klar-stat__body" ], Attr.attribute "aria-busy" "true" ]
                         [ Html.span [ Internal.cls [ "klar-stat__skeleton" ] ] [ Skeleton.block (skeletonHeight config.size) ]
                         , Html.span [ Internal.cls [ "klar-stat__skeleton", "klar-stat__skeleton--short" ] ] [ Skeleton.line 100 ]
-                        , Html.span [ Internal.cls [ "klar-sr-only" ], Attr.attribute "role" "status" ]
-                            [ Html.text (Locale.pick config.locale { nb = "Laster", en = "Loading" }) ]
                         ]
 
                 Failed problem ->
@@ -641,6 +643,22 @@ view attributes =
                             { locale = config.locale, settings = config.settings, onRetry = config.onRetry, inline = True }
                             config.freshness
                         ]
+            , -- One polite live region in every state, there before its text
+              -- changes, so that "Loading" and a failure are announced (a region
+              -- that appears with its text already in it often is not).
+              Html.span [ Internal.cls [ "klar-sr-only" ], Attr.attribute "role" "status" ]
+                [ Html.text
+                    (case state of
+                        Busy ->
+                            Locale.pick config.locale { nb = "Laster", en = "Loading" }
+
+                        Failed problem ->
+                            Remote.title config.locale problem
+
+                        Ready ->
+                            ""
+                    )
+                ]
             ]
     in
     case clickMessage of
@@ -844,7 +862,7 @@ viewDelta config =
                 direction =
                     case maybeDelta of
                         Just d ->
-                            if abs d < 0.05 then
+                            if isUnchanged config d then
                                 Level
 
                             else if d > 0 then
@@ -895,7 +913,7 @@ viewDelta config =
                                     signedPercent config.locale d
 
                                 Absolute ->
-                                    signedNumber config.locale d
+                                    signedLikeValue config d
 
                                 Points ->
                                     signedNumber config.locale d ++ Locale.pick config.locale { nb = "\u{00A0}p.p.", en = "\u{00A0}pp" }
@@ -937,6 +955,58 @@ viewDelta config =
                     ]
                 , Internal.viewMaybe (\t -> Html.span [ Internal.cls [ "klar-stat__delta-label" ] ] [ Html.text t ]) config.deltaLabel
                 ]
+
+
+{-| Whether a change is shown as no change. A percentage or percentage points is
+written with one decimal, so below 0.05 it is 0. A difference (`deltaBy`) is
+written the way the tile writes its value, and is no change only when that
+writing rounds it to zero: 0.03 on a tile of `decimal 2` is a change.
+-}
+isUnchanged : Config msg -> Float -> Bool
+isUnchanged config d =
+    case ( config.deltaKind, config.value ) of
+        ( Absolute, Just (Whole _) ) ->
+            round (abs d) == 0
+
+        ( Absolute, Just (Fixed decimals _) ) ->
+            round (abs d * 10 ^ toFloat (clamp 0 10 decimals)) == 0
+
+        ( Absolute, Just (Compact _) ) ->
+            d == 0
+
+        _ ->
+            abs d < 0.05
+
+
+{-| A `deltaBy` difference, written the way the tile writes its value: whole for
+`int`, with the same decimals for `decimal`, abbreviated for `abbreviated`, and
+otherwise rounded to one decimal. "+12", "−0.03", "+1.5M".
+-}
+signedLikeValue : Config msg -> Float -> String
+signedLikeValue config d =
+    let
+        signed body =
+            if isUnchanged config d then
+                body
+
+            else if d > 0 then
+                "+" ++ body
+
+            else
+                "−" ++ body
+    in
+    case config.value of
+        Just (Whole _) ->
+            signed (Format.int config.locale (round (abs d)))
+
+        Just (Fixed decimals _) ->
+            signed (Format.decimal config.locale decimals (abs d))
+
+        Just (Compact _) ->
+            signed (compactText config.locale (abs d))
+
+        _ ->
+            signedNumber config.locale d
 
 
 {-| "+4,2 %", "−8 %", "0 %".
@@ -988,7 +1058,7 @@ viewTrend config =
 
 viewFailure : Config msg -> Problem -> Html msg
 viewFailure config problem =
-    Html.span [ Internal.cls [ "klar-stat__failure" ], Attr.attribute "role" "status" ]
+    Html.span [ Internal.cls [ "klar-stat__failure" ] ]
         [ Html.span [ Internal.cls [ "klar-stat__failure-text" ] ]
             [ Icon.view Icon.errorCircle
             , Html.span [ Attr.title (Maybe.withDefault (Remote.title config.locale problem) (Remote.detail config.locale problem)) ] [ Html.text (Remote.title config.locale problem) ]

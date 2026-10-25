@@ -6,10 +6,12 @@ the day headings, and an id that can take focus.
 
 import Expect
 import Html.Attributes
+import Klar.Date as Date exposing (Date)
 import Klar.Locale as Locale
 import Klar.Remote as Remote
 import Klar.Settings as Settings
 import Klar.Timeline as Timeline
+import Klar.Timeline.Days as Days
 import Test exposing (Test, describe, test)
 import Test.Html.Event as Event
 import Test.Html.Query as Query
@@ -24,6 +26,18 @@ type Msg
 events : List (Timeline.Event Msg)
 events =
     [ Timeline.event "a" (Time.millisToPosix 1000) "Order shipped" ]
+
+
+{-| A day of October 2026.
+-}
+day : Int -> Date
+day n =
+    case Date.fromParts 2026 10 n of
+        Just date ->
+            date
+
+        Nothing ->
+            day 1
 
 
 timeline : List (Timeline.Attribute Msg) -> Query.Single Msg
@@ -96,7 +110,7 @@ suite =
             \_ ->
                 timeline [ Timeline.settings (Settings.withZone Time.utc Settings.default) ]
                     |> Query.hasNot [ Selector.class "klar-timeline--utc" ]
-        , test "the day groups are keyed by their date" <|
+        , test "there is a day group per day" <|
             \_ ->
                 Timeline.view [ Timeline.settings Settings.default ]
                     [ Timeline.event "b" (Time.millisToPosix (86400000 * 2)) "Later"
@@ -105,6 +119,29 @@ suite =
                     |> Query.fromHtml
                     |> Query.findAll [ Selector.class "klar-timeline__day" ]
                     |> Query.count (Expect.equal 2)
+        , test "the day groups are keyed by their date, so a day added on top keeps the keys below it" <|
+            \_ ->
+                let
+                    keys groups =
+                        List.map Tuple.first (Days.dayKeys groups)
+                in
+                Expect.all
+                    [ \_ -> keys [ ( day 3, () ), ( day 1, () ) ] |> Expect.equal [ "2026-10-03", "2026-10-01" ]
+                    , \_ -> keys [ ( day 4, () ), ( day 3, () ), ( day 1, () ) ] |> Expect.equal [ "2026-10-04", "2026-10-03", "2026-10-01" ]
+                    ]
+                    ()
+        , test "a day that comes back later in the list gets a key of its own" <|
+            \_ ->
+                Days.dayKeys [ ( day 3, () ), ( day 1, () ), ( day 3, () ) ]
+                    |> List.map Tuple.first
+                    |> Expect.equal [ "2026-10-03", "2026-10-01", "2026-10-03#2" ]
+        , test "a failed next page that retrying cannot fix keeps the button, unavailable, without Try again" <|
+            \_ ->
+                timeline [ Timeline.loadMore More (Remote.Failed (Remote.problem Remote.forbidden)) ]
+                    |> Expect.all
+                        [ Query.find [ Selector.tag "button" ] >> Query.has [ Selector.attribute (Html.Attributes.attribute "aria-disabled" "true"), Selector.text "Load more" ]
+                        , Query.hasNot [ Selector.text "Try again" ]
+                        ]
         , test "there is one status region in every state, so a change of its text is announced" <|
             \_ ->
                 Expect.all
