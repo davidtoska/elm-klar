@@ -93,7 +93,8 @@ Selection: single by default (a tree that filters something else adds
 `checkboxes` every node has a tri-state checkbox, and a click on a row toggles it:
 checking a parent checks every leaf below it, and a parent with some of them
 checked shows a dash. `checkedIds` returns the checked leaves. A node that is
-`disabled` can be neither selected nor checked.
+`disabled` can be neither selected nor checked, and checking an ancestor passes it
+and everything below it by.
 
 Filter: with `filterBox` the tree has a search field (or call `setQuery`). The
 tree then shows the nodes whose label, description (`withDescription`) or
