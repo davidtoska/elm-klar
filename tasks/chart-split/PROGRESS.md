@@ -22,9 +22,9 @@
   split.mjs moves named groups and redirects public forwards; validate.mjs runs
   format/check/docs/DOM; verify-original.mjs audits original implementations and
   dependencies; cleanup-imports.mjs removes unneeded imports at completion.
-- Active extraction pipeline: exec session 41660. Types, Numbers, Axis and Colors
-  are complete; it continues through Data, Config, Texts, Masks, Preparation,
-  Shared, Line, Bar, Donut, Scalar, Sparkline and RemoteView. Inspect its result
+- Active extraction pipeline: exec session 41660. All pure groups through
+  Preparation are complete; it continues through Shared, Line, Bar, Donut,
+  Scalar, Sparkline and RemoteView. Inspect its result
   before additional edits. It stops on any validation failure and records that
   stop at the top of this file. finish-chart.mjs removes Core only when empty.
 - Limit later elm-test checks to four workers via the external preload, retaining
@@ -75,3 +75,7 @@
 - Next: Preparation.
 
 - Preparation: format, full check, byte-identical docs and identical chart/sparkline roots passed.
+- Commit 1f16972: Preparation complete.
+- Next: Shared.
+
+- Shared: format, full check, byte-identical docs and identical chart/sparkline roots passed.
