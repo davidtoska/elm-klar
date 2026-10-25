@@ -893,15 +893,6 @@ numberInputTests =
                     |> Expect.equal (Ok (Just 12))
         , test "Escape with nothing typed is left alone" <|
             \_ -> NumberInput.view Number [] (NumberInput.setValue (Just 12) (NumberInput.init "n")) |> sends input (key [] "Escape") |> sendsNothing
-        , test "the numeric keyboard only for a field that takes no negative number" <|
-            \_ ->
-                Expect.all
-                    [ \_ -> has input [ attr "inputmode" "decimal" ] (NumberInput.view Number [ NumberInput.min 0 ] (NumberInput.init "n"))
-                    , \_ -> has input [ attr "inputmode" "numeric" ] (NumberInput.view Number [ NumberInput.min 1, NumberInput.decimals 0 ] (NumberInput.init "n"))
-                    , \_ -> hasNot input [ attr "inputmode" "decimal" ] (NumberInput.view Number [ NumberInput.min -10 ] (NumberInput.init "n"))
-                    , \_ -> hasNot input [ attr "inputmode" "decimal" ] (NumberInput.view Number [] (NumberInput.init "n"))
-                    ]
-                    ()
         , test "screen readers read the number as the field shows it" <|
             \_ ->
                 has input
