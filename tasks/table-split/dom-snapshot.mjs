@@ -15,7 +15,7 @@ const baseline = process.argv[3] && path.resolve(process.argv[3]);
 const chrome = process.env.CHROME_PATH || 'C:/Program Files/Google/Chrome/Application/chrome.exe';
 const catalog = fs.readFileSync(path.join(example, 'src/Page/Gallery/Catalog.elm'), 'utf8');
 const slugs = [...catalog.split('slug section =')[1].split('fromSlug :')[0].matchAll(/"([a-z-]+)"/g)].map(m => m[1]);
-const pages = [
+let pages = [
   ...['', 'orders', 'products', 'components', ...slugs.map(s => `components/${s}`)].map(route => ({
     name: route.replaceAll('/', '-') || 'overview', url: `/index.html#/${route}`,
   })),
@@ -23,10 +23,41 @@ const pages = [
     name: `example-${file.slice(0, -5)}`, url: `/examples/${file}`,
   })),
 ];
-const marker = 'klar-dom-snapshot';
-const capture = `<script>setTimeout(function capture(){var e=document.createElement('pre');e.id='${marker}';e.textContent=JSON.stringify(Array.from(document.querySelectorAll('.klar-table'),function(t){return t.outerHTML}));document.body.appendChild(e)},3500)</script>`;
+// Discovery visits every route. Comparisons revisit every route with a table.
+const baselineManifest = baseline && JSON.parse(fs.readFileSync(path.join(baseline, 'manifest.json'), 'utf8')).filter(page => page.tables > 0);
+if (baselineManifest) pages = pages.filter(page => baselineManifest.some(previous => previous.page === page.name));
+function tableRoots(dom) {
+  const roots = [];
+  let depth = 0;
+  let start = -1;
+  // Table roots are divs. Track only div nesting; quoted SVG/data attributes may
+  // contain angle brackets, so each quoted attribute is consumed as a unit.
+  for (const token of dom.matchAll(/<\/?div\b(?:[^>"']|"[^"]*"|'[^']*')*>/g)) {
+    if (token[0].startsWith('</')) {
+      if (start !== -1 && --depth === 0) {
+        roots.push(dom.slice(start, token.index + token[0].length));
+        start = -1;
+      }
+    } else if (start !== -1) depth++;
+    else {
+      const classes = /\bclass="([^"]*)"/.exec(token[0])?.[1].split(/\s+/) || [];
+      if (classes.includes('klar-table')) { start = token.index; depth = 1; }
+    }
+  }
+  if (start !== -1) throw new Error('Unclosed table root');
+  return roots;
+}
 const server = http.createServer((request, response) => {
   const pathname = new URL(request.url, 'http://localhost').pathname;
+  if (pathname === '/settle.gif') {
+    // Keep page load pending in real time so Elm's backend timers and animation
+    // frames settle before Chrome fast-forwards its virtual time budget.
+    setTimeout(() => {
+      response.setHeader('Content-Type', 'image/gif');
+      response.end(Buffer.from('R0lGODlhAQABAIAAAAAAAP///ywAAAAAAQABAAACAUwAOw==', 'base64'));
+    }, 3000);
+    return;
+  }
   const file = path.resolve(example, '.' + pathname);
   if (!file.startsWith(example + path.sep) || !fs.existsSync(file)) {
     response.writeHead(404).end();
@@ -34,9 +65,8 @@ const server = http.createServer((request, response) => {
   }
   const html = file.endsWith('.html');
   response.setHeader('Content-Type', html ? 'text/html; charset=utf-8' : file.endsWith('.js') ? 'application/javascript' : 'text/css');
-  let content = fs.readFileSync(file);
-  if (html) content = content.toString('utf8').replace('</body>', capture + '</body>');
-  response.end(content);
+  const content = fs.readFileSync(file);
+  response.end(html ? content.toString('utf8').replace('</body>', '<img hidden src="/settle.gif"></body>') : content);
 });
 await new Promise(resolve => server.listen(0, '127.0.0.1', resolve));
 const port = server.address().port;
@@ -59,13 +89,7 @@ try {
         else resolve(stdout);
       });
     });
-    const encoded = new RegExp(`<pre id="${marker}">([\\s\\S]*?)</pre>`).exec(dom)?.[1];
-    if (!encoded) {
-      fs.writeFileSync(path.join(output, page.name + '-failed.html'), dom);
-      throw new Error(`No animation-frame capture on ${page.name}`);
-    }
-    const decoded = encoded.replaceAll('&lt;', '<').replaceAll('&gt;', '>').replaceAll('&amp;', '&');
-    const tables = JSON.parse(decoded);
+    const tables = tableRoots(dom);
     const snapshot = JSON.stringify(tables, null, 2) + '\n';
     const filename = page.name + '.json';
     fs.writeFileSync(path.join(output, filename), snapshot);
@@ -77,12 +101,13 @@ try {
   }
   const manifestText = JSON.stringify(manifest, null, 2) + '\n';
   fs.writeFileSync(path.join(output, 'manifest.json'), manifestText);
-  if (baseline && fs.readFileSync(path.join(baseline, 'manifest.json'), 'utf8') !== manifestText) throw new Error('Route manifest differs');
+  if (baseline && JSON.stringify(baselineManifest) !== JSON.stringify(manifest)) throw new Error('Route manifest differs');
   const count = manifest.reduce((sum, page) => sum + page.tables, 0);
   if (count === 0) throw new Error('No tables captured');
   console.log(`Captured ${count} tables across ${pages.length} pages.`);
 } finally {
   server.close();
   // Chrome can briefly retain files in its temporary profile after exiting on Windows.
+  if (path.dirname(path.resolve(profile)) !== path.resolve(os.tmpdir()) || !path.basename(profile).startsWith('klar-table-chrome-')) throw new Error('Unexpected Chrome profile path');
   try { fs.rmSync(profile, { recursive: true, force: true, maxRetries: 4, retryDelay: 150 }); } catch {}
 }

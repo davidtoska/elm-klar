@@ -33,6 +33,14 @@ their cell descriptions but must not import table rendering.
 
 ## Steps and verification
 
+After the initial Identity extraction, establish the public boundary in one
+isolated step. A temporary Core module holds the original implementation while
+the public facade preserves its types and comments. Then extract its data types
+and one cohesive logic/view group per step. Core may temporarily exceed the size
+target; it must disappear into the smaller modules before completion. This avoids
+rewriting function bodies to alternate between public and internal type names
+throughout the monolith during every subsequent move.
+
 Capture the full check log, docs JSON, test-file inventory and count, and all showcase
 table roots outside the repository before moving code. Commit the capture harness and
 this plan. Then move one cohesive group per commit, starting with leaf logic, and run

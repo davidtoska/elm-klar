@@ -7,10 +7,20 @@
 - 11,357 tests passed, zero failures (151 Elm test/support files).
 - Full log and docs-before.json: C:/Users/DavidToska/AppData/Local/Temp/klar-table-split-baseline/.
 - Test-file inventory saved alongside the baseline.
-- Next: capture all showcase table DOM roots, then commit the harness and plan.
+- DOM baseline: 22 tables on 36 showcase/example pages, saved in dom-before/.
+- f999e2f: Harness and plan committed.
+- Identity extraction is green: format and full check passed (11,359 tests), docs
+  byte-identical, all 22 table roots identical on the eight routes with tables.
+- Next: establish the documented public boundary, then move its internal groups
+  in dependency order.
 
 ## Decisions
 
 - Preserve opaque public unions rather than replacing them with aliases, because the
   required byte-identical documentation JSON distinguishes these representations.
 - No user changes copied from the main checkout; its unrelated work stays there.
+- Chrome can fast-forward its virtual clock before Elm's final animation frame.
+  The harness holds page load open for three real seconds, then extracts table
+  roots from Chrome's final dump. Recaptured the original compiled source with
+  this harness before comparing the identity extraction. Stable baseline is now
+  dom-before-settled/; earlier exploratory captures are not the oracle.

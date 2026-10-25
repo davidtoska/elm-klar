@@ -514,6 +514,7 @@ import Klar.Settings as Settings exposing (Settings)
 import Klar.Skeleton as Skeleton
 import Klar.Spinner as Spinner
 import Klar.Table.Csv as Csv
+import Klar.Table.Identity exposing (idsOf, isJust, keysBetween, keysOf, lookup, toggled)
 import Klar.Table.Index as Index exposing (Index)
 import Klar.Table.Sort as Sorting
 import Klar.Table.Texts as Texts exposing (Texts)
@@ -1044,16 +1045,6 @@ selectedIds ids (State model) =
             []
 
 
-idsOf : Ids id -> Set String -> List id
-idsOf ids keys =
-    List.filterMap (Ids.fromKey ids) (Set.toList keys)
-
-
-keysOf : Ids id -> List id -> List String
-keysOf ids =
-    List.map (Ids.toKey ids)
-
-
 {-| How many rows are selected. Pass the number of rows that match the current
 query (the `total` you give to `server`). It is only used after "Select all N
 matching", where the count is that number minus the exceptions, so in client
@@ -1183,15 +1174,6 @@ arrow button does. To toggle a selection use `select` and `deselect`.
 toggle : Ids id -> id -> State id -> State id
 toggle ids id (State model) =
     State { model | expanded = toggled (Ids.toKey ids id) model.expanded }
-
-
-toggled : String -> Set String -> Set String
-toggled key set =
-    if Set.member key set then
-        Set.remove key set
-
-    else
-        Set.insert key set
 
 
 {-| Makes these rows, and no others, the expanded ones: to restore the rows that
@@ -1746,36 +1728,6 @@ isPicked picked key =
 
         AllPicked except ->
             not (Set.member key except)
-
-
-{-| Never compare a `Maybe` of a function with `==`; use this.
--}
-isJust : Maybe a -> Bool
-isJust maybe =
-    case maybe of
-        Just _ ->
-            True
-
-        Nothing ->
-            False
-
-
-lookup : String -> List ( String, a ) -> Maybe a
-lookup key pairs =
-    case pairs of
-        [] ->
-            Nothing
-
-        ( k, v ) :: rest ->
-            if k == key then
-                Just v
-
-            else
-                lookup key rest
-
-
-
--- FILTER LOGIC
 
 
 toFilter : Draft -> Maybe Filter
@@ -7227,27 +7179,6 @@ rangeKeys ctx =
 
     else
         ctx.pageKeys
-
-
-{-| The keys from one key to the other, both included, in the order of the list;
-`Nothing` when one of them is not in it (the anchor is on another page).
--}
-keysBetween : String -> String -> List String -> Maybe (List String)
-keysBetween from to keys =
-    let
-        place key =
-            keys
-                |> List.indexedMap Tuple.pair
-                |> List.filter (\( _, k ) -> k == key)
-                |> List.head
-                |> Maybe.map Tuple.first
-    in
-    case ( place from, place to ) of
-        ( Just a, Just b ) ->
-            Just (keys |> List.drop (min a b) |> List.take (abs (a - b) + 1))
-
-        _ ->
-            Nothing
 
 
 {-| The message of a Shift range that ends on this row, which gets the state the
