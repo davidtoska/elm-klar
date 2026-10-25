@@ -551,14 +551,14 @@ render isIconOnly config label =
                             Destination.inactiveAttributes { focusable = not config.disabled }
 
                         else
-                            [ Attr.href (Destination.href target)
-
-                            -- an attribute, not the property: a property that is taken
-                            -- away again leaves download="" behind, and the link would save
-                            -- the page instead of opening it
+                            -- Attributes, not the properties `Attr.href`, `Attr.target`
+                            -- and `Attr.download`: a property that goes away when the
+                            -- link becomes inactive is set to "" (href="" is a link to
+                            -- this page, download="" saves it), an attribute is removed.
+                            [ Destination.hrefAttribute target
                             , Internal.attrMaybe (Attr.attribute "download") (Destination.fileName target)
-                            , Internal.attrIf opensTab (Attr.target "_blank")
-                            , Internal.attrIf opensTab (Attr.rel "noopener noreferrer")
+                            , Internal.attrIf opensTab (Attr.attribute "target" "_blank")
+                            , Internal.attrIf opensTab (Attr.attribute "rel" "noopener noreferrer")
                             ]
                        )
                 )

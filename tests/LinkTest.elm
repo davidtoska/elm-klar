@@ -520,6 +520,11 @@ attributeTests =
                             [ Query.has [ href "data:application/octet-stream;charset=utf-8,x" ]
                             , Query.has [ attribute "download" "download" ]
                             ]
+            , test "text/html is saved as a plain file, because Elm blanks a data:text/html address" <|
+                \_ ->
+                    link [] (Link.download { fileName = "report.html", mimeType = " Text/HTML ", content = "<b>x</b>" })
+                        |> Query.fromHtml
+                        |> Query.has [ href "data:application/octet-stream;charset=utf-8,%3Cb%3Ex%3C%2Fb%3E", attribute "download" "report.html" ]
             , test "is left to the browser: onClick does not take it over" <|
                 \_ ->
                     link [ Link.onClick Opened ] (Link.download { fileName = "a.txt", mimeType = "text/plain", content = "a" })

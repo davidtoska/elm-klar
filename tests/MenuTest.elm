@@ -260,7 +260,38 @@ ariaTests =
 typeAheadTests : Test
 typeAheadTests =
     describe "typing a letter"
-        [ test "moves to the next item that starts with it" <|
+        [ test "a space right after a letter is part of the text: it does not pick the item" <|
+            \_ ->
+                after onMenu (key "d") [] (Tuple.first (Menu.open closed))
+                    |> Result.andThen (\( state, _ ) -> after onMenu (key " ") [] state)
+                    |> expectOpenAnd (highlights 3)
+        , test "a space with nothing typed picks the highlighted item" <|
+            \_ ->
+                draw [] (Tuple.first (Menu.open closed))
+                    |> Query.fromHtml
+                    |> Query.find onMenu
+                    |> Event.simulate (key " ")
+                    |> Event.expect (Picked "open")
+        , test "the layer does not close the menu on a space typed after a letter" <|
+            \_ ->
+                after onMenu (key "d") [] (Tuple.first (Menu.open closed))
+                    |> Result.andThen (\( state, _ ) -> after [ Selector.class "klar-layer" ] (key " ") [] state)
+                    |> Expect.err
+        , test "Escape is handled by the menu: its default is prevented, so a drawer or a shortcut can ignore it" <|
+            \_ ->
+                draw [] (Tuple.first (Menu.open closed))
+                    |> Query.fromHtml
+                    |> Query.find [ Selector.class "klar-layer" ]
+                    |> Event.simulate (key "Escape")
+                    |> Event.expectPreventDefault
+        , test "Tab closes the menu but lets focus move on: its default is not prevented" <|
+            \_ ->
+                draw [] (Tuple.first (Menu.open closed))
+                    |> Query.fromHtml
+                    |> Query.find [ Selector.class "klar-layer" ]
+                    |> Event.simulate (key "Tab")
+                    |> Event.expectNotPreventDefault
+        , test "moves to the next item that starts with it" <|
             \_ ->
                 after onMenu (key "d") [] (Tuple.first (Menu.open closed))
                     |> expectOpenAnd (highlights 3)
