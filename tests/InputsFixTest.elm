@@ -1149,6 +1149,13 @@ strengthLengthAndPatternTests =
             , letters "correcthorsebatterystaple" 4
             , letters "kxqzwmvtpqrlnbgkxqzwmvt" 3
             ]
+        , describe "a long password of few different characters is not strong"
+            [ letters "aaaaaaaaaaaaaaaaaaaaaaab" 1
+            , letters "abcabcabcabcabcabcabcabc" 1
+            , letters "111111111111111111111112" 1
+            , letters "aaaaaaaaaaaaaaab" 1
+            , letters "Aa1!Aa1!Aa1!Aa1!" 2
+            ]
         ]
 
 

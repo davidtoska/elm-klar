@@ -17,6 +17,7 @@ import Html exposing (Html)
 import Html.Attributes as Attr
 import Json.Encode as Encode exposing (Value)
 import Klar.Locale as Locale
+import Klar.Money as Money
 import Klar.NumberInput as NumberInput
 import Klar.PasswordInput as PasswordInput
 import Klar.Remote as Remote
@@ -109,6 +110,16 @@ paste text =
 composingInput : String -> ( String, Value )
 composingInput text =
     inputEvent [ ( "isComposing", Encode.bool True ) ] text
+
+
+compositionEnd : String -> ( String, Value )
+compositionEnd text =
+    Event.custom "compositionend"
+        (Encode.object
+            [ ( "target", Encode.object [ ( "value", Encode.string text ) ] )
+            , ( "data", Encode.string text )
+            ]
+        )
 
 
 blurWith : String -> String -> ( String, Value )
@@ -264,6 +275,80 @@ tagInputTests =
             \_ ->
                 afterTags [ tagEvent [ atLeastThree ] input (paste "red, xy, blue, z") ] tagField
                     |> expectTags [ "red", "blue" ] "xy, z"
+        , test "typing in the refused text of a paste does not split it again" <|
+            \_ ->
+                afterTags
+                    [ tagEvent [ atLeastThree ] input (paste "red, xy, blue, z")
+                    , tagEvent [ atLeastThree ] input (inputEvent [ ( "inputType", Encode.string "insertText" ) ] "xyl, z")
+                    ]
+                    tagField
+                    |> expectTags [ "red", "blue" ] "xyl, z"
+        , test "a new comma after the correction adds the corrected tag, and the rest stays" <|
+            \_ ->
+                afterTags
+                    [ tagEvent [ atLeastThree ] input (paste "red, xy, blue, z")
+                    , tagEvent [ atLeastThree ] input (inputEvent [] "xylophone, z")
+                    , tagEvent [ atLeastThree ] input (inputEvent [] "xylophone, z,")
+                    ]
+                    tagField
+                    |> expectTags [ "red", "blue", "xylophone" ] "z"
+        , test "typing in a refused duplicate does not add it at the first new letter" <|
+            \_ ->
+                afterTags
+                    [ tagEvent [] input (paste "red, blue")
+                    , tagEvent [] input (paste "red, blue")
+                    , tagEvent [] input (inputEvent [] "redx, blue")
+                    ]
+                    tagField
+                    |> expectTags [ "red", "blue" ] "redx, blue"
+        , test "a comma that an input method commits splits at the end of the composition" <|
+            \_ ->
+                afterTags
+                    [ tagEvent [] input (composingInput "红，")
+                    , tagEvent [] input (compositionEnd "红，")
+                    ]
+                    tagField
+                    |> expectTags [ "红" ] ""
+        , test "the input event some browsers send after the end of a composition is not handled twice" <|
+            \_ ->
+                afterTags
+                    [ tagEvent [] input (composingInput "红，")
+                    , tagEvent [] input (compositionEnd "红，")
+                    , tagEvent [] input (inputEvent [] "红，")
+                    ]
+                    tagField
+                    |> expectTags [ "红" ] ""
+        , test "removing the focused last chip keeps the text being typed (the blur of the removed button is not leaving)" <|
+            \_ ->
+                case afterTags [ tagEvent [] input (inputEvent [] "re") ] (withTags [ "a", "b" ]) of
+                    Ok typed ->
+                        let
+                            fromChip event =
+                                TagInput.view Tags [] typed |> sends [ Selector.id "tags-tag-1" ] event
+                        in
+                        case ( fromChip (key [] "Delete"), fromChip (blurWith "" "") ) of
+                            ( Ok (Tags delete), Ok (Tags blur) ) ->
+                                typed
+                                    |> TagInput.update delete
+                                    |> Tuple.first
+                                    |> TagInput.update blur
+                                    |> Tuple.first
+                                    |> Ok
+                                    |> expectTags [ "a" ] "re"
+
+                            _ ->
+                                Expect.fail "the chip sent no message"
+
+                    Err problem ->
+                        Expect.fail problem
+        , test "the limit is told in the singular for one" <|
+            \_ ->
+                case afterTags [ tagEvent [ TagInput.maxTags 1 ] input (inputEvent [] "b,") ] (withTags [ "a" ]) of
+                    Ok state ->
+                        has [ Selector.class "klar-field__error" ] [ Selector.text "You can only add 1 value" ] (TagInput.view Tags [ TagInput.maxTags 1 ] state)
+
+                    Err problem ->
+                        Expect.fail problem
         , test "a duplicate is refused, whatever its case, and its text stays" <|
             \_ -> afterTags [ tagEvent [] input (inputEvent [] "red,") ] (withTags [ "Red" ]) |> expectTags [ "Red" ] "red"
         , test "over the limit a tag is refused and kept as text, and the input stays editable" <|
@@ -393,6 +478,25 @@ counterTests =
                         [ has [ Selector.class "klar-counter" ] [ Selector.class "klar-counter--near" ]
                         , has [ Selector.class "klar-counter", Selector.containing [ attr "role" "status" ] ] [ Selector.text "Almost at the limit of 500 characters" ]
                         ]
+        , test "a short field is not near its limit before the user types, only at the last character or two" <|
+            \_ ->
+                let
+                    near limit n =
+                        TextInput.view [ TextInput.id "x", TextInput.value (textOf n), TextInput.maxLength limit ]
+                            |> Query.fromHtml
+                            |> Query.findAll [ Selector.class "klar-counter--near" ]
+                            |> Query.count
+                in
+                Expect.all
+                    [ \_ -> near 4 0 (Expect.equal 0)
+                    , \_ -> near 4 3 (Expect.equal 0)
+                    , \_ -> near 10 0 (Expect.equal 0)
+                    , \_ -> near 10 7 (Expect.equal 0)
+                    , \_ -> near 10 8 (Expect.equal 1)
+                    , \_ -> near 60 49 (Expect.equal 0)
+                    , \_ -> near 60 50 (Expect.equal 1)
+                    ]
+                    ()
         , test "the spoken text does not change on every keystroke near the limit" <|
             \_ ->
                 let
@@ -535,17 +639,17 @@ searchInputTests =
     describe "SearchInput"
         [ test "Escape in a field with text clears it" <|
             \_ ->
-                searchStep [] (key [] "Escape") (SearchInput.setText "fjord" searchField)
-                    |> Result.map SearchInput.text
+                searchStep [] (key [] "Escape") (SearchInput.setValue "fjord" searchField)
+                    |> Result.map SearchInput.value
                     |> Expect.equal (Ok "")
         , test "Escape in an empty field is left alone, so that a dialog can close" <|
             \_ -> SearchInput.view Search [] searchField |> sends input (key [] "Escape") |> sendsNothing
         , test "the Enter that confirms a composed word commits nothing" <|
-            \_ -> SearchInput.view Search [] (SearchInput.setText "a" searchField) |> sends input (composingKey "Enter") |> sendsNothing
+            \_ -> SearchInput.view Search [] (SearchInput.setValue "a" searchField) |> sends input (composingKey "Enter") |> sendsNothing
         , test "text that is being composed is not committed, even without a delay" <|
             \_ ->
                 searchStep [ SearchInput.debounce 0 ] (composingInput "nihao") searchField
-                    |> Result.map (\state -> ( SearchInput.text state, SearchInput.committed state ))
+                    |> Result.map (\state -> ( SearchInput.value state, SearchInput.committed state ))
                     |> Expect.equal (Ok ( "nihao", "" ))
         , test "without a delay every keystroke commits" <|
             \_ ->
@@ -554,7 +658,7 @@ searchInputTests =
                     |> Expect.equal (Ok "fjord")
         , test "a space at the end starts no new search" <|
             \_ ->
-                searchStep [ SearchInput.debounce 0 ] (inputEvent [] "fjord ") (SearchInput.setText "fjord" searchField)
+                searchStep [ SearchInput.debounce 0 ] (inputEvent [] "fjord ") (SearchInput.setValue "fjord" searchField)
                     |> Result.map (\state -> ( SearchInput.committed state, SearchInput.isPending state ))
                     |> Expect.equal (Ok ( "fjord", False ))
         , test "Enter commits at once" <|
@@ -648,6 +752,29 @@ passwordInputTests =
                             |> Result.withDefault (Expect.fail "no message")
                     ]
                     ()
+        , test "the Caps Lock key clears the warning, and never turns it on" <|
+            \_ ->
+                Expect.all
+                    [ \_ -> PasswordInput.view Password [] passwordField |> sends input (key [] "CapsLock") |> sendsNothing
+                    , \_ ->
+                        passwordStep input (key [] "A") passwordField
+                            |> Result.andThen (passwordStep input (key [] "CapsLock"))
+                            |> Result.map (\state -> none [ Selector.class "klar-password__caps" ] (PasswordInput.view Password [] state))
+                            |> Result.withDefault (Expect.fail "no message")
+                    ]
+                    ()
+        , test "the Caps Lock warning and the show/hide notice have a live region each, so the notice is not read again when the warning goes" <|
+            \_ ->
+                case passwordStep toggleButton Event.click passwordField |> Result.andThen (passwordStep input (key [] "A")) of
+                    Ok state ->
+                        PasswordInput.view Password [] state
+                            |> Expect.all
+                                [ count 1 [ attr "role" "status", Selector.containing [ Selector.text "Caps Lock is on" ] ]
+                                , count 1 [ attr "role" "status", Selector.containing [ Selector.text "Password shown" ] ]
+                                ]
+
+                    Err problem ->
+                        Expect.fail problem
         , test "a capital with Shift is no sign of Caps Lock" <|
             \_ -> PasswordInput.view Password [] passwordField |> sends input (key [ ( "shiftKey", Encode.bool True ) ] "A") |> sendsNothing
         , test "the strength is a status that is there before the first letter" <|
@@ -697,7 +824,39 @@ typedAndLeft attributes text =
 numberInputTests : Test
 numberInputTests =
     describe "NumberInput"
-        [ test "1.005 with two decimals is 1.01, as Klar.Format rounds it" <|
+        [ test "phones get the numeric keyboard, also without min, and the full one when min is below zero" <|
+            \_ ->
+                Expect.all
+                    [ \_ -> has input [ attr "inputmode" "decimal" ] (NumberInput.view Number [] (NumberInput.init "n"))
+                    , \_ -> has input [ attr "inputmode" "numeric" ] (NumberInput.view Number [ NumberInput.decimals 0 ] (NumberInput.init "n"))
+                    , \_ -> has input [ attr "inputmode" "decimal" ] (NumberInput.view Number [ NumberInput.min 0 ] (NumberInput.init "n"))
+                    , \_ -> hasNot input [ attr "inputmode" "decimal" ] (NumberInput.view Number [ NumberInput.min -10 ] (NumberInput.init "n"))
+                    ]
+                    ()
+        , test "NumberInput and Money read the same Norwegian and English text the same way" <|
+            \_ ->
+                let
+                    asNumber lang text =
+                        NumberInput.parseIn lang text
+
+                    asMoney lang text =
+                        Money.parse lang Money.nok text |> Result.toMaybe |> Maybe.map (\money -> toFloat (Money.toMinor money) / 100)
+                in
+                Expect.all
+                    (List.map
+                        (\( lang, text ) -> \_ -> Expect.equal (asNumber lang text) (asMoney lang text))
+                        [ ( Locale.nb, "10.000" )
+                        , ( Locale.nb, "1.5" )
+                        , ( Locale.nb, "0.500" )
+                        , ( Locale.nb, "1.234,5" )
+                        , ( Locale.nb, "1 234,5" )
+                        , ( Locale.en, "10,000" )
+                        , ( Locale.en, "1.5" )
+                        , ( Locale.en, "1,234.5" )
+                        ]
+                    )
+                    ()
+        , test "1.005 with two decimals is 1.01, as Klar.Format rounds it" <|
             \_ -> typedAndLeft [ NumberInput.decimals 2 ] "1.005" |> Result.map NumberInput.value |> Expect.equal (Ok (Just 1.01))
         , test "a half is rounded away from zero, also below zero" <|
             \_ ->

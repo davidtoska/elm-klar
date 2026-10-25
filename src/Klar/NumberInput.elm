@@ -120,13 +120,14 @@ away from zero, on the decimal digits, as `Klar.Format` rounds: `1.005` is
 throws away the text being typed and brings back the number from before; its
 default is then prevented, so a dialog around the field stays open. The + and -
 buttons are not in the Tab order; held down with the mouse, they step again and
-again (after 400 ms, every 60 ms) until they are let go or a limit is reached.
+again (after 400 ms, every 60 ms) until they are let go, the field is left, a
+limit is reached or 15 seconds have passed.
 
-**Phones.** A field whose `min` is 0 or more asks for the numeric keyboard
-(`inputmode` decimal, or numeric with `decimals 0`). A field that takes
-negative numbers, or has no `min`, gets the full keyboard, because the numeric
-keyboard of an iPhone has no minus key; give a field for amounts that cannot be
-negative `min 0`.
+**Phones.** The field asks for the numeric keyboard (`inputmode` decimal, or
+numeric with `decimals 0`), also when it has no `min`. A field whose `min` is
+below zero gets the full keyboard instead, because the numeric keyboard of an
+iPhone has no minus key (Android's has one); a field without `min` keeps the
+numeric keyboard, so an iPhone user cannot type a minus sign there.
 
 **Accessibility.** The input has the role `spinbutton` with `aria-valuemin`,
 `aria-valuemax` and `aria-valuenow`, and an `aria-valuetext` that is the text
@@ -395,7 +396,17 @@ type alias Hold =
     { press : Int
     , rules : Rules
     , multiplier : Float
+    , repeats : Int
     }
+
+
+{-| The most steps one hold makes (15 seconds), in case the release of the mouse
+button never comes (the window lost the focus, a context menu opened, or the
+buttons went away while held).
+-}
+maxRepeats : Int
+maxRepeats =
+    250
 
 
 {-| The messages a number field sends: typing, focus, leaving the field and the
@@ -443,8 +454,8 @@ update msg (State state) =
             ( State { state | focused = True, range = rangeOf rules }, Cmd.none )
 
         Committed rules ->
-            -- the field was left
-            ( State (commit rules { state | focused = False }), Cmd.none )
+            -- the field was left; a held stepper stops too
+            ( State (commit rules { state | focused = False, holding = Nothing }), Cmd.none )
 
         Entered rules ->
             -- Enter: format the number, but the cursor stays
@@ -461,7 +472,7 @@ update msg (State state) =
                 stepped =
                     stepBy rules multiplier state
             in
-            ( State { stepped | presses = press, holding = Just { press = press, rules = rules, multiplier = multiplier } }
+            ( State { stepped | presses = press, holding = Just { press = press, rules = rules, multiplier = multiplier, repeats = 0 } }
             , Cmd.batch
                 [ Process.sleep 400 |> Task.perform (\_ -> Held press)
                 , Internal.focus state.id Noop
@@ -471,7 +482,10 @@ update msg (State state) =
         Held press ->
             case state.holding of
                 Just hold ->
-                    if hold.press == press then
+                    if hold.press == press && hold.repeats >= maxRepeats then
+                        ( State { state | holding = Nothing }, Cmd.none )
+
+                    else if hold.press == press then
                         let
                             stepped =
                                 stepBy hold.rules hold.multiplier state
@@ -481,7 +495,9 @@ update msg (State state) =
                             ( State { stepped | holding = Nothing }, Cmd.none )
 
                         else
-                            ( State stepped, Process.sleep 60 |> Task.perform (\_ -> Held press) )
+                            ( State { stepped | holding = Just { hold | repeats = hold.repeats + 1 } }
+                            , Process.sleep 60 |> Task.perform (\_ -> Held press)
+                            )
 
                     else
                         ( State state, Cmd.none )
@@ -1069,25 +1085,29 @@ view toMsg attributes ((State state) as current) =
                         )
                     )
 
-        -- The phone keyboards for numbers have no minus key on an iPhone, so a
-        -- field that takes negative numbers gets the full keyboard.
+        -- The numeric keyboard of an iPhone has no minus key, so a field
+        -- whose `min` is below zero gets the full keyboard; every other field
+        -- (also one without `min`) gets the numeric one.
         keyboard =
             case config.min of
                 Just low ->
-                    if low >= 0 then
-                        Attr.attribute "inputmode"
-                            (if config.decimals == Just 0 then
-                                "numeric"
-
-                             else
-                                "decimal"
-                            )
-
-                    else
+                    if low < 0 then
                         Internal.noAttr
 
+                    else
+                        numericKeyboard
+
                 Nothing ->
-                    Internal.noAttr
+                    numericKeyboard
+
+        numericKeyboard =
+            Attr.attribute "inputmode"
+                (if config.decimals == Just 0 then
+                    "numeric"
+
+                 else
+                    "decimal"
+                )
     in
     -- stable: the field makes messages of its own while the user types
     Field.viewStable field
@@ -1255,6 +1275,7 @@ stepper toMsg label_ icon blocked press once =
             )
         , Events.on "mouseup" (Decode.succeed (toMsg Released))
         , Events.on "mouseleave" (Decode.succeed (toMsg Released))
+        , Events.on "pointercancel" (Decode.succeed (toMsg Released))
         , Events.on "click"
             (Decode.oneOf [ Decode.field "detail" Decode.int, Decode.succeed 0 ]
                 |> Decode.andThen

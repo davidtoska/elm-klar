@@ -67,7 +67,8 @@ The `String` given to `init` is the DOM id of the text input, so there is no
   - **Duplicates** (ignoring case), tags that fail `validate` and tags over
     `maxTags` are refused with a message under the field, and their text stays in
     the field (all of it, also after a paste) so that it can be corrected and
-    added with Enter.
+    added with Enter. Typing in that text does not split it again at the commas
+    it holds: Enter, leaving the field or a new comma does.
   - Leaving the field adds the text that is still being typed
     (`keepDraftOnBlur` keeps it as text instead).
   - A click anywhere in the field puts the cursor in the text input.
@@ -155,9 +156,12 @@ type alias Fields =
     { id : String
     , tags : List String
     , draft : String
+    , settled : String
+    , ended : Maybe String
     , message : Maybe String
     , announcement : Announcement
     , touched : Bool
+    , refocusing : Bool
     }
 
 
@@ -175,7 +179,17 @@ chips' remove buttons get ids made from it).
 -}
 init : String -> State
 init id =
-    State { id = id, tags = [], draft = "", message = Nothing, announcement = Silent, touched = False }
+    State
+        { id = id
+        , tags = []
+        , draft = ""
+        , settled = ""
+        , ended = Nothing
+        , message = Nothing
+        , announcement = Silent
+        , touched = False
+        , refocusing = False
+        }
 
 
 {-| The tags in the field, in the order they were added. Compare it before and
@@ -192,7 +206,7 @@ duplicates, `maxTags` and `validate` are not checked.
 -}
 setValues : List String -> State -> State
 setValues tags (State state) =
-    State { state | tags = tags, draft = "", message = Nothing }
+    State { state | tags = tags, draft = "", settled = "", ended = Nothing, message = Nothing }
 
 
 {-| The text being typed, not yet a tag. After a refusal it holds the refused
@@ -208,7 +222,7 @@ been in the field (`isTouched` is `False` again).
 -}
 clear : State -> State
 clear (State state) =
-    State { state | tags = [], draft = "", message = Nothing, announcement = Silent, touched = False }
+    State { state | tags = [], draft = "", settled = "", ended = Nothing, message = Nothing, announcement = Silent, touched = False }
 
 
 {-| `True` once the user has left the field. Use it to show errors only after
@@ -230,6 +244,7 @@ isTouched (State state) =
 type alias Rules =
     { maxTags : Maybe Int
     , keepDraft : Bool
+    , delimiters : List Char
     , joiner : String
     , lang : Locale
     }
@@ -240,6 +255,19 @@ type alias Rules =
 type alias Piece =
     { text : String
     , problem : Maybe String
+    }
+
+
+{-| What an input event (or the end of a composition) found in the text input:
+the whole text, and the pieces it becomes if it is split. For typing, the text
+after the last delimiter is the `rest`, still being typed; a paste or a drop is
+all pieces. `ending` is the end of a composition.
+-}
+type alias Change =
+    { raw : String
+    , pieces : List Piece
+    , rest : String
+    , ending : Bool
     }
 
 
@@ -254,8 +282,7 @@ the function you give it; hand them to `update` when they come back. They hold
 data only, so they can be compared and stored.
 -}
 type Msg
-    = Typed Rules (List Piece) String
-    | Pasted Rules (List Piece)
+    = Changed Rules Change
     | Composed String
     | Entered Rules (List Piece)
     | Left Rules (List Piece)
@@ -264,6 +291,7 @@ type Msg
     | RemoveLast
     | FocusChip Int
     | FocusInput
+    | Refocused
     | Noop
 
 
@@ -275,24 +303,59 @@ with `Cmd.map`.
 update : Msg -> State -> ( State, Cmd Msg )
 update msg ((State state) as current) =
     case msg of
-        Typed rules pieces rest ->
-            ( State (absorb rules pieces rest state), Cmd.none )
+        Changed rules change ->
+            if state.ended == Just change.raw then
+                -- The input event that some browsers send after the end of a
+                -- composition, with the text that was handled at its end.
+                ( State { state | ended = Nothing }, Cmd.none )
 
-        Pasted rules pieces ->
-            ( State (absorb rules pieces "" state), Cmd.none )
+            else
+                let
+                    next =
+                        if delimiterCount rules.delimiters change.raw > delimiterCount rules.delimiters state.settled then
+                            -- a delimiter was typed or pasted: split
+                            absorb rules change.pieces change.rest state
+
+                        else
+                            -- Ordinary typing. The delimiters that were already
+                            -- there (the refused text of a paste, kept to be
+                            -- corrected) do not split the text again: Enter,
+                            -- leaving the field or a new delimiter does.
+                            { state | draft = change.raw, settled = change.raw, message = Nothing }
+                in
+                ( State
+                    { next
+                        | ended =
+                            if change.ending then
+                                Just change.raw
+
+                            else
+                                Nothing
+                        , refocusing = False
+                    }
+                , Cmd.none
+                )
 
         Composed raw ->
-            ( State { state | draft = raw, message = Nothing }, Cmd.none )
+            -- `settled` stays: the end of the composition is compared with the
+            -- text from before it
+            ( State { state | draft = raw, ended = Nothing, message = Nothing, refocusing = False }, Cmd.none )
 
         Entered rules pieces ->
-            ( State (absorb rules pieces "" state), Cmd.none )
+            ( State (absorb rules pieces "" { state | ended = Nothing, refocusing = False }), Cmd.none )
 
         Left rules pieces ->
             let
                 touched =
-                    { state | touched = True }
+                    { state | touched = True, ended = Nothing }
             in
-            if rules.keepDraft || List.isEmpty pieces then
+            if state.refocusing then
+                -- The blur of a chip's button that was removed while it had the
+                -- focus (Chrome sends one): the focus is being moved on purpose
+                -- and stays in the field.
+                ( State { state | refocusing = False }, Cmd.none )
+
+            else if rules.keepDraft || List.isEmpty pieces then
                 ( State touched, Cmd.none )
 
             else
@@ -301,7 +364,7 @@ update msg ((State state) as current) =
         RemoveAt index ->
             case removeAt index state of
                 Just after ->
-                    ( State after, Internal.focus state.id Noop )
+                    ( State { after | refocusing = True }, Internal.focus state.id Refocused )
 
                 Nothing ->
                     ( current, Cmd.none )
@@ -332,13 +395,13 @@ update msg ((State state) as current) =
                                     else
                                         Nothing
                     in
-                    ( State after
+                    ( State { after | refocusing = True }
                     , case target of
                         Just next ->
-                            Internal.focus (chipId state.id next) Noop
+                            Internal.focus (chipId state.id next) Refocused
 
                         Nothing ->
-                            Internal.focus state.id Noop
+                            Internal.focus state.id Refocused
                     )
 
                 Nothing ->
@@ -357,6 +420,9 @@ update msg ((State state) as current) =
 
         FocusInput ->
             ( current, Internal.focus state.id Noop )
+
+        Refocused ->
+            ( State { state | refocusing = False }, Cmd.none )
 
         Noop ->
             ( current, Cmd.none )
@@ -394,8 +460,8 @@ absorb rules pieces rest state =
         ( after, addedTags, refusedTexts ) =
             List.foldl step ( { state | message = Nothing }, [], [] ) pieces
     in
-    { after
-        | draft =
+    let
+        text =
             String.join rules.joiner
                 (refusedTexts
                     ++ (if rest == "" then
@@ -405,6 +471,10 @@ absorb rules pieces rest state =
                             [ rest ]
                        )
                 )
+    in
+    { after
+        | draft = text
+        , settled = text
         , announcement =
             if List.isEmpty addedTags then
                 after.announcement
@@ -428,10 +498,30 @@ refusal rules state piece =
             )
 
     else if reachedLimit rules.maxTags state.tags then
+        let
+            limit =
+                Maybe.withDefault 0 rules.maxTags
+        in
         Just
             (Locale.pick rules.lang
-                { nb = "Du kan bare legge til " ++ String.fromInt (Maybe.withDefault 0 rules.maxTags) ++ " verdier"
-                , en = "You can only add " ++ String.fromInt (Maybe.withDefault 0 rules.maxTags) ++ " values"
+                { nb =
+                    "Du kan bare legge til "
+                        ++ String.fromInt limit
+                        ++ (if limit == 1 then
+                                " verdi"
+
+                            else
+                                " verdier"
+                           )
+                , en =
+                    "You can only add "
+                        ++ String.fromInt limit
+                        ++ (if limit == 1 then
+                                " value"
+
+                            else
+                                " values"
+                           )
                 }
             )
 
@@ -447,6 +537,22 @@ reachedLimit maxCount existing =
 
         Nothing ->
             False
+
+
+{-| How many delimiters a text holds.
+-}
+delimiterCount : List Char -> String -> Int
+delimiterCount separators text =
+    String.foldl
+        (\c n ->
+            if isDelimiter separators c then
+                n + 1
+
+            else
+                n
+        )
+        0
+        text
 
 
 chipId : String -> Int -> String
@@ -678,6 +784,7 @@ view toMsg attributes (State state) =
         rules =
             { maxTags = config.maxTags
             , keepDraft = config.keepDraft
+            , delimiters = config.delimiters
             , joiner =
                 case config.delimiters of
                     first :: _ ->
@@ -799,6 +906,7 @@ view toMsg attributes (State state) =
 
                                 else
                                     [ Events.on "input" (inputDecoder toMsg config rules)
+                                    , Events.on "compositionend" (changeDecoder toMsg config rules True)
                                     , Events.on "blur" (leaving state.id (targetPieces config) |> Decode.map (\found -> toMsg (Left rules found)))
                                     , Events.preventDefaultOn "keydown" (keyDecoder toMsg config rules count)
                                     ]
@@ -1013,17 +1121,31 @@ spoken lang announcement =
 
 inputDecoder : (Msg -> msg) -> Config -> Rules -> Decoder msg
 inputDecoder toMsg config rules =
-    Decode.map3
-        (\isComposing inputType raw ->
-            if isComposing then
-                -- the text of an input method is not final: never split it
-                toMsg (Composed raw)
+    TextField.composing
+        |> Decode.andThen
+            (\isComposing ->
+                if isComposing then
+                    -- The text of an input method is not final: never split it.
+                    -- Chrome sends no input event after the composition, so its
+                    -- end (`compositionend`) is where a composed comma splits.
+                    Decode.at [ "target", "value" ] Decode.string
+                        |> Decode.map (\raw -> toMsg (Composed raw))
 
-            else if not (String.any (isDelimiter config.delimiters) raw) then
-                toMsg (Typed rules [] raw)
+                else
+                    changeDecoder toMsg config rules False
+            )
 
-            else if String.startsWith "insertFromPaste" inputType || inputType == "insertFromDrop" then
-                toMsg (Pasted rules (cutPieces config raw))
+
+{-| The text of the input, and the pieces it is cut into when it is split: all of
+them for a paste or a drop, the ones before the last delimiter for typing.
+`ending` is the end of a composition.
+-}
+changeDecoder : (Msg -> msg) -> Config -> Rules -> Bool -> Decoder msg
+changeDecoder toMsg config rules ending =
+    Decode.map2
+        (\inputType raw ->
+            if String.startsWith "insertFromPaste" inputType || inputType == "insertFromDrop" then
+                toMsg (Changed rules { raw = raw, pieces = cutPieces config raw, rest = "", ending = ending })
 
             else
                 let
@@ -1036,9 +1158,15 @@ inputDecoder toMsg config rules =
                     rest =
                         List.drop (List.length parts - 1) parts |> List.head |> Maybe.withDefault ""
                 in
-                toMsg (Typed rules (List.filterMap (toPiece config) complete) (String.trimLeft rest))
+                toMsg
+                    (Changed rules
+                        { raw = raw
+                        , pieces = List.filterMap (toPiece config) complete
+                        , rest = String.trimLeft rest
+                        , ending = ending
+                        }
+                    )
         )
-        TextField.composing
         (Decode.oneOf [ Decode.field "inputType" Decode.string, Decode.succeed "" ])
         (Decode.at [ "target", "value" ] Decode.string)
 
