@@ -452,15 +452,28 @@ derivedIds =
             \_ ->
                 let
                     twins =
-                        Spec.define "t" (\a b c -> [ a, b, c ]) (\_ _ _ -> ())
+                        Spec.define "t" (\one two three four -> [ one, two, three, four ]) (\_ _ _ _ -> ())
                             |> Spec.with (Spec.text "Name")
                             |> Spec.with (Spec.text "Name")
                             |> Spec.with (Spec.text "Name 2")
+                            |> Spec.with (Spec.text "Name")
                             |> Spec.build
                 in
                 Form.fields twins
                     |> List.map (\h -> (Form.problem h "").field)
-                    |> Expect.equal [ "t-name", "t-name-2", "t-name__2" ]
+                    |> Expect.equal [ "t-name", "t-name-2", "t-name-2-2", "t-name-3" ]
+        , test "a label of several words gives the words joined with -, other characters are encoded" <|
+            \_ ->
+                let
+                    labels =
+                        Spec.define "supplier" (\a b -> [ a, b ]) (\_ _ -> ())
+                            |> Spec.with (Spec.text "Legal  name")
+                            |> Spec.with (Spec.text "Org. nr")
+                            |> Spec.build
+                in
+                Form.fields labels
+                    |> List.map (\h -> (Form.problem h "").field)
+                    |> Expect.equal [ "supplier-legal-name", "supplier-org_2e_-nr" ]
         , test "the rendered control carries the derived id and a label" <|
             \_ ->
                 Form.textInput (bound filled) f.name []

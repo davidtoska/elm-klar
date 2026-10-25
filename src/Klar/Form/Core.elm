@@ -502,12 +502,18 @@ uniqueLocal label used =
         base
 
 
+{-| The label as the last part of a DOM id: lowercase words joined with `-`
+(`Legal name` gives `legal-name`), other characters encoded by `Internal.sanitizeId`.
+Two labels may give the same slug; `uniqueLocal` tells their ids apart.
+-}
 slug : String -> String
 slug label =
     let
         parts =
             label
                 |> String.toLower
+                |> String.words
+                |> String.join "-"
                 |> Internal.sanitizeId
                 |> String.split "-"
                 |> List.filter (\part -> part /= "")
