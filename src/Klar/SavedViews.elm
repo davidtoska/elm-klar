@@ -185,6 +185,7 @@ address, a cookie that it sets through a port of its own.
 import Html exposing (Html)
 import Html.Attributes as Attr
 import Html.Events as Events
+import Html.Keyed as Keyed
 import Json.Decode as Decode exposing (Decoder)
 import Json.Encode as Encode
 import Klar.Badge as Badge
@@ -374,9 +375,17 @@ withKey key saved =
 
   - `Created view`: a view the user saved. It has no key yet: store it, and give the
     list back to `setViews` with the key the backend gave it (`withKey`).
-  - `Updated view`: a view with a key whose name, note, rule, query or default changed
-    (a rename keeps the key, so it is an update, not a new view).
+  - `Updated view`: a view whose name, note, rule, query or default changed (a rename
+    keeps the key, so it is an update, not a new view). A view that has no key yet is
+    followed by its name, so a new view made the default before the backend answered
+    is an update of that name, not a second view.
   - `Deleted key`: the key of a view that the user deleted.
+
+The default is the user's own choice: a locked view (`asLocked`) whose only change is
+that it became, or stopped being, the default gives nothing, so nothing is written to a
+view the user does not own. Store the name of `defaultView` per user when your views
+are shared. Give a new view its key before it is renamed: a view without a key that is
+renamed reads as a new view.
 
 -}
 type Change
@@ -388,8 +397,8 @@ type Change
 {-| The changes from one list of views to the next, for a backend that keeps each view
 by its key: compare `views` before and after `update` (with
 [Klar.ServerList](Klar-ServerList): the views before, and the `save` of the step).
-Views without a key are new ones: a view without a key that is not in the list before
-is `Created`. Unchanged views give nothing.
+A view without a key and with no view of its name before is `Created`. Unchanged views
+give nothing.
 
     SavedViews.changes (SavedViews.views model.views) (SavedViews.views views)
         |> List.map storeChange
@@ -407,28 +416,36 @@ changes before after =
         later =
             keyed after |> List.map Tuple.first
 
+        -- a view without a key is followed by its name: it has nothing else yet
+        earlierByName name =
+            before |> List.filter (\saved -> saved.key == Nothing && sameName saved.name name) |> List.head
+
+        -- the default of a locked view is the user's own, not a change to the view
+        updated old saved =
+            if old == saved || (saved.isLocked && { old | isDefault = saved.isDefault } == saved) then
+                Nothing
+
+            else
+                Just (Updated saved)
+
         createdOrUpdated =
             List.filterMap
                 (\saved ->
-                    case saved.key of
-                        Just key ->
-                            case earlier key of
-                                Just old ->
-                                    if old == saved then
-                                        Nothing
-
-                                    else
-                                        Just (Updated saved)
+                    let
+                        previous =
+                            case saved.key of
+                                Just key ->
+                                    earlier key
 
                                 Nothing ->
-                                    Just (Created saved)
+                                    earlierByName saved.name
+                    in
+                    case previous of
+                        Just old ->
+                            updated old saved
 
                         Nothing ->
-                            if List.member saved before then
-                                Nothing
-
-                            else
-                                Just (Created saved)
+                            Just (Created saved)
                 )
                 after
 
@@ -690,6 +707,7 @@ type Msg
     | ActiveUpdated Rule (Maybe Table.Query)
     | ModeCancelled
     | FocusItem Int
+    | RetryClicked
     | NoOp
 
 
@@ -939,6 +957,10 @@ update msg (State s) =
         FocusItem index ->
             ( State s, Internal.focus (itemDomId s.id index) NoOp )
 
+        RetryClicked ->
+            -- the retry button goes away while the views load: the status stays
+            ( State s, Internal.focus (statusDomId s.id) NoOp )
+
         NoOp ->
             ( State s, Cmd.none )
 
@@ -1030,6 +1052,11 @@ popupDomId id =
 itemDomId : String -> Int -> String
 itemDomId id index =
     id ++ "-item-" ++ String.fromInt index
+
+
+statusDomId : String -> String
+statusDomId id =
+    id ++ "-status"
 
 
 nameDomId : String -> String
@@ -1165,8 +1192,9 @@ remote data =
 
 
 {-| The message of the "Try again" button, shown when loading the views failed (and the
-problem is worth retrying, see `Remote.isRetryable`). While the views load again the
-button stays in its place, busy, so keyboard focus is not lost.
+problem is worth retrying, see `Remote.isRetryable`). While the views load (the first
+time, or again after "Try again") the list says it is loading, with no button; focus
+moves from the button to that status, so it stays in the popup.
 -}
 onRetry : msg -> Attribute msg
 onRetry msg =
@@ -1373,8 +1401,10 @@ viewPopup ctx activeView =
 
 
 {-| The views, or what stands in for them: loading, a failure with a retry, or the
-empty text. The list keeps its element in every state where views are shown, so the
-view that has focus keeps it through a refresh.
+empty text. One element tree in every state: the status (a live region that is always
+there, with the retry of a failure) comes first, then the notice of old data, then the
+list, keyed by name, so the view that has focus keeps it through a refresh. "Try again"
+moves focus to the status before the button goes away, so focus stays in the popup.
 -}
 viewViews : Ctx msg -> Html msg
 viewViews ctx =
@@ -1385,53 +1415,73 @@ viewViews ctx =
         s =
             ctx.state
 
-        status text button =
-            Html.div [ Internal.cls [ "klar-savedviews__empty", "klar-savedviews__status" ] ]
-                [ Html.span [ Attr.attribute "role" "status" ] [ Html.text text ]
-                , button
+        -- the text of the status, and the retry of a failure with no views to show
+        ( statusText, retry ) =
+            case ( ctx.config.source, s.views ) of
+                ( Waiting, [] ) ->
+                    ( t.loading, Nothing )
+
+                ( FailedWith problem, [] ) ->
+                    ( Remote.title ctx.config.locale problem
+                    , if Remote.isRetryable problem then
+                        ctx.config.onRetry
+
+                      else
+                        Nothing
+                    )
+
+                _ ->
+                    ( "", Nothing )
+
+        status =
+            Html.div
+                [ Internal.cls
+                    [ "klar-savedviews__status"
+                    , if statusText == "" then
+                        ""
+
+                      else
+                        "klar-savedviews__empty"
+                    ]
+                , Attr.id (statusDomId s.id)
+                , Attr.tabindex -1
+                , Internal.attrMaybe (\_ -> Events.onClick (ctx.toMsg RetryClicked)) retry
                 ]
-    in
-    case ( ctx.config.source, s.views ) of
-        ( Waiting, [] ) ->
-            -- after "Try again" the button stays, busy, so focus stays on it
-            status t.loading
-                (case ctx.config.onRetry of
-                    Just _ ->
-                        Button.view [ Button.small, Button.loading True ] t.retry
+                [ Html.span [ Attr.attribute "role" "status" ] [ Html.text statusText ]
+                , case retry of
+                    Just msg ->
+                        Button.view [ Button.small, Button.icon Icon.refresh, Button.onClick msg ] t.retry
 
                     Nothing ->
                         Html.text ""
-                )
+                ]
 
-        ( FailedWith problem, [] ) ->
-            status (Remote.title ctx.config.locale problem)
-                (case ( ctx.config.onRetry, Remote.isRetryable problem ) of
-                    ( Just msg, True ) ->
-                        Button.view [ Button.small, Button.icon Icon.refresh, Button.onClick msg ] t.retry
+        freshness =
+            case ctx.config.source of
+                -- views on the screen, and the request failed or is on its way
+                Ready value ->
+                    value
 
-                    _ ->
-                        Html.text ""
-                )
+                Waiting ->
+                    Freshness.Refreshing
 
-        ( _, [] ) ->
-            Html.p [ Internal.cls [ "klar-savedviews__empty" ] ] [ Html.text t.noViews ]
+                FailedWith problem ->
+                    Freshness.Stale { problem = problem, at = Nothing, refreshing = False }
+    in
+    Html.div [ Internal.cls [ "klar-savedviews__views" ] ]
+        (case ( ctx.config.source, s.views ) of
+            ( Ready _, [] ) ->
+                [ status
+                , Html.text ""
+                , Html.p [ Internal.cls [ "klar-savedviews__empty" ] ] [ Html.text t.noViews ]
+                ]
 
-        ( source, list ) ->
-            let
-                freshness =
-                    case source of
-                        -- views on the screen, and the request failed or is on its way
-                        Ready value ->
-                            value
+            ( _, [] ) ->
+                [ status, Html.text "", Html.text "" ]
 
-                        Waiting ->
-                            Freshness.Refreshing
-
-                        FailedWith problem ->
-                            Freshness.Stale { problem = problem, at = Nothing, refreshing = False }
-            in
-            Html.div []
-                [ Freshness.notice
+            ( _, list ) ->
+                [ status
+                , Freshness.notice
                     { locale = ctx.config.locale
                     , settings = Settings.default
                     , onRetry = ctx.config.onRetry
@@ -1445,12 +1495,13 @@ viewViews ctx =
                         other ->
                             other
                     )
-                , Html.ul
+                , Keyed.ul
                     [ Internal.cls [ "klar-savedviews__list", Freshness.className freshness ]
                     , Freshness.busyAttr freshness
                     ]
-                    (List.indexedMap (viewItem ctx) list)
+                    (List.indexedMap (\index saved -> ( saved.name, viewItem ctx index saved )) list)
                 ]
+        )
 
 
 viewItem : Ctx msg -> Int -> SavedView -> Html msg

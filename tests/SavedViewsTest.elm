@@ -236,11 +236,48 @@ remoteTests =
                     |> Query.find [ Selector.tag "button", Selector.containing [ Selector.text "Try again" ] ]
                     |> Event.simulate Event.click
                     |> Event.expect Retry
-        , test "while the retry loads, the button stays, busy" <|
+        , test "the first load offers no retry: nothing has failed" <|
             \_ ->
                 openWith Remote.Loading empty
-                    |> Query.find [ Selector.tag "button", Selector.containing [ Selector.text "Try again" ] ]
-                    |> Query.has [ Selector.attribute (Attr.attribute "aria-busy" "true") ]
+                    |> Query.findAll [ Selector.tag "button", Selector.containing [ Selector.text "Try again" ] ]
+                    |> Query.count (Expect.equal 0)
+        , test "a click on the retry of a failure moves focus to the status, which stays while the views load" <|
+            \_ ->
+                let
+                    status =
+                        [ Selector.id "views-status", Selector.attribute (Attr.tabindex -1) ]
+                in
+                Expect.all
+                    [ \_ ->
+                        openWith (Remote.Failed (Remote.problem Remote.server)) empty
+                            |> Query.find status
+                            |> Event.simulate Event.click
+                            |> Event.toResult
+                            |> Result.map (\_ -> ())
+                            |> Expect.equal (Ok ())
+                    , \_ -> openWith Remote.Loading empty |> Query.has status
+                    , \_ -> openWith (Remote.Loaded []) state |> Query.has status
+                    ]
+                    ()
+        , test "the status is one live region in every state" <|
+            \_ ->
+                Expect.all
+                    (List.map
+                        (\source ->
+                            \_ ->
+                                openWith source state
+                                    |> Query.findAll [ Selector.attribute (Attr.attribute "role" "status") ]
+                                    |> Query.count (Expect.atLeast 1)
+                        )
+                        [ Remote.Loading, Remote.Loaded [], Remote.Failed (Remote.problem Remote.server) ]
+                    )
+                    ()
+        , test "the views are listed under the status" <|
+            \_ ->
+                openWith (Remote.Loaded []) state
+                    |> Query.find [ Selector.class "klar-savedviews__list" ]
+                    |> Query.children [ Selector.tag "li" ]
+                    |> Query.count (Expect.equal 2)
         , test "views kept after a failed refresh are marked old" <|
             \_ ->
                 openWith (Remote.refreshWith (Remote.Loaded []) (Err (Remote.problem Remote.network)) (Time.millisToPosix 0)) state
@@ -284,6 +321,24 @@ changeTests =
                 Expect.equal
                     (SavedViews.changes [ SavedViews.asDefault open, late ] [ open, SavedViews.asDefault late ])
                     [ SavedViews.Updated open, SavedViews.Updated (SavedViews.asDefault late) ]
+        , test "a view without a key made the default before the backend answered is an update, not a second view" <|
+            \_ ->
+                Expect.equal (SavedViews.changes [ open, fresh ] [ open, SavedViews.asDefault fresh ])
+                    [ SavedViews.Updated (SavedViews.asDefault fresh) ]
+        , test "a view without a key that changed its note is an update of its name" <|
+            \_ ->
+                Expect.equal (SavedViews.changes [ fresh ] [ SavedViews.withNote "Mine" fresh ])
+                    [ SavedViews.Updated (SavedViews.withNote "Mine" fresh) ]
+        , test "the default of a locked view is the user's own: nothing is written to the view" <|
+            \_ ->
+                Expect.equal
+                    (SavedViews.changes [ SavedViews.asLocked open, SavedViews.asDefault late ] [ SavedViews.asDefault (SavedViews.asLocked open), late ])
+                    [ SavedViews.Updated late ]
+        , test "a locked view that changed in another way is still an update" <|
+            \_ ->
+                Expect.equal
+                    (SavedViews.changes [ SavedViews.asLocked open ] [ SavedViews.asLocked { open | name = "Opened" } ])
+                    [ SavedViews.Updated (SavedViews.asLocked { open | name = "Opened" }) ]
         , test "a locked view can be made the default but not renamed or deleted" <|
             \_ ->
                 Ok (SavedViews.setViews [ SavedViews.asLocked open, late ] (SavedViews.init "views"))
