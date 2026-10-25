@@ -2,10 +2,10 @@ module Klar.CommandPalette exposing
     ( view
     , State, init, Msg, update
     , open, close, isOpen, openedFrom, query, setQuery
-    , Item, item, withDescription, withIcon, withShortcut, withKeywords, withCommand, withId
+    , Item, item, withDescription, withIcon, withShortcut, withKeywords, withCommand, withId, withDisabled
     , argument
-    , Section, section, remote, onRetry, emptyText
-    , Attribute, sections, recent, placeholder, label, noResults, locale, settings
+    , Section, section, remote, onRetry, withEmptyText
+    , Attribute, sections, recent, placeholder, ariaLabel, emptyText, platform, locale, settings
     )
 
 {-| A command palette: one search box, usually opened with `Ctrl K`, for commands
@@ -33,14 +33,47 @@ Quick path: `init`, `open`, `update`, `view`, `close`, `isOpen`
             ( palette, cmd ) =
                 CommandPalette.open "" model.palette
         in
-        ( { model | palette = palette }, Cmd.map PaletteMsg cmd )
+        ( { model | palette = palette, customerHits = Remote.NotAsked }, Cmd.map PaletteMsg cmd )
 
     PaletteMsg m ->
         let
             ( palette, cmd ) =
                 CommandPalette.update m model.palette
+
+            text =
+                CommandPalette.query palette
         in
-        ( { model | palette = palette }, Cmd.map PaletteMsg cmd )
+        if text /= CommandPalette.query model.palette then
+            -- the query settled on a new text: ask the backend (see "Sections")
+            ( { model
+                | palette = palette
+                , customerHits =
+                    if text == "" then
+                        Remote.NotAsked
+
+                    else
+                        Remote.Loading
+              }
+            , Cmd.batch
+                [ Cmd.map PaletteMsg cmd
+                , if text == "" then
+                    Cmd.none
+
+                  else
+                    searchCustomers text
+                ]
+            )
+
+        else
+            ( { model | palette = palette }, Cmd.map PaletteMsg cmd )
+
+    GotCustomers asked result ->
+        -- an answer to a query that is no longer the palette's comes too late
+        if asked == CommandPalette.query model.palette then
+            ( { model | customerHits = Remote.fromResult (Result.map (List.map customerItem) result) }, Cmd.none )
+
+        else
+            ( model, Cmd.none )
 
     -- view
     CommandPalette.view PaletteMsg
@@ -54,9 +87,10 @@ Quick path: `init`, `open`, `update`, `view`, `close`, `isOpen`
                     |> CommandPalette.withKeywords [ "create", "add" ]
                 ]
             , CommandPalette.remote "Customers" model.customerHits
-                |> CommandPalette.onRetry SearchCustomers
+                |> CommandPalette.onRetry RetryCustomers
             ]
         , CommandPalette.recent model.recentItems
+        , CommandPalette.platform model.platform -- Kbd.pc or Kbd.mac, for the key caps
         ]
         model.palette
 
@@ -68,14 +102,19 @@ the page behind it is inert.
 Pressing the shortcut again while the palette is open starts over with an empty
 query; call `close` instead if you want the shortcut to toggle.
 
-**Keyboard and screen readers**: the search box keeps focus. `ArrowDown` and
-`ArrowUp` move the highlight (and wrap around), `PageDown` and `PageUp` move six
-items, `Enter` runs the highlighted item. The highlighted item is the
-`aria-activedescendant` of the search box, which is a combobox, and a polite
-live region announces the number of results. Focus cannot leave the palette:
-`Tab` only moves between the search box and the "Try again" button of a failed
-section. `Escape` gives focus back to the element that had it before the palette
-opened (if it has an id), or to the `opener` given to `open`.
+**Keyboard and screen readers**: the search box keeps focus, also when the user
+clicks the frame of the palette, and takes it back if the focused element goes
+away. `ArrowDown` and `ArrowUp` move the highlight (and wrap around),
+`PageDown` and `PageUp` move six items, `Enter` runs the highlighted item. The
+`Enter` that confirms the text of an input method (Japanese, Chinese) runs
+nothing. The highlighted item is the `aria-activedescendant` of the search box,
+which is a combobox, and a polite live region announces the number of results.
+Focus cannot leave the palette: `Tab` only moves between the search box and the
+"Try again" button of a failed section. `Escape` gives focus back to the element
+that had it before the palette opened (if it has an id), or to the `opener`
+given to `open`. The shortcut of an item is drawn by [Klar.Kbd](Klar-Kbd) for the
+`platform` (Ctrl on a PC, ⌘ on a Mac) and read out as a phrase ("Control plus
+K").
 
 **Text**: the built-in text (placeholder, headings, hints, the announcement of
 the number of results) follows `locale`, which is English by default. The labels
@@ -105,7 +144,7 @@ extra words it is found by. The palette keeps track of the highlighted item by
 identity, so a result that arrives above it does not move the highlight. Give
 items with identical labels a `withId`.
 
-@docs Item, item, withDescription, withIcon, withShortcut, withKeywords, withCommand, withId
+@docs Item, item, withDescription, withIcon, withShortcut, withKeywords, withCommand, withId, withDisabled
 
 
 ## Command words
@@ -135,63 +174,32 @@ preceded by `recent` if you gave any.
 application fills, for example with the result of a search in the backend. The
 palette shows a skeleton while it is `Loading`, a short failure message when it
 is `Failed` (with a "Try again" button if the section has an `onRetry` and the
-problem can be retried), "No results" when it is `Loaded []` (see `emptyText`),
-and nothing while it is `NotAsked` and the search box is empty. Once the user has
-typed, `NotAsked` also shows the skeleton (the request is about to start), so the
-palette never says "No results" before the answer is there: set the section to
-`Loading` or `NotAsked` only while a request is pending, and leave the section
-out for a text that is too short to search for. Items that are `Kept` stay in the
-list; when the last refresh failed a line "Old data from 14:05" stands above
-them. The items of a remote section are not filtered again: the backend already
-did that.
+problem can be retried), "No results" when it is `Loaded []` (see
+`withEmptyText`), and nothing while it is `NotAsked` and the search box is empty.
+Once the user has typed, `NotAsked` also shows the skeleton (the request is about
+to start), so the palette never says "No results" before the answer is there.
+Items that are `Kept` stay in the list: dimmed and busy while they are refreshed
+(`Remote.refresh`), and with "Old data from 14:05" next to the title of the
+section when the last refresh failed. The items of a remote section are not
+filtered again: the backend already did that.
 
-The query lives in the state, so the application watches it and starts the
-request. Compare before and after the update, and debounce with a counter:
+The search is the wiring at the top of this page, and it needs **no debounce and
+no ticket of your own**. `query` waits for a pause of 300 ms in the typing (an
+empty text comes at once), so ask the backend whenever `query` changes from
+before `update` to after it. Send the text with the request and drop an answer
+whose text is no longer `CommandPalette.query model.palette`: it answers an old
+question. `query` is `""` while the palette is closed, so an answer that arrives
+after the palette closed is dropped too. Set the section to `NotAsked` when you
+`open` the palette, so the results of the last opening do not show under the new
+empty query. For a text that is too short to search for, leave the section
+`NotAsked` (or out).
 
-    PaletteMsg m ->
-        let
-            ( palette, cmd ) =
-                CommandPalette.update m model.palette
-
-            changed =
-                CommandPalette.query palette /= CommandPalette.query model.palette
-        in
-        if changed then
-            ( { model | palette = palette, hits = NotAsked, ticket = model.ticket + 1 }
-            , Cmd.batch
-                [ Cmd.map PaletteMsg cmd
-                , Process.sleep 250 |> Task.perform (\_ -> Debounced (model.ticket + 1))
-                ]
-            )
-
-        else
-            ( { model | palette = palette }, Cmd.map PaletteMsg cmd )
-
-    Debounced ticket ->
-        if ticket == model.ticket && CommandPalette.query model.palette /= "" then
-            ( { model | hits = Loading }, searchCustomers ticket (CommandPalette.query model.palette) )
-
-        else
-            ( model, Cmd.none )
-
-    GotHits ticket result ->
-        if ticket == model.ticket then
-            ( { model | hits = Remote.fromResult result }, Cmd.none )
-
-        else
-            ( model, Cmd.none )
-
-Results that arrive late for an old query are dropped by the ticket. Take a new
-ticket when you open the palette too (`OpenPalette -> ... ticket = model.ticket + 1`,
-and `hits = NotAsked`): a search that was still running when the palette was
-closed would otherwise answer into the next opening, under an empty query.
-
-@docs Section, section, remote, onRetry, emptyText
+@docs Section, section, remote, onRetry, withEmptyText
 
 
 # Attributes
 
-@docs Attribute, sections, recent, placeholder, label, noResults, locale, settings
+@docs Attribute, sections, recent, placeholder, ariaLabel, emptyText, platform, locale, settings
 
 -}
 
@@ -206,6 +214,7 @@ import Klar.EmptyState as EmptyState
 import Klar.Icon as Icon exposing (Icon)
 import Klar.Internal as Internal
 import Klar.Internal.Freshness as Freshness
+import Klar.Kbd as Kbd
 import Klar.Locale as Locale exposing (Locale)
 import Klar.Overlay as Overlay exposing (Overlay)
 import Klar.Remote as Remote exposing (Problem, Remote(..))
@@ -213,6 +222,7 @@ import Klar.Search as Search
 import Klar.Settings as Settings exposing (Settings)
 import Klar.Shortcut as Shortcut
 import Klar.Skeleton as Skeleton
+import Process
 import Task
 
 
@@ -228,7 +238,15 @@ type State
     = State
         { id : String
         , open : Bool
+
+        -- what is in the search box
         , query : String
+
+        -- the text `query` reports: the box, trimmed, after a pause in the typing
+        , searched : String
+
+        -- the number of the last pause that was waited for
+        , wait : Int
         , active : Maybe String
         , opener : String
         }
@@ -242,7 +260,7 @@ unique on the page; the ids of its parts (search box, list ...) start with it.
 -}
 init : String -> State
 init id =
-    State { id = id, open = False, query = "", active = Nothing, opener = "" }
+    State { id = id, open = False, query = "", searched = "", wait = 0, active = Nothing, opener = "" }
 
 
 {-| Is the palette open? The page is made inert by the overlay `view` returns;
@@ -253,12 +271,15 @@ isOpen (State state) =
     state.open
 
 
-{-| What the user has typed. Compare it before and after `update` to start
-searches in the backend.
+{-| What the user has typed, trimmed, once the typing pauses for 300 ms: the text
+to search the backend for. Compare it before and after `update` and ask when it
+changes; write no debounce of your own. An emptied box, `setQuery` and `open`
+change it at once, and it is `""` while the palette is closed. The sections made
+with `section` filter as the user types and do not wait.
 -}
 query : State -> String
 query (State state) =
-    state.query
+    state.searched
 
 
 {-| The DOM id of the element the palette was opened from: the `opener` given to
@@ -281,7 +302,7 @@ it after `open`.
 -}
 setQuery : String -> State -> State
 setQuery text (State state) =
-    State { state | query = text, active = Nothing }
+    State { state | query = text, searched = String.trim text, wait = state.wait + 1, active = Nothing }
 
 
 {-| A message from the palette. Wrap it in one of your own messages and pass it to
@@ -289,6 +310,7 @@ setQuery text (State state) =
 -}
 type Msg
     = Input String
+    | Settle Int
     | Highlight Reveal
     | Hover String
     | Close
@@ -309,17 +331,38 @@ type alias Reveal =
     }
 
 
-{-| Handles typing, the highlight, closing and scrolling. The command moves focus
-and scrolls the list, so map it with `Cmd.map`. Compare `query` before and after
-to start searches.
+{-| Handles typing, the pause before `query` changes, the highlight, closing and
+scrolling. The command moves focus, scrolls the list and waits for the pause, so
+map it with `Cmd.map`. Compare `query` before and after to start searches.
 -}
 update : Msg -> State -> ( State, Cmd Msg )
 update msg ((State state) as current) =
     case msg of
         Input text ->
-            ( State { state | query = text, active = Nothing }
-            , scrollList (listId state.id) 0
-            )
+            let
+                trimmed =
+                    String.trim text
+            in
+            if trimmed == "" || trimmed == state.searched then
+                -- nothing to wait for: an empty box is reported at once
+                ( State { state | query = text, searched = trimmed, wait = state.wait + 1, active = Nothing }
+                , scrollList (listId state.id) 0
+                )
+
+            else
+                ( State { state | query = text, wait = state.wait + 1, active = Nothing }
+                , Cmd.batch
+                    [ scrollList (listId state.id) 0
+                    , Process.sleep searchWait |> Task.perform (\_ -> Settle (state.wait + 1))
+                    ]
+                )
+
+        Settle ticket ->
+            if ticket == state.wait && state.open then
+                ( State { state | searched = String.trim state.query }, Cmd.none )
+
+            else
+                ( current, Cmd.none )
 
         Highlight reveal ->
             ( State { state | active = Just reveal.key }
@@ -345,7 +388,7 @@ update msg ((State state) as current) =
             close current
 
         ClearQuery ->
-            ( State { state | query = "", active = Nothing }
+            ( State { state | query = "", searched = "", wait = state.wait + 1, active = Nothing }
             , Cmd.batch [ Internal.focus (inputId state.id) Noop, scrollList (listId state.id) 0 ]
             )
 
@@ -382,6 +425,8 @@ open opener (State state) =
         { state
             | open = True
             , query = ""
+            , searched = ""
+            , wait = state.wait + 1
             , active = Nothing
             , opener =
                 if state.open && opener == "" then
@@ -395,17 +440,26 @@ open opener (State state) =
 
 
 {-| Closes the palette without running anything and returns focus to its opener
-(see `openedFrom`). Picking an item closes the palette by itself.
+(see `openedFrom`). Picking an item closes the palette by itself. The query is
+emptied, so `query` is `""` while the palette is closed.
 -}
 close : State -> ( State, Cmd Msg )
 close (State state) =
-    ( State { state | open = False }
+    ( State { state | open = False, query = "", searched = "", wait = state.wait + 1, active = Nothing }
     , if state.open then
         Internal.focusFirst (List.filter ((/=) "") [ state.opener ] ++ [ Internal.pageStartId ]) Noop
 
       else
         Cmd.none
     )
+
+
+{-| How long the typing must pause before `query` reports the text, in
+milliseconds (the same as `Select.query` with `serverSearch`).
+-}
+searchWait : Float
+searchWait =
+    300
 
 
 inputId : String -> String
@@ -478,16 +532,20 @@ it sends when picked. Make one with `item` and add details with the `with...`
 functions.
 -}
 type Item msg
-    = Item
-        { id : Maybe String
-        , label : String
-        , description : Maybe String
-        , icon : Maybe Icon
-        , shortcut : Maybe Shortcut.Keys
-        , keywords : List String
-        , commands : List String
-        , onSelect : msg
-        }
+    = Item (ItemData msg)
+
+
+type alias ItemData msg =
+    { id : Maybe String
+    , label : String
+    , description : Maybe String
+    , icon : Maybe Icon
+    , shortcut : Maybe Shortcut.Keys
+    , keywords : List String
+    , commands : List String
+    , disabled : Maybe String
+    , onSelect : msg
+    }
 
 
 {-| A command or a piece of content. The first argument is the label that is
@@ -506,6 +564,7 @@ item text msg =
         , shortcut = Nothing
         , keywords = []
         , commands = []
+        , disabled = Nothing
         , onSelect = msg
         }
 
@@ -528,9 +587,10 @@ withIcon value =
     mapItem (\data -> { data | icon = Just value })
 
 
-{-| The shortcut of the command, shown as key caps at the right. Write it in the
-keys of [Klar.Shortcut](Klar-Shortcut): `mod (char 'k')`, `char '?'`. It is only
-a hint: the palette does not listen for the keys, a `Shortcut` in your list does.
+{-| The shortcut of the command, shown as key caps at the right (drawn by
+[Klar.Kbd](Klar-Kbd) for the `platform`). Write it in the keys of
+[Klar.Shortcut](Klar-Shortcut): `mod (char 'k')`, `char '?'`. It is only a
+hint: the palette does not listen for the keys, a `Shortcut` in your list does.
 -}
 withShortcut : Shortcut.Keys -> Item msg -> Item msg
 withShortcut keys =
@@ -538,7 +598,8 @@ withShortcut keys =
 
 
 {-| Extra words the item is found by, without showing them. A match on a
-keyword ranks below a match on the label.
+keyword ranks below a match on the label. Called twice, the words add up (as
+with `withCommand`).
 
     CommandPalette.item "New order" NewOrder
         |> CommandPalette.withKeywords [ "create", "add" ]
@@ -546,7 +607,7 @@ keyword ranks below a match on the label.
 -}
 withKeywords : List String -> Item msg -> Item msg
 withKeywords words =
-    mapItem (\data -> { data | keywords = words })
+    mapItem (\data -> { data | keywords = data.keywords ++ words })
 
 
 {-| The words that call the item, for an item that takes an argument: "go to
@@ -564,11 +625,12 @@ withCommand words =
     mapItem (\data -> { data | commands = words :: data.commands })
 
 
-{-| The query without the command words of the items that are called by them, for
-the request to the backend. When the query starts with the `withCommand` words of
-one of the items (the longest wins), the rest of the query is returned, trimmed;
-otherwise the whole query, trimmed. Give it the same items as the view, so a
-function that makes them can be shared.
+{-| The `query` without the command words of the items that are called by them,
+for the request to the backend. When the query starts with the `withCommand`
+words of one of the items (the longest wins), the rest of the query is returned,
+trimmed; otherwise the whole query. Like `query` it waits for a pause in the
+typing, so compare `query` to know when to ask. Give it the same items as the
+view, so a function that makes them can be shared.
 
     CommandPalette.argument [ goToOrder ] palette -- "1001", for "Go to order 1001"
 
@@ -577,7 +639,7 @@ argument : List (Item msg) -> State -> String
 argument items (State state) =
     let
         words =
-            String.trim state.query
+            state.searched
 
         normalized =
             Search.normalize words
@@ -626,7 +688,26 @@ withId value =
     mapItem (\data -> { data | id = Just value })
 
 
-mapItem : ({ id : Maybe String, label : String, description : Maybe String, icon : Maybe Icon, shortcut : Maybe Shortcut.Keys, keywords : List String, commands : List String, onSelect : msg } -> { id : Maybe String, label : String, description : Maybe String, icon : Maybe Icon, shortcut : Maybe Shortcut.Keys, keywords : List String, commands : List String, onSelect : msg }) -> Item msg -> Item msg
+{-| An item that cannot run now, with the reason in place of its description:
+the user still finds the command and learns why it is not there yet. The arrow
+keys skip it, `Enter` and a click do nothing, and a screen reader hears it as
+unavailable (`aria-disabled`).
+
+    CommandPalette.item "Export the selection" ExportSelection
+        |> CommandPalette.withDisabled "Select some rows first"
+
+-}
+withDisabled : String -> Item msg -> Item msg
+withDisabled reason =
+    mapItem (\data -> { data | disabled = Just reason })
+
+
+isEnabled : Item msg -> Bool
+isEnabled (Item data) =
+    data.disabled == Nothing
+
+
+mapItem : (ItemData msg -> ItemData msg) -> Item msg -> Item msg
 mapItem change (Item data) =
     Item (change data)
 
@@ -661,7 +742,7 @@ section title items =
 
 {-| A titled group of items that the application provides, for example the result
 of a search in the backend. It is not filtered again. Pair it with `onRetry`
-and `emptyText`.
+and `withEmptyText`.
 
     CommandPalette.remote "Customers" model.customerHits
         |> CommandPalette.onRetry SearchCustomers
@@ -687,11 +768,15 @@ onRetry msg found =
 
 
 {-| What a remote section says when it has no items, for example "No customers
-found". The default is "No results". Does nothing to a section made with
-`section`.
+found". The default is the palette's `emptyText`, "No results". Does nothing to a
+section made with `section`.
+
+    CommandPalette.remote "Customers" model.customerHits
+        |> CommandPalette.withEmptyText "No customers found"
+
 -}
-emptyText : String -> Section msg -> Section msg
-emptyText text found =
+withEmptyText : String -> Section msg -> Section msg
+withEmptyText text found =
     case found of
         RemoteSection data ->
             RemoteSection { data | emptyText = Just text }
@@ -716,7 +801,8 @@ type alias Config msg =
     , recent : List (Item msg)
     , placeholder : Maybe String
     , label : Maybe String
-    , noResults : Maybe String
+    , emptyText : Maybe String
+    , platform : Kbd.Platform
     , locale : Locale
     , settings : Settings
     }
@@ -729,7 +815,8 @@ configure attributes =
         , recent = []
         , placeholder = Nothing
         , label = Nothing
-        , noResults = Nothing
+        , emptyText = Nothing
+        , platform = Kbd.pc
         , locale = Locale.default
         , settings = Settings.default
         }
@@ -759,20 +846,32 @@ placeholder value =
     Attribute (\config -> { config | placeholder = Just value })
 
 
-{-| The accessible name of the dialog and of its list. The default is "Command
-palette".
+{-| The accessible name of the dialog and of its list, which only a screen reader
+hears. The default is "Command palette".
 -}
-label : String -> Attribute msg
-label value =
+ariaLabel : String -> Attribute msg
+ariaLabel value =
     Attribute (\config -> { config | label = Just value })
 
 
-{-| The text shown when nothing matches at all. The default is "No results". A
-remote section that is empty has its own text, see `emptyText`.
+{-| The text shown when nothing matches at all, and what an empty remote section
+says unless it has a `withEmptyText` of its own. The default is "No results".
 -}
-noResults : String -> Attribute msg
-noResults value =
-    Attribute (\config -> { config | noResults = Just value })
+emptyText : String -> Attribute msg
+emptyText value =
+    Attribute (\config -> { config | emptyText = Just value })
+
+
+{-| The keyboard to write the shortcuts of the items for, as in
+[Klar.Kbd](Klar-Kbd): `Kbd.pc` (the default: Ctrl, Alt, Shift) or `Kbd.mac`
+(⌘, ⌥, ⇧). Read it once from the user agent with `Kbd.platformFromUserAgent`.
+
+    CommandPalette.platform (Kbd.platformFromUserAgent flags.userAgent)
+
+-}
+platform : Kbd.Platform -> Attribute msg
+platform value =
+    Attribute (\config -> { config | platform = value })
 
 
 {-| The settings of the application (`Klar.Settings`): the time zone of the time in
@@ -787,8 +886,8 @@ settings given =
 
 
 {-| The language of the built-in texts: the placeholder, the footer, the heading
-of the recent items and the announcement of the number of results. The default
-is `Locale.default`, which is `Locale.en`.
+of the recent items, the spoken names of the keys and the announcement of the
+number of results. The default is `Locale.default`, which is `Locale.en`.
 -}
 locale : Locale -> Attribute msg
 locale value =
@@ -819,9 +918,15 @@ noticeHeight =
     40
 
 
+{-| A section as it is drawn: `busy` while its items are being refreshed (or the
+query has not settled yet), `old` with "Old data from 14:05" when the last
+refresh failed.
+-}
 type alias Block msg =
     { key : String
     , title : String
+    , busy : Bool
+    , old : Maybe String
     , body : List (Body msg)
     }
 
@@ -836,6 +941,8 @@ type Body msg
 type alias PlacedBlock msg =
     { id : String
     , title : String
+    , busy : Bool
+    , old : Maybe String
     , rows : List (PlacedRow msg)
     }
 
@@ -872,10 +979,12 @@ texts language =
 
 
 {-| The groups to show for this query: static sections filtered and ranked,
-remote sections as the application gave them.
+remote sections as the application gave them. `settled` is false while the
+typing has not paused yet: the remote sections still show the answer to the
+last query, so they are drawn busy.
 -}
-buildBlocks : Config msg -> String -> List (Block msg)
-buildBlocks config text =
+buildBlocks : Config msg -> String -> Bool -> List (Block msg)
+buildBlocks config text settled =
     let
         words =
             String.trim text
@@ -885,7 +994,7 @@ buildBlocks config text =
 
         recentBlock =
             if words == "" && not (List.isEmpty config.recent) then
-                [ { key = "recent", title = language.recent, body = keyedBody "recent" config.recent } ]
+                [ { key = "recent", title = language.recent, busy = False, old = Nothing, body = keyedBody "recent" config.recent } ]
 
             else
                 []
@@ -894,6 +1003,9 @@ buildBlocks config text =
             let
                 key =
                     "s" ++ String.fromInt index
+
+                block title body =
+                    { key = key, title = title, busy = False, old = Nothing, body = body }
             in
             case found of
                 StaticSection title items ->
@@ -905,41 +1017,49 @@ buildBlocks config text =
                         []
 
                     else
-                        [ { key = key, title = title, body = keyedBody key matching } ]
+                        [ block title (keyedBody key matching) ]
 
                 RemoteSection data ->
-                    case Tuple.first (Freshness.settle data.remote) of
+                    let
+                        ( current, freshness ) =
+                            Freshness.settle data.remote
+
+                        loadingRows =
+                            [ LoadingBody, LoadingBody, LoadingBody ]
+                    in
+                    case current of
                         NotAsked ->
                             if words == "" then
                                 []
 
                             else
-                                [ { key = key, title = data.title, body = [ LoadingBody, LoadingBody, LoadingBody ] } ]
+                                [ block data.title loadingRows ]
 
                         Loading ->
-                            [ { key = key, title = data.title, body = [ LoadingBody, LoadingBody, LoadingBody ] } ]
+                            [ block data.title loadingRows ]
 
                         Failed problem ->
-                            [ { key = key, title = data.title, body = [ FailureBody problem (Remote.title config.locale problem) data.onRetry ] } ]
+                            [ block data.title [ FailureBody problem (Remote.title config.locale problem) data.onRetry ] ]
 
                         Loaded [] ->
-                            [ { key = key, title = data.title, body = [ EmptyBody (Maybe.withDefault language.noResults data.emptyText) ] } ]
+                            [ block data.title [ EmptyBody (Maybe.withDefault (Maybe.withDefault language.noResults config.emptyText) data.emptyText) ] ]
 
                         Loaded items ->
                             [ { key = key
                               , title = data.title
-                              , body =
-                                    (case Tuple.second (Freshness.settle data.remote) of
+                              , busy = Freshness.busy freshness || not settled
+                              , old =
+                                    case freshness of
                                         Freshness.Stale old ->
-                                            [ EmptyBody (Freshness.text config.locale config.settings old.at) ]
+                                            Just (Freshness.text config.locale config.settings old.at)
 
                                         _ ->
-                                            []
-                                    )
-                                        ++ keyedBody key items
+                                            Nothing
+                              , body = keyedBody key items
                               }
                             ]
 
+                        -- `settle` has turned a `Kept` into `Loaded`
                         Kept _ ->
                             []
     in
@@ -1069,6 +1189,8 @@ place paletteId blocks =
             , blocks =
                 { id = paletteId ++ "-group-" ++ block.key
                 , title = block.title
+                , busy = block.busy
+                , old = block.old
                 , rows = List.reverse finished.rows
                 }
                     :: done.blocks
@@ -1102,12 +1224,12 @@ view toMsg attributes ((State state) as current) =
         { open = state.open
         , entry = Nothing
         , watch = Nothing
-        , render = \_ -> viewPalette toMsg attributes current
+        , render = \around -> viewPalette toMsg attributes around.top current
         }
 
 
-viewPalette : (Msg -> msg) -> List (Attribute msg) -> State -> Html msg
-viewPalette toMsg attributes (State state) =
+viewPalette : (Msg -> msg) -> List (Attribute msg) -> Bool -> State -> Html msg
+viewPalette toMsg attributes onTop (State state) =
     if not state.open then
         Html.text ""
 
@@ -1123,7 +1245,7 @@ viewPalette toMsg attributes (State state) =
                 String.trim state.query
 
             ( blocks, entries ) =
-                place state.id (entriesFirst (buildBlocks config state.query))
+                place state.id (entriesFirst (buildBlocks config state.query (String.trim state.query == state.searched)))
 
             ( entryBlocks, noticeBlocks ) =
                 List.partition (\block -> List.any isEntryRow block.rows) blocks
@@ -1131,21 +1253,45 @@ viewPalette toMsg attributes (State state) =
             count =
                 List.length entries
 
+            -- the entries that can run: a disabled item is never highlighted
+            usable =
+                List.filter (\entry -> isEnabled entry.item) entries
+
+            usableCount =
+                List.length usable
+
             activeEntry =
                 case state.active of
                     Just key ->
-                        case List.filter (\entry -> entry.key == key) entries of
+                        case List.filter (\entry -> entry.key == key) usable of
                             found :: _ ->
                                 Just found
 
                             [] ->
-                                List.head entries
+                                List.head usable
 
                     Nothing ->
-                        List.head entries
+                        List.head usable
+
+            -- where the highlighted entry is among the ones that can run
+            activePosition =
+                case activeEntry of
+                    Just current ->
+                        usable
+                            |> List.indexedMap Tuple.pair
+                            |> List.filter (\( _, entry ) -> entry.key == current.key)
+                            |> List.head
+                            |> Maybe.map Tuple.first
+
+                    Nothing ->
+                        Nothing
 
             anyLoading =
-                List.any (\block -> List.any isLoadingRow block.rows) blocks
+                List.any (\block -> block.busy || List.any isLoadingRow block.rows) blocks
+
+            -- "Old data from 14:05" of the sections whose last refresh failed
+            oldText =
+                List.filterMap .old blocks |> List.head
 
             hasRetry =
                 List.any (\block -> List.any isRetryRow block.rows) blocks
@@ -1168,10 +1314,10 @@ viewPalette toMsg attributes (State state) =
                     |> List.head
 
             moveTo delta =
-                case activeEntry of
-                    Just current ->
-                        entries
-                            |> List.drop (modBy count (current.index + delta))
+                case activePosition of
+                    Just position ->
+                        usable
+                            |> List.drop (modBy usableCount (position + delta))
                             |> List.head
                             |> Maybe.map (\target -> toMsg (Highlight { key = target.key, top = target.revealTop, bottom = target.top + itemHeight + resultsPadding }))
 
@@ -1179,10 +1325,10 @@ viewPalette toMsg attributes (State state) =
                         Nothing
 
             moveClamped delta =
-                case activeEntry of
-                    Just current ->
-                        entries
-                            |> List.drop (clamp 0 (count - 1) (current.index + delta))
+                case activePosition of
+                    Just position ->
+                        usable
+                            |> List.drop (clamp 0 (usableCount - 1) (position + delta))
                             |> List.head
                             |> Maybe.map (\target -> toMsg (Highlight { key = target.key, top = target.revealTop, bottom = target.top + itemHeight + resultsPadding }))
 
@@ -1205,13 +1351,13 @@ viewPalette toMsg attributes (State state) =
                     language.searching
 
                 else if count == 0 then
-                    Maybe.withDefault language.noResults config.noResults
+                    Maybe.withDefault language.noResults config.emptyText
 
                 else
                     resultCountText config.locale count
 
-            -- The failure is not an alert inside the list (a listbox may only
-            -- hold options): the polite status says it.
+            -- The failure and the old data are not notices inside the list (a
+            -- listbox may only hold options): the polite status says them.
             announced =
                 case ( anyLoading, failureText ) of
                     ( False, Just title ) ->
@@ -1220,6 +1366,14 @@ viewPalette toMsg attributes (State state) =
 
                         else
                             statusText ++ ". " ++ title
+
+                    ( False, Nothing ) ->
+                        case oldText of
+                            Just old ->
+                                statusText ++ ". " ++ old
+
+                            Nothing ->
+                                statusText
 
                     _ ->
                         statusText
@@ -1237,6 +1391,10 @@ viewPalette toMsg attributes (State state) =
                 , Attr.attribute "role" "dialog"
                 , Attr.attribute "aria-modal" "true"
                 , Attr.attribute "aria-label" (Maybe.withDefault language.label config.label)
+
+                -- A press on the frame (the footer, the icon, the padding) keeps
+                -- focus in the search box, where the keys of the palette work.
+                , Events.preventDefaultOn "mousedown" (keepFocus (toMsg Noop))
 
                 -- One keydown handler only: a node keeps just the last handler
                 -- for an event name. The input has its own Enter handler that
@@ -1283,11 +1441,11 @@ viewPalette toMsg attributes (State state) =
                                 , Attr.attribute "role" "listbox"
                                 , Attr.attribute "aria-label" (Maybe.withDefault language.label config.label)
                                 ]
-                                (List.map (viewBlock toMsg state language words activeEntry) entryBlocks)
+                                (List.map (viewBlock toMsg config state language words activeEntry) entryBlocks)
                         )
-                            :: List.map (viewBlock toMsg state language words activeEntry) noticeBlocks
+                            :: List.map (viewBlock toMsg config state language words activeEntry) noticeBlocks
                     )
-                , viewFooter language
+                , viewFooter config language
                 , Html.div
                     [ Internal.cls [ "klar-sr-only" ]
                     , Attr.attribute "role" "status"
@@ -1296,8 +1454,53 @@ viewPalette toMsg attributes (State state) =
                     [ Html.text
                         announced
                     ]
+
+                -- Focus that falls out of the palette (the element that had it
+                -- went away) comes back to the search box: see `klar-modal__guard`.
+                , Internal.viewIf onTop (focusGuard (toMsg FocusInput))
                 ]
             ]
+
+
+{-| A press of the mouse anywhere in the panel but on the search box keeps focus
+where it is, in the search box. The press still clicks: a button in the panel
+works as before.
+-}
+keepFocus : msg -> Decoder ( msg, Bool )
+keepFocus noop =
+    Decode.oneOf [ Decode.at [ "target", "tagName" ] Decode.string, Decode.succeed "" ]
+        |> Decode.andThen
+            (\tag ->
+                if tag == "INPUT" then
+                    Decode.fail "the search box takes the press itself"
+
+                else
+                    Decode.succeed ( noop, True )
+            )
+
+
+{-| An invisible element that the stylesheet animates while no overlay holds
+focus; its `animationstart` is the only sign plain Elm gets that the focused
+element went away (the same guard as a `Klar.Modal`).
+-}
+focusGuard : msg -> Html msg
+focusGuard lost =
+    Html.span
+        [ Internal.cls [ "klar-modal__guard" ]
+        , Attr.attribute "aria-hidden" "true"
+        , Events.on "animationstart"
+            (Decode.field "animationName" Decode.string
+                |> Decode.andThen
+                    (\name ->
+                        if name == "klar-focus-lost" then
+                            Decode.succeed lost
+
+                        else
+                            Decode.fail "another animation"
+                    )
+            )
+        ]
+        []
 
 
 selectMsg : Item msg -> msg
@@ -1439,27 +1642,46 @@ viewSearch toMsg config language state activeEntry hasList runMsg hasRetry =
                 [ Icon.view Icon.close ]
 
           else
-            Html.span [ Internal.cls [ "klar-palette__esc" ] ] [ Internal.kbd "Esc" ]
+            -- a hint for the eye; the dialog itself says that Escape closes it
+            Html.span [ Internal.cls [ "klar-palette__esc" ], Attr.attribute "aria-hidden" "true" ] [ Internal.kbd "Esc" ]
         ]
 
 
-viewBlock : (Msg -> msg) -> { a | id : String } -> { b | retry : String } -> String -> Maybe (Placed msg) -> PlacedBlock msg -> Html msg
-viewBlock toMsg state language words activeEntry block =
+viewBlock : (Msg -> msg) -> Config msg -> { a | id : String } -> { b | retry : String } -> String -> Maybe (Placed msg) -> PlacedBlock msg -> Html msg
+viewBlock toMsg config state language words activeEntry block =
     Html.div
-        [ Internal.cls [ "klar-palette__group" ]
+        [ Internal.cls
+            [ "klar-palette__group"
+            , if block.busy then
+                "klar-refreshing"
+
+              else
+                ""
+            ]
         , Attr.attribute "role" "group"
         , Attr.attribute "aria-labelledby" block.id
+        , Internal.attrIf block.busy (Attr.attribute "aria-busy" "true")
         ]
-        (Html.div [ Internal.cls [ "klar-palette__heading" ], Attr.id block.id ] [ Html.text block.title ]
-            :: List.map (viewRow toMsg state language words activeEntry) block.rows
+        (Html.div [ Internal.cls [ "klar-palette__heading" ], Attr.id block.id ]
+            [ Html.span [ Internal.cls [ "klar-truncate" ] ] [ Html.text block.title ]
+
+            -- In the heading, which names the group: a listbox holds only options.
+            , Internal.viewMaybe
+                (\text ->
+                    Html.span [ Internal.cls [ "klar-palette__old" ] ]
+                        [ Icon.view Icon.clock, Html.text text ]
+                )
+                block.old
+            ]
+            :: List.map (viewRow toMsg config state language words activeEntry) block.rows
         )
 
 
-viewRow : (Msg -> msg) -> { a | id : String } -> { b | retry : String } -> String -> Maybe (Placed msg) -> PlacedRow msg -> Html msg
-viewRow toMsg state language words activeEntry row =
+viewRow : (Msg -> msg) -> Config msg -> { a | id : String } -> { b | retry : String } -> String -> Maybe (Placed msg) -> PlacedRow msg -> Html msg
+viewRow toMsg config state language words activeEntry row =
     case row of
         EntryRow placed ->
-            viewEntry toMsg state words (Maybe.map .key activeEntry == Just placed.key) placed
+            viewEntry toMsg config state words (Maybe.map .key activeEntry == Just placed.key) placed
 
         LoadingRow ->
             Html.div [ Internal.cls [ "klar-palette__row" ], Attr.attribute "aria-hidden" "true" ]
@@ -1529,48 +1751,77 @@ retryKeys toMsg =
         )
 
 
-viewEntry : (Msg -> msg) -> { a | id : String } -> String -> Bool -> Placed msg -> Html msg
-viewEntry toMsg state words isActive placed =
+viewEntry : (Msg -> msg) -> Config msg -> { a | id : String } -> String -> Bool -> Placed msg -> Html msg
+viewEntry toMsg config state words isActive placed =
     case placed.item of
         Item data ->
             -- The click goes first to the inner element, which closes the palette
             -- and gives focus back, and then bubbles to the outer one, which sends
             -- the application's message: a message that moves focus (it opens a
             -- drawer) comes last and wins.
+            let
+                disabled =
+                    data.disabled /= Nothing
+            in
             Html.div
-                [ Internal.cls [ "klar-palette__row" ]
-                , Attr.id (optionId state.id placed.index)
-                , Attr.attribute "role" "option"
-                , Attr.attribute "aria-selected"
+                ([ Internal.cls [ "klar-palette__row" ]
+                 , Attr.id (optionId state.id placed.index)
+                 , Attr.attribute "role" "option"
+                 , Attr.attribute "aria-selected"
                     (if isActive then
                         "true"
 
                      else
                         "false"
                     )
-                , Events.onClick data.onSelect
-                ]
+                 ]
+                    ++ (if disabled then
+                            -- seen and found, but it runs nothing and stays open
+                            [ Attr.attribute "aria-disabled" "true" ]
+
+                        else
+                            [ Events.onClick data.onSelect ]
+                       )
+                )
                 [ Html.div
-                    [ Internal.cls
+                    ([ Internal.cls
                         [ "klar-palette__item"
                         , if isActive then
                             "klar-palette__item--active"
 
                           else
                             ""
+                        , if disabled then
+                            "klar-palette__item--disabled"
+
+                          else
+                            ""
                         ]
-                    , Events.onClick (toMsg Picked)
-                    , Events.on "mousemove" (movedDecoder (toMsg (Hover placed.key)))
-                    ]
+                     ]
+                        ++ (if disabled then
+                                []
+
+                            else
+                                [ Events.onClick (toMsg Picked)
+                                , Events.on "mousemove" (movedDecoder (toMsg (Hover placed.key)))
+                                ]
+                           )
+                    )
                     [ Html.span [ Internal.cls [ "klar-palette__icon" ] ]
                         [ Internal.viewMaybe Icon.view data.icon ]
                     , Html.span [ Internal.cls [ "klar-palette__text" ] ]
                         [ Html.span [ Internal.cls [ "klar-palette__label", "klar-truncate" ] ] (Search.highlight words data.label)
                         , Internal.viewMaybe
                             (\text -> Html.span [ Internal.cls [ "klar-palette__description", "klar-truncate" ] ] [ Html.text text ])
-                            data.description
+                            (case data.disabled of
+                                Just reason ->
+                                    Just reason
+
+                                Nothing ->
+                                    data.description
+                            )
                         ]
-                    , Internal.viewMaybe viewShortcut data.shortcut
+                    , Internal.viewMaybe (viewShortcut config) data.shortcut
                     ]
                 ]
 
@@ -1592,12 +1843,10 @@ movedDecoder msg =
             )
 
 
-viewShortcut : Shortcut.Keys -> Html msg
-viewShortcut keys =
+viewShortcut : Config msg -> Shortcut.Keys -> Html msg
+viewShortcut config keys =
     Html.span [ Internal.cls [ "klar-palette__keys" ] ]
-        (Shortcut.keycaps keys
-            |> List.map Internal.kbdCombo
-        )
+        [ Kbd.view [ Kbd.small, Kbd.platform config.platform, Kbd.locale config.locale ] keys ]
 
 
 viewNoResults : Config msg -> { a | noResults : String } -> String -> Html msg
@@ -1605,7 +1854,7 @@ viewNoResults config language words =
     EmptyState.view
         [ EmptyState.compact
         , EmptyState.icon Icon.search
-        , EmptyState.title (Maybe.withDefault language.noResults config.noResults)
+        , EmptyState.title (Maybe.withDefault language.noResults config.emptyText)
         , if words == "" then
             EmptyState.description ""
 
@@ -1619,11 +1868,21 @@ viewNoResults config language words =
         ]
 
 
-viewFooter : { a | navigate : String, select : String, close : String } -> Html msg
-viewFooter language =
-    Html.div [ Internal.cls [ "klar-palette__footer" ] ]
+{-| The keys of the palette, for the eye: a screen reader hears the combobox and
+its options, which say the same.
+-}
+viewFooter : Config msg -> { a | navigate : String, select : String, close : String } -> Html msg
+viewFooter config language =
+    Html.div [ Internal.cls [ "klar-palette__footer" ], Attr.attribute "aria-hidden" "true" ]
         [ hint [ "↑", "↓" ] language.navigate
-        , hint [ "↵" ] language.select
+        , hint
+            [ if config.platform == Kbd.mac then
+                "↩"
+
+              else
+                "↵"
+            ]
+            language.select
         , hint [ "Esc" ] language.close
         ]
 

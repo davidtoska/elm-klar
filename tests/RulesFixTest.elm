@@ -7,7 +7,7 @@ module RulesFixTest exposing (suite)
     included, and still says `Nothing` to anything that is not a number.
   - `Rule.operatorLabel` keeps its signature and does not depend on the kind
     of field.
-  - A shortcut for the plus key (`"+"`, `"mod++"`) fires, and `Shortcut.keycaps`
+  - A shortcut for the plus key (`"+"`, `"mod++"`) fires, and `KeyWords.words`
     shows the plus.
   - Shortcuts do not fire while the user types in a field, a text area, a
     select or an editable element, with or without Ctrl, Alt or Cmd, unless
@@ -25,6 +25,8 @@ import Json.Encode as Encode
 import Klar.Date as Date
 import Klar.FilterBar as FilterBar
 import Klar.Format as Format
+import Klar.Internal.Keys as KeyWords
+import Klar.Kbd as Kbd
 import Klar.Locale as Locale exposing (Locale)
 import Klar.Overlay as Overlay
 import Klar.Rule as Rule exposing (FieldKind(..), Operator(..), Rule(..))
@@ -949,9 +951,9 @@ keycapsTests : Test
 keycapsTests =
     let
         caps name keys expected =
-            test name <| \_ -> Expect.equal expected (Shortcut.keycaps (Keys.parse keys))
+            test name <| \_ -> Expect.equal expected (KeyWords.words (Keys.parse keys))
     in
-    describe "Shortcut.keycaps"
+    describe "KeyWords.words"
         [ caps "the plus key" "+" [ [ "+" ] ]
         , caps "Ctrl and the plus key" "mod++" [ [ "Ctrl", "+" ] ]
         , caps "Alt and the plus key" "alt++" [ [ "Alt", "+" ] ]
@@ -1207,14 +1209,95 @@ helpSheetTests =
             \_ ->
                 helpSheet [ palette ]
                     |> Query.fromHtml
-                    |> Query.contains [ Html.text "Shortcuts do not work while you type in a field, unless stated otherwise." ]
+                    |> Query.contains [ Html.text "Shortcuts do not work while you type in a field, unless stated otherwise. While a dialog is open, only the ones with Ctrl, Alt or Cmd work." ]
         , test "marks a shortcut that works in a field" <|
             \_ ->
                 helpSheet [ Shortcut.inInputs palette, help ]
                     |> Query.fromHtml
                     |> Query.findAll [ Selector.class "klar-shortcuts__note" ]
                     |> Query.count (Expect.equal 1)
+        , test "every group is a heading that names its list" <|
+            \_ ->
+                helpSheet [ palette, help ]
+                    |> Query.fromHtml
+                    |> Expect.all
+                        [ Query.findAll [ Selector.tag "h3" ] >> Query.count (Expect.equal 2)
+                        , Query.find [ Selector.id "help-group-0" ] >> Query.has [ Selector.tag "h3" ]
+                        , Query.findAll [ Selector.attribute (Attr.attribute "aria-labelledby" "help-group-0") ] >> Query.count (Expect.equal 1)
+                        ]
+        , test "the keys are drawn by Kbd: a spoken phrase for a screen reader" <|
+            \_ ->
+                helpSheet [ palette ]
+                    |> Query.fromHtml
+                    |> Query.find [ Selector.class "klar-shortcuts__keys" ]
+                    |> Query.has [ Selector.text "Control plus K" ]
+        , test "on a Mac the keys are written for a Mac" <|
+            \_ ->
+                helpSheetWith [ ShortcutHelp.platform Kbd.mac ] [ palette ]
+                    |> Query.fromHtml
+                    |> Query.find [ Selector.class "klar-shortcuts__keys" ]
+                    |> Query.has [ Selector.text "⌘" ]
+        , test "the filter finds a shortcut by another name of its keys" <|
+            \_ ->
+                helpSheetFiltered "cmd" [ palette, help ]
+                    |> Query.fromHtml
+                    |> Query.findAll [ Selector.class "klar-shortcuts__row" ]
+                    |> Query.count (Expect.equal 1)
+        , test "extra keys are listed under their group, after the shortcuts, and found by the filter" <|
+            \_ ->
+                helpSheetWith
+                    [ ShortcutHelp.extra [ { group = "Navigation", label = "Open the menu of the row", keys = Shortcut.shift (Shortcut.function 10) } ] ]
+                    [ palette, help ]
+                    |> Query.fromHtml
+                    |> Expect.all
+                        [ Query.findAll [ Selector.tag "h3" ] >> Query.count (Expect.equal 2)
+                        , Query.findAll [ Selector.class "klar-shortcuts__row" ] >> Query.index 1 >> Query.has [ Selector.text "Open the menu of the row" ]
+                        , Query.findAll [ Selector.class "klar-shortcuts__row" ] >> Query.index 1 >> Query.has [ Selector.text "F10" ]
+                        ]
+        , test "a polite status says how many shortcuts the filter matches" <|
+            \_ ->
+                helpSheetFiltered "cmd" [ palette, help ]
+                    |> Query.fromHtml
+                    |> Query.find [ Selector.attribute (Attr.attribute "role" "status"), Selector.class "klar-sr-only" ]
+                    |> Query.has [ Selector.text "1 shortcut" ]
         ]
+
+
+helpSheetWith : List (ShortcutHelp.Attribute Msg) -> List (Shortcut Msg) -> Html Msg
+helpSheetWith attributes shortcuts =
+    ShortcutHelp.init "help"
+        |> ShortcutHelp.open ""
+        |> Tuple.first
+        |> ShortcutHelp.view HelpMsg attributes shortcuts
+        |> List.singleton
+        |> (\overlays -> Overlay.host { attributes = [], page = [], overlays = overlays })
+
+
+{-| The sheet after the text is typed into its filter box.
+-}
+helpSheetFiltered : String -> List (Shortcut Msg) -> Html Msg
+helpSheetFiltered text shortcuts =
+    let
+        opened =
+            ShortcutHelp.init "help" |> ShortcutHelp.open "" |> Tuple.first
+
+        draw state =
+            ShortcutHelp.view HelpMsg [] shortcuts state
+                |> List.singleton
+                |> (\overlays -> Overlay.host { attributes = [], page = [], overlays = overlays })
+    in
+    case
+        draw opened
+            |> Query.fromHtml
+            |> Query.find [ Selector.id "help-filter" ]
+            |> Event.simulate (Event.input text)
+            |> Event.toResult
+    of
+        Ok (HelpMsg inner) ->
+            draw (Tuple.first (ShortcutHelp.update inner opened))
+
+        _ ->
+            Html.text "the filter box did not answer"
 
 
 

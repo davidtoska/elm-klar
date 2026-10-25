@@ -3210,8 +3210,8 @@
       "import": "import Klar.ContextMenu as ContextMenu",
       "group": "Overlays",
       "purpose": "The menu that opens where the user right-clicks.",
-      "whenToUse": "one menu must open where the user right-clicks and serve many elements, such as the rows of a table.",
-      "whenNot": "the menu opens from a button (use `Klar.Menu`).",
+      "whenToUse": "one menu must open where the user right-clicks and serve many elements, such as the cards of a board or the items of a list.",
+      "whenNot": "the menu opens from a button only (use `Klar.Menu`), or the elements are the rows of a `Klar.Table` (its row menu already opens on a right-click and the context menu key) or the nodes of a `Klar.Tree`.",
       "state": [
         "State"
       ],
@@ -3229,18 +3229,19 @@
       ],
       "mainFunctions": [
         "view",
+        "items",
+        "ariaLabel",
+        "locale",
         "area",
         "attrs",
         "init",
-        "update",
-        "isOpen",
-        "target",
-        "close"
+        "update"
       ],
       "related": [
         "Klar.Menu",
-        "Klar.Modal",
-        "Klar.Overlay"
+        "Klar.Overlay",
+        "Klar.AppShell",
+        "Klar.Modal"
       ],
       "keywords": [
         "context menu",
@@ -3286,6 +3287,7 @@
         "query"
       ],
       "related": [
+        "Klar.Kbd",
         "Klar.Overlay",
         "Klar.Remote",
         "Klar.Search",
@@ -3313,7 +3315,7 @@
       "group": "Overlays",
       "purpose": "The cheat sheet of keyboard shortcuts: a dialog that lists every shortcut of the application, grouped, with key caps and a small filter box.",
       "whenToUse": "the user needs a cheat sheet of the keyboard shortcuts the application listens to.",
-      "whenNot": "you only need to show one shortcut next to a control (use `Klar.Tooltip`).",
+      "whenNot": "you only need to show one shortcut next to a control (use `Klar.Kbd`, or the shortcut of a `Klar.Tooltip`).",
       "state": [
         "State"
       ],
@@ -3339,6 +3341,7 @@
         "isOpen"
       ],
       "related": [
+        "Klar.Kbd",
         "Klar.Modal",
         "Klar.Overlay",
         "Klar.Shortcut"
@@ -4895,19 +4898,19 @@
       "mainFunctions": [
         "shortcut",
         "inInputs",
+        "repeats",
         "keysOf",
         "groupOf",
         "labelOf",
         "firesInInputs",
-        "char",
-        "function"
+        "conflicts"
       ],
       "related": [
+        "Klar.Kbd",
         "Klar.Modal",
         "Klar.ShortcutHelp",
         "Klar.CommandPalette",
-        "Klar.Drawer",
-        "Klar.Kbd"
+        "Klar.Drawer"
       ],
       "keywords": [
         "shortcut",

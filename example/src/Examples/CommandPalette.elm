@@ -5,24 +5,20 @@ module Examples.CommandPalette exposing (main)
 
 The pattern for the backend section:
 
-  - `CommandPalette.query` before and after `update` tells that the text changed;
-  - a ticket counter, a short pause (debounce) and a check of the ticket on the answer, so a slow
-    answer to an old text never replaces a newer one;
-  - the words of the command ("go to order") are taken off the text before it is sent;
-  - the section is reset when the palette opens, and `onRetry` asks again.
+1.  Open: `CommandPalette.open openerId`, and set the section to `NotAsked`, so the answers of
+    the last opening do not show under the new, empty query.
+2.  After `CommandPalette.update`, compare `CommandPalette.query` before and after. The query
+    waits for a pause of 300 ms in the typing by itself, so there is no debounce and no ticket to
+    write: when it changed, ask the backend at once (`Loading`), or go back to `NotAsked` for an
+    empty query.
+3.  The item "Go to order ..." declares its words with `CommandPalette.withCommand`, and
+    `CommandPalette.argument` gives the text after them ("go to order Fjord" asks for "Fjord").
+4.  The answer carries the query it answers. `GotHits asked result` is dropped when `asked` is
+    no longer `CommandPalette.query model.palette`: the user typed on, or closed the palette.
+5.  `CommandPalette.onRetry` sends `RetryHits`, which asks again for the same query.
 
+The palette is an overlay, so it goes in the list of `Overlay.host` (or `AppShell.overlays`).
 Press Ctrl K (or the button). Type `fail` to see the failure and the retry button.
-
-The pattern:
-
-1.  Open: `CommandPalette.open openerId`, set the section to `NotAsked` and bump the ticket, so answers on their way are dropped.
-2.  After `CommandPalette.update`, compare `CommandPalette.query` before and after. If it changed: `NotAsked`, bump the ticket, `Process.sleep 250` then `Debounced ticket`.
-3.  `Debounced ticket` asks the backend only when the ticket is the latest and the text is not empty (`Loading`).
-4.  `GotHits ticket result` is dropped when the ticket is old; otherwise `Remote.fromResult`.
-5.  `CommandPalette.onRetry` sends `RetryHits`, which repeats step 3.
-6.  The words of the command ("go to order") are stripped from the query before it is sent (`searchText`).
-
-The palette is an overlay, so it goes in the list of `Overlay.host` (or `AppShell.overlays`). Type `fail` to see the failure and the retry button.
 
 -}
 
@@ -57,7 +53,6 @@ type alias Model =
     { palette : CommandPalette.State
     , shortcuts : Shortcut.State
     , hits : Remote (List Hit)
-    , ticket : Int
     , done : String
     }
 
@@ -66,10 +61,10 @@ type Msg
     = OpenPalette
     | PaletteMsg CommandPalette.Msg
     | ShortcutMsg Shortcut.Msg
-    | Debounced Int
-    | GotHits Int (Result Remote.Problem (List Hit))
+    | GotHits String (Result Remote.Problem (List Hit))
     | RetryHits
     | GoToOrder Hit
+    | ShowOrders
     | NewOrder
     | Reload
 
@@ -89,7 +84,6 @@ init =
     { palette = CommandPalette.init "palette"
     , shortcuts = Shortcut.init
     , hits = NotAsked
-    , ticket = 0
     , done = "Nothing yet."
     }
 
@@ -111,30 +105,15 @@ update msg model =
                 ( palette, cmd ) =
                     CommandPalette.open openButtonId model.palette
             in
-            -- a new opening starts with an empty section and invalidates every answer on its way
-            ( { model | palette = palette, hits = NotAsked, ticket = model.ticket + 1 }
-            , Cmd.map PaletteMsg cmd
-            )
+            ( { model | palette = palette, hits = NotAsked }, Cmd.map PaletteMsg cmd )
 
         PaletteMsg m ->
             let
                 ( palette, cmd ) =
                     CommandPalette.update m model.palette
-
-                textChanged =
-                    CommandPalette.query palette /= CommandPalette.query model.palette
             in
-            if textChanged then
-                let
-                    ticket =
-                        model.ticket + 1
-                in
-                ( { model | palette = palette, hits = NotAsked, ticket = ticket }
-                , Cmd.batch
-                    [ Cmd.map PaletteMsg cmd
-                    , Process.sleep 250 |> Task.perform (\_ -> Debounced ticket)
-                    ]
-                )
+            if CommandPalette.query palette /= CommandPalette.query model.palette then
+                search { model | palette = palette } (Cmd.map PaletteMsg cmd)
 
             else
                 ( { model | palette = palette }, Cmd.map PaletteMsg cmd )
@@ -151,31 +130,22 @@ update msg model =
                 Nothing ->
                     ( { model | shortcuts = shortcuts }, Cmd.none )
 
-        Debounced ticket ->
-            let
-                text =
-                    searchText model.palette
-            in
-            if ticket == model.ticket && text /= "" then
-                ( { model | hits = Loading }
-                , lookup text |> Task.perform (GotHits ticket)
-                )
-
-            else
-                ( model, Cmd.none )
-
-        GotHits ticket result ->
-            if ticket == model.ticket then
+        GotHits asked result ->
+            -- an answer to a query that is no longer the palette's comes too late
+            if asked == CommandPalette.query model.palette then
                 ( { model | hits = Remote.fromResult result }, Cmd.none )
 
             else
                 ( model, Cmd.none )
 
         RetryHits ->
-            update (Debounced model.ticket) model
+            search model Cmd.none
 
         GoToOrder hit ->
             ( { model | done = "Opened order " ++ hit.id ++ " (" ++ hit.customer ++ ")." }, Cmd.none )
+
+        ShowOrders ->
+            ( { model | done = "Showed all orders." }, Cmd.none )
 
         NewOrder ->
             ( { model | done = "New order started." }, Cmd.none )
@@ -184,33 +154,31 @@ update msg model =
             ( { model | done = "Reloaded." }, Cmd.none )
 
 
+{-| Asks the backend for the palette's query, without the words of the command.
+-}
+search : Model -> Cmd Msg -> ( Model, Cmd Msg )
+search model cmd =
+    let
+        asked =
+            CommandPalette.query model.palette
+
+        text =
+            CommandPalette.argument [ goToOrder ] model.palette
+    in
+    if text == "" then
+        ( { model | hits = NotAsked }, cmd )
+
+    else
+        ( { model | hits = Loading }
+        , Cmd.batch [ cmd, lookup text |> Task.perform (GotHits asked) ]
+        )
+
+
 shortcutList : List (Shortcut.Shortcut Msg)
 shortcutList =
     [ Shortcut.shortcut (Shortcut.mod (Shortcut.char 'k')) "Navigation" "Open the command palette" OpenPalette
         |> Shortcut.inInputs
     ]
-
-
-{-| The words of the command are not part of the search: "go to order 10" looks for "10".
--}
-searchText : CommandPalette.State -> String
-searchText palette =
-    -- KLAR GAP: no way to give an item a prefix ("go to order") that the palette removes from the query; the application strips the words.
-    let
-        query =
-            String.trim (CommandPalette.query palette)
-
-        prefixes =
-            [ "go to order", "open order", "go to", "order" ]
-
-        strip prefix rest =
-            if String.startsWith prefix (String.toLower rest) then
-                String.trim (String.dropLeft (String.length prefix) rest)
-
-            else
-                rest
-    in
-    List.foldl strip query prefixes
 
 
 
@@ -235,20 +203,32 @@ view model =
         }
 
 
+{-| The item that "go to order ..." calls. The same value goes to the view and to
+`CommandPalette.argument`.
+-}
+goToOrder : CommandPalette.Item Msg
+goToOrder =
+    CommandPalette.item "Go to order ..." ShowOrders
+        |> CommandPalette.withIcon Icon.clipboard
+        |> CommandPalette.withCommand "go to order"
+        |> CommandPalette.withCommand "open order"
+
+
 viewPalette : Model -> Overlay.Overlay Msg
 viewPalette model =
     CommandPalette.view PaletteMsg
         [ CommandPalette.sections
             [ CommandPalette.section "Actions"
-                [ CommandPalette.item "New order" NewOrder
+                [ goToOrder
+                , CommandPalette.item "New order" NewOrder
                     |> CommandPalette.withIcon Icon.plus
                     |> CommandPalette.withKeywords [ "create", "add" ]
                 , CommandPalette.item "Reload" Reload
                     |> CommandPalette.withIcon Icon.refresh
                 ]
-            , CommandPalette.remote "Go to order ..." (Remote.map (List.map hitItem) model.hits)
+            , CommandPalette.remote "Orders" (Remote.map (List.map hitItem) model.hits)
                 |> CommandPalette.onRetry RetryHits
-                |> CommandPalette.emptyText "No order matches"
+                |> CommandPalette.withEmptyText "No order matches"
             ]
         , CommandPalette.placeholder "Type a command, or an order number or customer"
         ]

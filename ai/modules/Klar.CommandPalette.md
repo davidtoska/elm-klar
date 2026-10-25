@@ -35,6 +35,7 @@ withShortcut : Shortcut.Keys -> Item msg -> Item msg
 withKeywords : List String -> Item msg -> Item msg
 withCommand : String -> Item msg -> Item msg
 withId : String -> Item msg -> Item msg
+withDisabled : String -> Item msg -> Item msg
 
 -- Command words
 argument : List (Item msg) -> State -> String
@@ -44,15 +45,16 @@ type Section msg  -- opaque: no constructors are exposed
 section : String -> List (Item msg) -> Section msg
 remote : String -> Remote.Remote (List (Item msg)) -> Section msg
 onRetry : msg -> Section msg -> Section msg
-emptyText : String -> Section msg -> Section msg
+withEmptyText : String -> Section msg -> Section msg
 
 -- Attributes
 type Attribute msg  -- opaque: no constructors are exposed
 sections : List (Section msg) -> Attribute msg
 recent : List (Item msg) -> Attribute msg
 placeholder : String -> Attribute msg
-label : String -> Attribute msg
-noResults : String -> Attribute msg
+ariaLabel : String -> Attribute msg
+emptyText : String -> Attribute msg
+platform : Kbd.Platform -> Attribute msg
 locale : Locale.Locale -> Attribute msg
 settings : Settings.Settings -> Attribute msg
 ```
@@ -84,14 +86,47 @@ Quick path: `init`, `open`, `update`, `view`, `close`, `isOpen`
             ( palette, cmd ) =
                 CommandPalette.open "" model.palette
         in
-        ( { model | palette = palette }, Cmd.map PaletteMsg cmd )
+        ( { model | palette = palette, customerHits = Remote.NotAsked }, Cmd.map PaletteMsg cmd )
 
     PaletteMsg m ->
         let
             ( palette, cmd ) =
                 CommandPalette.update m model.palette
+
+            text =
+                CommandPalette.query palette
         in
-        ( { model | palette = palette }, Cmd.map PaletteMsg cmd )
+        if text /= CommandPalette.query model.palette then
+            -- the query settled on a new text: ask the backend (see "Sections")
+            ( { model
+                | palette = palette
+                , customerHits =
+                    if text == "" then
+                        Remote.NotAsked
+
+                    else
+                        Remote.Loading
+              }
+            , Cmd.batch
+                [ Cmd.map PaletteMsg cmd
+                , if text == "" then
+                    Cmd.none
+
+                  else
+                    searchCustomers text
+                ]
+            )
+
+        else
+            ( { model | palette = palette }, Cmd.map PaletteMsg cmd )
+
+    GotCustomers asked result ->
+        -- an answer to a query that is no longer the palette's comes too late
+        if asked == CommandPalette.query model.palette then
+            ( { model | customerHits = Remote.fromResult (Result.map (List.map customerItem) result) }, Cmd.none )
+
+        else
+            ( model, Cmd.none )
 
     -- view
     CommandPalette.view PaletteMsg
@@ -105,9 +140,10 @@ Quick path: `init`, `open`, `update`, `view`, `close`, `isOpen`
                     |> CommandPalette.withKeywords [ "create", "add" ]
                 ]
             , CommandPalette.remote "Customers" model.customerHits
-                |> CommandPalette.onRetry SearchCustomers
+                |> CommandPalette.onRetry RetryCustomers
             ]
         , CommandPalette.recent model.recentItems
+        , CommandPalette.platform model.platform -- Kbd.pc or Kbd.mac, for the key caps
         ]
         model.palette
 
@@ -119,14 +155,19 @@ the page behind it is inert.
 Pressing the shortcut again while the palette is open starts over with an empty
 query; call `close` instead if you want the shortcut to toggle.
 
-**Keyboard and screen readers**: the search box keeps focus. `ArrowDown` and
-`ArrowUp` move the highlight (and wrap around), `PageDown` and `PageUp` move six
-items, `Enter` runs the highlighted item. The highlighted item is the
-`aria-activedescendant` of the search box, which is a combobox, and a polite
-live region announces the number of results. Focus cannot leave the palette:
-`Tab` only moves between the search box and the "Try again" button of a failed
-section. `Escape` gives focus back to the element that had it before the palette
-opened (if it has an id), or to the `opener` given to `open`.
+**Keyboard and screen readers**: the search box keeps focus, also when the user
+clicks the frame of the palette, and takes it back if the focused element goes
+away. `ArrowDown` and `ArrowUp` move the highlight (and wrap around),
+`PageDown` and `PageUp` move six items, `Enter` runs the highlighted item. The
+`Enter` that confirms the text of an input method (Japanese, Chinese) runs
+nothing. The highlighted item is the `aria-activedescendant` of the search box,
+which is a combobox, and a polite live region announces the number of results.
+Focus cannot leave the palette: `Tab` only moves between the search box and the
+"Try again" button of a failed section. `Escape` gives focus back to the element
+that had it before the palette opened (if it has an id), or to the `opener`
+given to `open`. The shortcut of an item is drawn by [Klar.Kbd](Klar.Kbd.md) for the
+`platform` (Ctrl on a PC, ⌘ on a Mac) and read out as a phrase ("Control plus
+K").
 
 **Text**: the built-in text (placeholder, headings, hints, the announcement of
 the number of results) follows `locale`, which is English by default. The labels
@@ -188,9 +229,9 @@ unique on the page; the ids of its parts (search box, list ...) start with it.
 update : Msg -> State -> ( State, Cmd Msg )
 ```
 
-Handles typing, the highlight, closing and scrolling. The command moves focus
-and scrolls the list, so map it with `Cmd.map`. Compare `query` before and after
-to start searches.
+Handles typing, the pause before `query` changes, the highlight, closing and
+scrolling. The command moves focus, scrolls the list and waits for the pause, so
+map it with `Cmd.map`. Compare `query` before and after to start searches.
 
 ## Opening, closing and the query
 
@@ -214,7 +255,8 @@ close : State -> ( State, Cmd Msg )
 ```
 
 Closes the palette without running anything and returns focus to its opener
-(see `openedFrom`). Picking an item closes the palette by itself.
+(see `openedFrom`). Picking an item closes the palette by itself. The query is
+emptied, so `query` is `""` while the palette is closed.
 
 ### `isOpen`
 
@@ -242,8 +284,11 @@ the palette is gone by then, and the dialog should return to where the user was.
 query : State -> String
 ```
 
-What the user has typed. Compare it before and after `update` to start
-searches in the backend.
+What the user has typed, trimmed, once the typing pauses for 300 ms: the text
+to search the backend for. Compare it before and after `update` and ask when it
+changes; write no debounce of your own. An emptied box, `setQuery` and `open`
+change it at once, and it is `""` while the palette is closed. The sections made
+with `section` filter as the user types and do not wait.
 
 ### `setQuery`
 
@@ -312,9 +357,10 @@ An icon before the label.
 withShortcut : Shortcut.Keys -> Item msg -> Item msg
 ```
 
-The shortcut of the command, shown as key caps at the right. Write it in the
-keys of [Klar.Shortcut](Klar.Shortcut.md): `mod (char 'k')`, `char '?'`. It is only
-a hint: the palette does not listen for the keys, a `Shortcut` in your list does.
+The shortcut of the command, shown as key caps at the right (drawn by
+[Klar.Kbd](Klar.Kbd.md) for the `platform`). Write it in the keys of
+[Klar.Shortcut](Klar.Shortcut.md): `mod (char 'k')`, `char '?'`. It is only a
+hint: the palette does not listen for the keys, a `Shortcut` in your list does.
 
 ### `withKeywords`
 
@@ -323,7 +369,8 @@ withKeywords : List String -> Item msg -> Item msg
 ```
 
 Extra words the item is found by, without showing them. A match on a
-keyword ranks below a match on the label.
+keyword ranks below a match on the label. Called twice, the words add up (as
+with `withCommand`).
 
     CommandPalette.item "New order" NewOrder
         |> CommandPalette.withKeywords [ "create", "add" ]
@@ -352,6 +399,20 @@ withId : String -> Item msg -> Item msg
 A stable identity, for items with the same label (two customers called "Ada
 Lovelace"). It keeps the highlight on the right item when the results change.
 
+### `withDisabled`
+
+```elm
+withDisabled : String -> Item msg -> Item msg
+```
+
+An item that cannot run now, with the reason in place of its description:
+the user still finds the command and learns why it is not there yet. The arrow
+keys skip it, `Enter` and a click do nothing, and a screen reader hears it as
+unavailable (`aria-disabled`).
+
+    CommandPalette.item "Export the selection" ExportSelection
+        |> CommandPalette.withDisabled "Select some rows first"
+
 ### Command words
 
 A palette often has a section that searches the backend next to the commands:
@@ -367,11 +428,12 @@ followed by an argument (without `withCommand` no item matches "go to order
 argument : List (Item msg) -> State -> String
 ```
 
-The query without the command words of the items that are called by them, for
-the request to the backend. When the query starts with the `withCommand` words of
-one of the items (the longest wins), the rest of the query is returned, trimmed;
-otherwise the whole query, trimmed. Give it the same items as the view, so a
-function that makes them can be shared.
+The `query` without the command words of the items that are called by them,
+for the request to the backend. When the query starts with the `withCommand`
+words of one of the items (the longest wins), the rest of the query is returned,
+trimmed; otherwise the whole query. Like `query` it waits for a pause in the
+typing, so compare `query` to know when to ask. Give it the same items as the
+view, so a function that makes them can be shared.
 
     CommandPalette.argument [ goToOrder ] palette -- "1001", for "Go to order 1001"
 
@@ -390,56 +452,25 @@ preceded by `recent` if you gave any.
 application fills, for example with the result of a search in the backend. The
 palette shows a skeleton while it is `Loading`, a short failure message when it
 is `Failed` (with a "Try again" button if the section has an `onRetry` and the
-problem can be retried), "No results" when it is `Loaded []` (see `emptyText`),
-and nothing while it is `NotAsked` and the search box is empty. Once the user has
-typed, `NotAsked` also shows the skeleton (the request is about to start), so the
-palette never says "No results" before the answer is there: set the section to
-`Loading` or `NotAsked` only while a request is pending, and leave the section
-out for a text that is too short to search for. Items that are `Kept` stay in the
-list; when the last refresh failed a line "Old data from 14:05" stands above
-them. The items of a remote section are not filtered again: the backend already
-did that.
+problem can be retried), "No results" when it is `Loaded []` (see
+`withEmptyText`), and nothing while it is `NotAsked` and the search box is empty.
+Once the user has typed, `NotAsked` also shows the skeleton (the request is about
+to start), so the palette never says "No results" before the answer is there.
+Items that are `Kept` stay in the list: dimmed and busy while they are refreshed
+(`Remote.refresh`), and with "Old data from 14:05" next to the title of the
+section when the last refresh failed. The items of a remote section are not
+filtered again: the backend already did that.
 
-The query lives in the state, so the application watches it and starts the
-request. Compare before and after the update, and debounce with a counter:
-
-    PaletteMsg m ->
-        let
-            ( palette, cmd ) =
-                CommandPalette.update m model.palette
-
-            changed =
-                CommandPalette.query palette /= CommandPalette.query model.palette
-        in
-        if changed then
-            ( { model | palette = palette, hits = NotAsked, ticket = model.ticket + 1 }
-            , Cmd.batch
-                [ Cmd.map PaletteMsg cmd
-                , Process.sleep 250 |> Task.perform (\_ -> Debounced (model.ticket + 1))
-                ]
-            )
-
-        else
-            ( { model | palette = palette }, Cmd.map PaletteMsg cmd )
-
-    Debounced ticket ->
-        if ticket == model.ticket && CommandPalette.query model.palette /= "" then
-            ( { model | hits = Loading }, searchCustomers ticket (CommandPalette.query model.palette) )
-
-        else
-            ( model, Cmd.none )
-
-    GotHits ticket result ->
-        if ticket == model.ticket then
-            ( { model | hits = Remote.fromResult result }, Cmd.none )
-
-        else
-            ( model, Cmd.none )
-
-Results that arrive late for an old query are dropped by the ticket. Take a new
-ticket when you open the palette too (`OpenPalette -> ... ticket = model.ticket + 1`,
-and `hits = NotAsked`): a search that was still running when the palette was
-closed would otherwise answer into the next opening, under an empty query.
+The search is the wiring at the top of this page, and it needs **no debounce and
+no ticket of your own**. `query` waits for a pause of 300 ms in the typing (an
+empty text comes at once), so ask the backend whenever `query` changes from
+before `update` to after it. Send the text with the request and drop an answer
+whose text is no longer `CommandPalette.query model.palette`: it answers an old
+question. `query` is `""` while the palette is closed, so an answer that arrives
+after the palette closed is dropped too. Set the section to `NotAsked` when you
+`open` the palette, so the results of the last opening do not show under the new
+empty query. For a text that is too short to search for, leave the section
+`NotAsked` (or out).
 
 ### `Section`
 
@@ -469,7 +500,7 @@ remote : String -> Remote.Remote (List (Item msg)) -> Section msg
 
 A titled group of items that the application provides, for example the result
 of a search in the backend. It is not filtered again. Pair it with `onRetry`
-and `emptyText`.
+and `withEmptyText`.
 
     CommandPalette.remote "Customers" model.customerHits
         |> CommandPalette.onRetry SearchCustomers
@@ -484,15 +515,18 @@ The message that the "Try again" button of a failed remote section sends. The
 button is only shown for a problem that is worth retrying (see
 `Remote.isRetryable`). Does nothing to a section made with `section`.
 
-### `emptyText`
+### `withEmptyText`
 
 ```elm
-emptyText : String -> Section msg -> Section msg
+withEmptyText : String -> Section msg -> Section msg
 ```
 
 What a remote section says when it has no items, for example "No customers
-found". The default is "No results". Does nothing to a section made with
-`section`.
+found". The default is the palette's `emptyText`, "No results". Does nothing to a
+section made with `section`.
+
+    CommandPalette.remote "Customers" model.customerHits
+        |> CommandPalette.withEmptyText "No customers found"
 
 ## Attributes
 
@@ -531,23 +565,35 @@ placeholder : String -> Attribute msg
 The hint in the empty search box. The default is "Search commands and
 content ...".
 
-### `label`
+### `ariaLabel`
 
 ```elm
-label : String -> Attribute msg
+ariaLabel : String -> Attribute msg
 ```
 
-The accessible name of the dialog and of its list. The default is "Command
-palette".
+The accessible name of the dialog and of its list, which only a screen reader
+hears. The default is "Command palette".
 
-### `noResults`
+### `emptyText`
 
 ```elm
-noResults : String -> Attribute msg
+emptyText : String -> Attribute msg
 ```
 
-The text shown when nothing matches at all. The default is "No results". A
-remote section that is empty has its own text, see `emptyText`.
+The text shown when nothing matches at all, and what an empty remote section
+says unless it has a `withEmptyText` of its own. The default is "No results".
+
+### `platform`
+
+```elm
+platform : Kbd.Platform -> Attribute msg
+```
+
+The keyboard to write the shortcuts of the items for, as in
+[Klar.Kbd](Klar.Kbd.md): `Kbd.pc` (the default: Ctrl, Alt, Shift) or `Kbd.mac`
+(⌘, ⌥, ⇧). Read it once from the user agent with `Kbd.platformFromUserAgent`.
+
+    CommandPalette.platform (Kbd.platformFromUserAgent flags.userAgent)
 
 ### `locale`
 
@@ -556,8 +602,8 @@ locale : Locale.Locale -> Attribute msg
 ```
 
 The language of the built-in texts: the placeholder, the footer, the heading
-of the recent items and the announcement of the number of results. The default
-is `Locale.default`, which is `Locale.en`.
+of the recent items, the spoken names of the keys and the announcement of the
+number of results. The default is `Locale.default`, which is `Locale.en`.
 
 ### `settings`
 

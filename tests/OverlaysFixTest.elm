@@ -1035,16 +1035,18 @@ drawContext state =
     Html.div []
         [ ContextMenu.area Context state { id = "order-row", target = "1042" } [ Html.text "Order 1042" ]
         , ContextMenu.view Context
-            (\order ->
-                [ Menu.heading ("Order " ++ order)
-                , Menu.item "Open" (ContextPicked "open")
-                , Menu.item "Edit" (ContextPicked "edit") |> Menu.disabledItem
-                , Menu.item "Print" (ContextPicked "print")
-                , Menu.separator
-                , Menu.heading "Danger zone"
-                , Menu.item "Delete" (ContextPicked "delete")
-                ]
-            )
+            [ ContextMenu.items
+                (\order ->
+                    [ Menu.heading ("Order " ++ order)
+                    , Menu.item "Open" (ContextPicked "open")
+                    , Menu.item "Edit" (ContextPicked "edit") |> Menu.disabledItem
+                    , Menu.item "Print" (ContextPicked "print")
+                    , Menu.separator
+                    , Menu.heading "Danger zone"
+                    , Menu.item "Delete" (ContextPicked "delete")
+                    ]
+                )
+            ]
             state
         ]
 
@@ -1223,7 +1225,94 @@ contextMenuTests =
                             )
                         |> expectOk (ContextMenu.isOpen >> Expect.equal False)
             ]
+        , describe "the browser's own menu"
+            [ test "a right-click in a text field inside the row keeps it" <|
+                \_ ->
+                    send (drawContext (ContextMenu.init contextId))
+                        [ Selector.id "order-row" ]
+                        (rightClickWith [ ( "target", Encode.object [ ( "tagName", Encode.string "INPUT" ), ( "type", Encode.string "text" ) ] ) ])
+                        |> expectError
+            , test "a right-click in a text area or an editable element keeps it" <|
+                \_ ->
+                    Expect.all
+                        [ \_ ->
+                            send (drawContext (ContextMenu.init contextId))
+                                [ Selector.id "order-row" ]
+                                (rightClickWith [ ( "target", Encode.object [ ( "tagName", Encode.string "TEXTAREA" ) ] ) ])
+                                |> expectError
+                        , \_ ->
+                            send (drawContext (ContextMenu.init contextId))
+                                [ Selector.id "order-row" ]
+                                (rightClickWith [ ( "target", Encode.object [ ( "tagName", Encode.string "DIV" ), ( "isContentEditable", Encode.bool True ) ] ) ])
+                                |> expectError
+                        ]
+                        ()
+            , test "a right-click on a checkbox in the row opens the row's menu" <|
+                \_ ->
+                    send (drawContext (ContextMenu.init contextId))
+                        [ Selector.id "order-row" ]
+                        (rightClickWith [ ( "target", Encode.object [ ( "tagName", Encode.string "INPUT" ), ( "type", Encode.string "checkbox" ) ] ) ])
+                        |> Result.andThen (inContext (ContextMenu.init contextId))
+                        |> expectOk (Tuple.first >> ContextMenu.isOpen >> Expect.equal True)
+            , test "a right-click with Shift held keeps it" <|
+                \_ ->
+                    send (drawContext (ContextMenu.init contextId))
+                        [ Selector.id "order-row" ]
+                        (rightClickWith [ ( "shiftKey", Encode.bool True ), ( "button", Encode.int 2 ) ])
+                        |> expectError
+            , test "Shift+F10 (Shift held, no mouse button) still opens the menu" <|
+                \_ ->
+                    send (drawContext (ContextMenu.init contextId))
+                        [ Selector.id "order-row" ]
+                        (rightClickWith [ ( "shiftKey", Encode.bool True ), ( "button", Encode.int 0 ) ])
+                        |> Result.andThen (inContext (ContextMenu.init contextId))
+                        |> expectOk (Tuple.first >> ContextMenu.isOpen >> Expect.equal True)
+            ]
+        , test "the menu has a name for screen readers, Actions by default" <|
+            \_ ->
+                rightClicked
+                    |> expectOk
+                        (\state ->
+                            drawContext state
+                                |> Query.fromHtml
+                                |> Query.find [ Selector.class "klar-context" ]
+                                |> Query.find [ Selector.tag "button" ]
+                                |> Query.has [ Selector.text "Actions" ]
+                        )
+        , test "Tab in the open menu does not move focus on through the page (it goes back to the row)" <|
+            \_ ->
+                rightClicked
+                    |> expectOk
+                        (\state ->
+                            drawContext state
+                                |> Query.fromHtml
+                                |> Query.find [ Selector.class "klar-context" ]
+                                |> Event.simulate (Event.custom "keydown" (Encode.object [ ( "key", Encode.string "Tab" ) ]))
+                                |> Event.expectPreventDefault
+                        )
+        , test "the row tells a screen reader that Shift+F10 opens its menu" <|
+            \_ ->
+                drawContext (ContextMenu.init contextId)
+                    |> Query.fromHtml
+                    |> Query.find [ Selector.id "order-row" ]
+                    |> Query.has [ Selector.attribute (Attr.attribute "aria-keyshortcuts" "Shift+F10") ]
         ]
+
+
+{-| A right-click on the row with more fields.
+-}
+rightClickWith : List ( String, Encode.Value ) -> ( String, Encode.Value )
+rightClickWith fields =
+    Event.custom "contextmenu"
+        (Encode.object
+            ([ ( "clientX", Encode.float 120 )
+             , ( "clientY", Encode.float 80 )
+             , ( "view", Encode.object [ ( "innerWidth", Encode.int 1024 ), ( "innerHeight", Encode.int 768 ) ] )
+             , ( "currentTarget", Encode.object [ ( "id", Encode.string "order-row" ) ] )
+             ]
+                ++ fields
+            )
+        )
 
 
 {-| The event did not reach `update`: the menu does not handle it, the page or the

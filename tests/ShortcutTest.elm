@@ -4,6 +4,7 @@ import Expect exposing (Expectation)
 import Fuzz exposing (Fuzzer)
 import Html
 import Json.Encode as Encode
+import Klar.Internal.Keys as KeyWords
 import Klar.Shortcut as Shortcut exposing (Shortcut)
 import Support.Keys as Keys
 import Test exposing (Test, describe, fuzz, fuzz2, test)
@@ -24,8 +25,148 @@ suite =
         , insideDialogsTests
         , altGrTests
         , ignoredPressesTests
+        , takenKeysTests
+        , layoutTests
+        , macTests
+        , sameKeysTests
         , propertyTests
         ]
+
+
+
+-- KEYS THAT ARE ALREADY TAKEN, OTHER LAYOUTS, THE MAC
+
+
+{-| A component inside has handled the key and prevented its default action.
+-}
+handled : Press -> Press
+handled p =
+    { p | prevented = True }
+
+
+{-| The press belongs to the composition of an input method.
+-}
+composingText : Press -> Press
+composingText p =
+    { p | composing = True }
+
+
+{-| In an open popup (a menu): the target is inside `.klar-popup` and `.klar-layer`.
+-}
+inMenu : Press -> Press
+inMenu p =
+    { p | inPopup = True, tag = "DIV" }
+
+
+{-| The physical key, as `KeyboardEvent.code` names it.
+-}
+onKey : String -> Press -> Press
+onKey code p =
+    { p | code = code }
+
+
+onMac : Press -> Press
+onMac p =
+    { p | mac = True }
+
+
+takenKeysTests : Test
+takenKeysTests =
+    describe "keys that are already taken"
+        [ check "a key that a component handled does not fire" Nothing (alone (press "Escape" |> handled))
+        , check "Ctrl and K that a component handled does not fire" Nothing (alone (press "k" |> ctrl |> handled))
+        , check "the Enter or Escape that ends an input method's composition does not fire" Nothing (alone (press "Escape" |> inField |> composingText))
+        , check "a plain letter in an open menu does not fire" Nothing (alone (press "n" |> inMenu))
+        , check "a sequence does not start in an open menu" Nothing (series shortcuts [ press "g" |> inMenu, press "o" |> inMenu ] |> List.reverse |> List.head |> Maybe.andThen identity)
+        , check "Escape in an open menu is the menu's, even when the shortcut is marked inInputs" Nothing (alone (press "Escape" |> inMenu))
+        , check "Ctrl and K in an open menu fires" (Just OpenPalette) (alone (press "k" |> ctrl |> inMenu))
+        , check "a combination in an open menu fires" (Just NextRow) (alone (press "ArrowDown" |> alt |> inMenu))
+        ]
+
+
+layoutTests : Test
+layoutTests =
+    describe "other keyboard layouts"
+        [ check "Ctrl and the K key on a Russian layout (the key gives л)" (Just OpenPalette) (alone (press "л" |> ctrl |> onKey "KeyK"))
+        , check "Ctrl and the K key on a Greek layout, in a field" (Just OpenPalette) (alone (press "κ" |> ctrl |> onKey "KeyK" |> inField))
+        , check "Ctrl and the S key on a Hebrew layout" (Just Save) (alone (press "ד" |> ctrl |> onKey "KeyS"))
+        , check "Ctrl and the 1 key on an AZERTY keyboard (the key gives &)" (Just Save) (firesAlone "mod+1" (press "&" |> ctrl |> onKey "Digit1"))
+        , check "Ctrl, Shift and 1 (the key gives !)" (Just Save) (firesAlone "mod+shift+1" (press "!" |> ctrl |> shift |> onKey "Digit1"))
+        , check "a letter without Ctrl, Alt or Cmd is not found by its place" Nothing (alone (press "т" |> onKey "KeyN"))
+        , check "the key itself wins over its place: AZERTY Ctrl and A" (Just SelectAllRows) (alone (press "a" |> ctrl |> onKey "KeyQ"))
+        , check "AltGr and 8 on a German keyboard is still the symbol [" (Just OpenBracket) (firesAmong [ Shortcut.shortcut (Shortcut.char '[') "View" "Sidebar" OpenBracket ] (press "[" |> ctrl |> alt |> onKey "Digit8"))
+        , check "a symbol typed with AltGr in a field is still text, also by its place" Nothing (firesInFields "mod+alt+8" (press "[" |> ctrl |> alt |> onKey "Digit8" |> inField))
+        ]
+
+
+macTests : Test
+macTests =
+    describe "on a Mac"
+        [ check "Cmd and K fires mod+k" (Just OpenPalette) (alone (press "k" |> cmd |> onMac))
+        , check "Ctrl and K outside a field fires mod+k too" (Just OpenPalette) (alone (press "k" |> ctrl |> onMac))
+        , check "Ctrl and K in a field is the field's (delete to the end of the line)" Nothing (alone (press "k" |> ctrl |> onMac |> inField))
+        , check "Cmd and K in a field fires" (Just OpenPalette) (alone (press "k" |> cmd |> onMac |> inField))
+        , check "Option and A (the key gives å) fires alt+a" (Just Save) (firesAlone "alt+a" (press "å" |> alt |> onMac |> onKey "KeyA"))
+        , check "Option and N (a dead key) fires alt+n" (Just Save) (firesAlone "alt+n" (press "Dead" |> alt |> onMac |> onKey "KeyN"))
+        , check "Option and A in a field is text" Nothing (firesInFields "alt+a" (press "å" |> alt |> onMac |> onKey "KeyA" |> editable))
+        , check "Option and N in a field starts an accent, which is text" Nothing (firesInFields "alt+n" (press "Dead" |> alt |> onMac |> onKey "KeyN" |> inField))
+        ]
+
+
+sameKeysTests : Test
+sameKeysTests =
+    let
+        list =
+            [ Shortcut.shortcut Shortcut.escape "Navigation" "Close the panel" Close
+            , Shortcut.shortcut Shortcut.escape "Search" "Clear the search" Slash |> Shortcut.inInputs
+            ]
+    in
+    describe "two shortcuts with the same keys"
+        [ check "in a field the one marked inInputs fires" (Just Slash) (firesAmong list (press "Escape" |> inField))
+        , check "elsewhere the first one fires" (Just Close) (firesAmong list (press "Escape"))
+        , check "both can fire, so they are no conflict" [] (Shortcut.conflicts list |> List.map .label)
+        , check "the shortcuts of the imaginary application have no conflicts" [] (Shortcut.conflicts shortcuts |> List.map .label)
+        , check "a second shortcut with the same keys never fires"
+            [ { label = "Save again", hiddenBy = "Save" } ]
+            (Shortcut.conflicts
+                [ Shortcut.shortcut (Keys.parse "mod+s") "Orders" "Save" Save
+                , Shortcut.shortcut (Keys.parse "mod+s") "Orders" "Save again" Save
+                ]
+                |> List.map (\found -> { label = found.label, hiddenBy = found.hiddenBy })
+            )
+        , check "a second shortcut marked inInputs hides nothing in fields, but the first one marked inInputs hides the second"
+            [ "Close the panel" ]
+            (Shortcut.conflicts
+                [ Shortcut.shortcut Shortcut.escape "Search" "Clear the search" Slash |> Shortcut.inInputs
+                , Shortcut.shortcut Shortcut.escape "Navigation" "Close the panel" Close
+                ]
+                |> List.map .label
+            )
+        , check "a key by itself hides a sequence that begins with it, wherever it is in the list"
+            [ { label = "Go to orders", hiddenBy = "Go" } ]
+            (Shortcut.conflicts
+                [ Shortcut.shortcut (Keys.parse "g o") "Navigation" "Go to orders" GoToOrders
+                , Shortcut.shortcut (Keys.parse "g") "Navigation" "Go" GoToCustomers
+                ]
+                |> List.map (\found -> { label = found.label, hiddenBy = found.hiddenBy })
+            )
+        , check "the keys of the hidden shortcut come with it"
+            [ Keys.parse "g o" ]
+            (Shortcut.conflicts
+                [ Shortcut.shortcut (Keys.parse "g") "Navigation" "Go" GoToCustomers
+                , Shortcut.shortcut (Keys.parse "g o") "Navigation" "Go to orders" GoToOrders
+                ]
+                |> List.map .keys
+            )
+        , check "an empty sequence hides nothing" [] (Shortcut.conflicts [ Shortcut.shortcut (Shortcut.sequence []) "X" "Nothing" Save, Shortcut.shortcut (Keys.parse "g o") "Y" "Go" GoToOrders ] |> List.map .label)
+        ]
+
+
+{-| What one key press does with a shortcut of its own that is marked `inInputs`.
+-}
+firesInFields : String -> Press -> Maybe Msg
+firesInFields keys p =
+    firesAmong [ Shortcut.shortcut (Keys.parse keys) "Group" "Label" Save |> Shortcut.inInputs ] p
 
 
 
@@ -64,6 +205,11 @@ type alias Press =
     , tag : String
     , editable : Bool
     , dialogLevels : Maybe Int
+    , code : String
+    , prevented : Bool
+    , composing : Bool
+    , inPopup : Bool
+    , mac : Bool
     }
 
 
@@ -79,6 +225,11 @@ press key =
     , tag = "DIV"
     , editable = False
     , dialogLevels = Nothing
+    , code = ""
+    , prevented = False
+    , composing = False
+    , inPopup = False
+    , mac = False
     }
 
 
@@ -162,7 +313,15 @@ target p =
                     parents levels
 
                 Nothing ->
-                    Encode.object [ ( "tagName", Encode.string "BODY" ) ]
+                    if p.inPopup then
+                        Encode.object
+                            [ ( "tagName", Encode.string "DIV" )
+                            , ( "className", Encode.string "klar-popup klar-menu__popup" )
+                            , ( "parentElement", Encode.object [ ( "tagName", Encode.string "DIV" ), ( "className", Encode.string "klar-layer" ) ] )
+                            ]
+
+                    else
+                        Encode.object [ ( "tagName", Encode.string "BODY" ) ]
           )
         ]
 
@@ -178,6 +337,26 @@ keydown p =
              , ( "shiftKey", Encode.bool p.shift )
              , ( "repeat", Encode.bool p.repeat )
              , ( "target", target p )
+             , ( "code", Encode.string p.code )
+             , ( "defaultPrevented", Encode.bool p.prevented )
+             , ( "isComposing", Encode.bool p.composing )
+             , ( "view"
+               , Encode.object
+                    [ ( "navigator"
+                      , Encode.object
+                            [ ( "platform"
+                              , Encode.string
+                                    (if p.mac then
+                                        "MacIntel"
+
+                                     else
+                                        "Win32"
+                                    )
+                              )
+                            ]
+                      )
+                    ]
+               )
              ]
                 ++ (case p.time of
                         Just time ->
@@ -293,30 +472,33 @@ check name expected actual =
 
 keycapTests : Test
 keycapTests =
-    describe "keycaps"
-        [ check "mod+k" [ [ "Ctrl", "K" ] ] (Shortcut.keycaps (Shortcut.mod (Shortcut.char 'k')))
-        , check "a sequence is one list for each step" [ [ "G" ], [ "M" ] ] (Shortcut.keycaps (Shortcut.sequence [ Shortcut.char 'g', Shortcut.char 'm' ]))
-        , check "a symbol" [ [ "?" ] ] (Shortcut.keycaps (Shortcut.char '?'))
-        , check "the plus key with Ctrl" [ [ "Ctrl", "+" ] ] (Shortcut.keycaps (Shortcut.mod (Shortcut.char '+')))
-        , check "the plus key alone" [ [ "+" ] ] (Shortcut.keycaps (Shortcut.char '+'))
-        , check "the plus key with several modifiers" [ [ "Ctrl", "Shift", "+" ] ] (Shortcut.keycaps (Shortcut.mod (Shortcut.shift (Shortcut.char '+'))))
-        , check "the minus key with Ctrl" [ [ "Ctrl", "-" ] ] (Shortcut.keycaps (Shortcut.mod (Shortcut.char '-')))
-        , check "shift" [ [ "Shift", "N" ] ] (Shortcut.keycaps (Shortcut.shift (Shortcut.char 'n')))
-        , check "alt" [ [ "Alt", "K" ] ] (Shortcut.keycaps (Shortcut.alt (Shortcut.char 'k')))
-        , check "all three modifiers come in a fixed order, whatever order they were written in" [ [ "Ctrl", "Alt", "Shift", "P" ] ] (Shortcut.keycaps (Shortcut.shift (Shortcut.alt (Shortcut.mod (Shortcut.char 'p')))))
-        , check "escape" [ [ "Esc" ] ] (Shortcut.keycaps Shortcut.escape)
-        , check "enter" [ [ "Enter" ] ] (Shortcut.keycaps Shortcut.enter)
-        , check "space" [ [ "Space" ] ] (Shortcut.keycaps Shortcut.space)
-        , check "tab" [ [ "Tab" ] ] (Shortcut.keycaps Shortcut.tab)
-        , check "the arrow keys are arrows" [ [ "↑" ], [ "↓" ], [ "←" ], [ "→" ] ] (List.concatMap (Keys.parse >> Shortcut.keycaps) [ "up", "down", "left", "right" ])
-        , check "an arrow with a modifier" [ [ "Alt", "↓" ] ] (Shortcut.keycaps (Shortcut.alt Shortcut.down))
-        , check "a named key" [ [ "F2" ] ] (Shortcut.keycaps (Shortcut.function 2))
-        , check "shift with a named key" [ [ "Shift", "Enter" ] ] (Shortcut.keycaps (Shortcut.shift Shortcut.enter))
-        , check "a digit" [ [ "1" ] ] (Shortcut.keycaps (Shortcut.char '1'))
-        , check "extra spaces between the steps and around them do not matter" [ [ "G" ], [ "M" ] ] (Shortcut.keycaps (Shortcut.sequence [ Shortcut.char 'g', Shortcut.char 'm' ]))
-        , check "a sequence of steps with modifiers" [ [ "Ctrl", "K" ], [ "Ctrl", "S" ] ] (Shortcut.keycaps (Shortcut.sequence [ Shortcut.mod (Shortcut.char 'k'), Shortcut.mod (Shortcut.char 's') ]))
-        , check "three steps are three lists" [ [ "G" ], [ "O" ], [ "X" ] ] (Shortcut.keycaps (Shortcut.sequence [ Shortcut.char 'g', Shortcut.char 'o', Shortcut.char 'x' ]))
-        , check "a letter that has an accent" [ [ "Ø" ] ] (Shortcut.keycaps (Shortcut.char 'ø'))
+    describe "the words of the keys, which Kbd turns into caps"
+        [ check "mod+k" [ [ "Ctrl", "K" ] ] (KeyWords.words (Shortcut.mod (Shortcut.char 'k')))
+        , check "a sequence is one list for each step" [ [ "G" ], [ "M" ] ] (KeyWords.words (Shortcut.sequence [ Shortcut.char 'g', Shortcut.char 'm' ]))
+        , check "a symbol" [ [ "?" ] ] (KeyWords.words (Shortcut.char '?'))
+        , check "the plus key with Ctrl" [ [ "Ctrl", "+" ] ] (KeyWords.words (Shortcut.mod (Shortcut.char '+')))
+        , check "the plus key alone" [ [ "+" ] ] (KeyWords.words (Shortcut.char '+'))
+        , check "the plus key with several modifiers" [ [ "Ctrl", "Shift", "+" ] ] (KeyWords.words (Shortcut.mod (Shortcut.shift (Shortcut.char '+'))))
+        , check "the minus key with Ctrl" [ [ "Ctrl", "-" ] ] (KeyWords.words (Shortcut.mod (Shortcut.char '-')))
+        , check "shift" [ [ "Shift", "N" ] ] (KeyWords.words (Shortcut.shift (Shortcut.char 'n')))
+        , check "alt" [ [ "Alt", "K" ] ] (KeyWords.words (Shortcut.alt (Shortcut.char 'k')))
+        , check "all three modifiers come in a fixed order, whatever order they were written in" [ [ "Ctrl", "Alt", "Shift", "P" ] ] (KeyWords.words (Shortcut.shift (Shortcut.alt (Shortcut.mod (Shortcut.char 'p')))))
+        , check "escape" [ [ "Esc" ] ] (KeyWords.words Shortcut.escape)
+        , check "enter" [ [ "Enter" ] ] (KeyWords.words Shortcut.enter)
+        , check "space" [ [ "Space" ] ] (KeyWords.words Shortcut.space)
+        , check "tab" [ [ "Tab" ] ] (KeyWords.words Shortcut.tab)
+        , check "the arrow keys are arrows" [ [ "↑" ], [ "↓" ], [ "←" ], [ "→" ] ] (List.concatMap (Keys.parse >> KeyWords.words) [ "up", "down", "left", "right" ])
+        , check "an arrow with a modifier" [ [ "Alt", "↓" ] ] (KeyWords.words (Shortcut.alt Shortcut.down))
+        , check "a named key" [ [ "F2" ] ] (KeyWords.words (Shortcut.function 2))
+        , check "the other named keys have names, not capitals (one table with Kbd)"
+            [ [ "PageUp" ], [ "PageDown" ], [ "Delete" ], [ "Backspace" ], [ "Home" ], [ "End" ] ]
+            (List.concatMap KeyWords.words [ Shortcut.pageUp, Shortcut.pageDown, Shortcut.delete, Shortcut.backspace, Shortcut.home, Shortcut.end ])
+        , check "shift with a named key" [ [ "Shift", "Enter" ] ] (KeyWords.words (Shortcut.shift Shortcut.enter))
+        , check "a digit" [ [ "1" ] ] (KeyWords.words (Shortcut.char '1'))
+        , check "extra spaces between the steps and around them do not matter" [ [ "G" ], [ "M" ] ] (KeyWords.words (Shortcut.sequence [ Shortcut.char 'g', Shortcut.char 'm' ]))
+        , check "a sequence of steps with modifiers" [ [ "Ctrl", "K" ], [ "Ctrl", "S" ] ] (KeyWords.words (Shortcut.sequence [ Shortcut.mod (Shortcut.char 'k'), Shortcut.mod (Shortcut.char 's') ]))
+        , check "three steps are three lists" [ [ "G" ], [ "O" ], [ "X" ] ] (KeyWords.words (Shortcut.sequence [ Shortcut.char 'g', Shortcut.char 'o', Shortcut.char 'x' ]))
+        , check "a letter that has an accent" [ [ "Ø" ] ] (KeyWords.words (Shortcut.char 'ø'))
         ]
 
 
@@ -368,7 +550,7 @@ keyNotationTests =
         , check "and a shortcut written with ctrl is not a plain s" Nothing (firesAlone "ctrl+s" (press "s"))
         , check "the names are not case sensitive" (Just Save) (firesAlone "Mod+S" (press "s" |> ctrl))
         , check "option is another name for alt" (Just Save) (firesAlone "option+s" (press "s" |> alt))
-        , check "the key caps of ctrl+k" [ [ "Ctrl", "K" ] ] (Shortcut.keycaps (Shortcut.mod (Shortcut.char 'k')))
+        , check "the key caps of ctrl+k" [ [ "Ctrl", "K" ] ] (KeyWords.words (Shortcut.mod (Shortcut.char 'k')))
         , check "shift counts for named keys: shift+enter" (Just Save) (firesAlone "shift+enter" (press "Enter" |> shift))
         , check "and enter alone is not shift+enter" Nothing (firesAlone "shift+enter" (press "Enter"))
         , check "space" (Just Save) (firesAlone "space" (press " "))
@@ -559,6 +741,12 @@ ignoredPressesTests =
     describe "presses that count for nothing"
         [ check "a key that is held down does not repeat the shortcut" Nothing (alone (press "n" |> held))
         , check "also with modifiers" Nothing (alone (press "k" |> ctrl |> held))
+        , check "a shortcut marked repeats fires again while its key is held"
+            (Just NextRow)
+            (firesAmong [ Shortcut.shortcut (Shortcut.char 'j') "Orders" "Next row" NextRow |> Shortcut.repeats ] (press "j" |> held))
+        , check "a held key does not complete a sequence, even one marked repeats"
+            [ Nothing, Nothing ]
+            (series [ Shortcut.shortcut (Keys.parse "g o") "Navigation" "Go to orders" GoToOrders |> Shortcut.repeats ] [ press "g", press "o" |> held ])
         , check "Shift alone" Nothing (alone (press "Shift" |> shift))
         , check "Control alone" Nothing (alone (press "Control" |> ctrl))
         , check "Alt alone" Nothing (alone (press "Alt" |> alt))
@@ -691,11 +879,11 @@ propertyTests =
                     |> Expect.equal Nothing
         , fuzz (Fuzz.oneOfValues letters) "keycaps shows each letter in capitals" <|
             \letter ->
-                Shortcut.keycaps (Keys.parse letter)
+                KeyWords.words (Keys.parse letter)
                     |> Expect.equal [ [ String.toUpper letter ] ]
         , fuzz2 (Fuzz.oneOfValues letters) (Fuzz.oneOfValues letters) "keycaps of a sequence has a list for each step" <|
             \first second ->
-                Shortcut.keycaps (Keys.parse (first ++ " " ++ second))
+                KeyWords.words (Keys.parse (first ++ " " ++ second))
                     |> Expect.equal [ [ String.toUpper first ], [ String.toUpper second ] ]
         , fuzz2 modifiersFuzzer (Fuzz.oneOfValues letters) "keycaps lists the modifiers in the order Ctrl, Alt, Shift, whatever the order they were written in" <|
             \modifiers letter ->
@@ -722,8 +910,8 @@ propertyTests =
                 in
                 Expect.equal
                     [ [ expected ], [ expected ] ]
-                    [ Shortcut.keycaps (Keys.parse (notation modifiers letter [ "shift", "mod", "alt" ]))
-                    , Shortcut.keycaps (Keys.parse (notation modifiers letter [ "alt", "shift", "mod" ]))
+                    [ KeyWords.words (Keys.parse (notation modifiers letter [ "shift", "mod", "alt" ]))
+                    , KeyWords.words (Keys.parse (notation modifiers letter [ "alt", "shift", "mod" ]))
                     ]
         ]
 
@@ -750,11 +938,11 @@ builderTests =
             \_ ->
                 Expect.equal
                     [ [ "Ctrl", "G" ], [ "Ctrl", "O" ] ]
-                    (Shortcut.keycaps (Shortcut.mod (Shortcut.sequence [ Shortcut.char 'g', Shortcut.char 'o' ])))
+                    (KeyWords.words (Shortcut.mod (Shortcut.sequence [ Shortcut.char 'g', Shortcut.char 'o' ])))
         , test "a function key outside 1 to 12 is the nearest one" <|
             \_ -> Expect.equal [ Shortcut.function 1, Shortcut.function 12 ] [ Shortcut.function 0, Shortcut.function 99 ]
         , test "the plus key with a modifier" <|
-            \_ -> Expect.equal [ [ "Ctrl", "+" ] ] (Shortcut.keycaps (Shortcut.mod (Shortcut.char '+')))
+            \_ -> Expect.equal [ [ "Ctrl", "+" ] ] (KeyWords.words (Shortcut.mod (Shortcut.char '+')))
         , test "the accessors read back what the shortcut was made with" <|
             \_ ->
                 let

@@ -11,6 +11,7 @@ import Html exposing (Html)
 import Html.Attributes as Attr
 import Json.Encode as Encode
 import Klar.History as History exposing (History)
+import Klar.Internal.Keys as KeyWords
 import Klar.Locale as Locale
 import Klar.Shortcut as Shortcut
 import Support.FlowHtml as H
@@ -1082,7 +1083,7 @@ shortcutTests =
             \_ ->
                 Expect.equal
                     [ [ [ "Ctrl", "Z" ] ], [ [ "Ctrl", "Shift", "Z" ] ], [ [ "Ctrl", "Y" ] ] ]
-                    (List.map (Shortcut.keycaps << Shortcut.keysOf) made)
+                    (List.map (KeyWords.words << Shortcut.keysOf) made)
         , test "with names for the shortcut sheet, in a group" <|
             \_ ->
                 Expect.all
