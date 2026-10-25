@@ -838,8 +838,10 @@ horizontal =
     Attribute (\config -> { config | horizontal = True })
 
 
-{-| The accessible name of the flow, such as "Approval of credit note 2024-117".
-The default is "Approval steps" in the language of `locale`.
+{-| The accessible name of the flow, such as "Approval of credit note 2024-117". The
+flow is a named group (not a landmark, so a page with many flows does not get many
+regions), and this is what a screen reader says when the flow takes the focus. The
+default is "Approval steps" in the language of `locale`.
 -}
 ariaLabel : String -> Attribute approver msg
 ariaLabel text =

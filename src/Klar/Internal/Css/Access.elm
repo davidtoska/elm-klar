@@ -787,9 +787,13 @@ css =
 
 .klar-approval--horizontal .klar-approval__step--current .klar-approval__body { margin-left: 0; }
 
-/* ---- Skeleton ---------------------------------------------------------------- */
+/* ---- Skeleton, failure, empty --------------------------------------------------- */
 
 .klar-approval--skeleton { gap: var(--klar-space-4); }
+
+/* The failure and the empty state sit in the same root, under an old data marker if any. */
+.klar-approval--failed,
+.klar-approval--empty { gap: var(--klar-space-2); }
 
 .klar-approval__skeleton-step {
   display: flex;
