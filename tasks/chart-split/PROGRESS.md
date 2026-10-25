@@ -71,3 +71,7 @@
 - Next: Masks.
 
 - Masks: format, full check, byte-identical docs and identical chart/sparkline roots passed.
+- Commit acab8e7: Masks complete.
+- Next: Preparation.
+
+- Preparation: format, full check, byte-identical docs and identical chart/sparkline roots passed.
