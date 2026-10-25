@@ -148,6 +148,7 @@ import Klar.Chart.Bar as Bar
 import Klar.Chart.Config as Config
 import Klar.Chart.Core as Core
 import Klar.Chart.Data as Data
+import Klar.Chart.Donut as Donut
 import Klar.Chart.Line as Line
 import Klar.Chart.Types as Types
 import Klar.Date exposing (Date)
@@ -664,7 +665,7 @@ shown unless you say `hideLegend`. Slices with a value of 0 are left out.
 -}
 donut : List (Attribute msg) -> List Segment -> Html msg
 donut arg1 arg2 =
-    Core.donut (List.map unwrapAttribute arg1) (List.map unwrapSegment arg2)
+    Donut.donut (List.map unwrapAttribute arg1) (List.map unwrapSegment arg2)
 
 
 {-| A half-circle gauge for one value against a scale (see `range`; the default

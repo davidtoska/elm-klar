@@ -87,3 +87,7 @@
 - Next: Bar.
 
 - Bar: format, full check, byte-identical docs and identical chart/sparkline roots passed.
+- Commit 5b1ca13: Bar complete.
+- Next: Donut.
+
+- Donut: format, full check, byte-identical docs and identical chart/sparkline roots passed.
