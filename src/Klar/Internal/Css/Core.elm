@@ -204,6 +204,8 @@ css =
 .klar-fill { width: 100%; }
 .klar-grow { flex: 1 1 0; min-width: 0; }
 .klar-fixed-w { flex: 0 0 var(--klar-fixed-w); width: var(--klar-fixed-w); max-width: 100%; min-width: 0; }
+/* Layout.columnSpan: never more columns than the grid has (--klar-grid-cols, set by the grid). */
+.klar-span { grid-column: span min(var(--klar-span, 1), var(--klar-grid-cols, 1)); min-width: 0; }
 .klar-fill-rest { flex: 1 1 auto; min-height: 0; }
 /* A container with fillRest hands the height on to a fillRest stack inside it. */
 .klar-container.klar-fill-rest { display: flex; flex-direction: column; }

@@ -41,6 +41,7 @@ wrap : Attribute msg
 -- Grid columns
 columns : Int -> Attribute msg
 minColumn : Int -> Attribute msg
+columnSpan : Int -> Attribute msg
 
 -- Names
 id : String -> Attribute msg
@@ -389,6 +390,24 @@ wide, sharing the free space between them. Columns that would be empty collapse
 there is a single column of full width. A grid with neither `columns` nor
 `minColumn` behaves like `minColumn 240`. The smallest width is 16 pixels:
 smaller numbers (and 0 and negative numbers) count as 16.
+
+### `columnSpan`
+
+```elm
+columnSpan : Int -> Attribute msg
+```
+
+How many columns the element takes in the `grid` it sits in: a chart over two
+columns next to two narrow tiles. It is at least 1 and never more than the columns of
+the grid, so `columnSpan 4` in a grid of `columns 3` takes the whole row. A responsive
+grid (`minColumn`) changes its number of columns with the width, so there every
+element takes one column. Give it to the layout that is the child of the grid, around
+a card if the cell is a card:
+
+    Layout.grid [ Layout.columns 3 ]
+        [ Layout.stack [ Layout.columnSpan 2 ] [ salesChartCard ]
+        , ordersStatCard
+        ]
 
 ## Names
 

@@ -787,10 +787,14 @@ columnsAndGrow : Html Msg
 columnsAndGrow =
     Doc.example
         { title = "Columns and growing"
-        , description = Just "columns n makes a grid of n equal columns; minColumn, used in the examples above and below, adds and removes columns as the space changes. grow lets one part of a row take the space that is left, such as the main column next to a sidebar."
+        , description = Just "columns n makes a grid of n equal columns; minColumn, used in the examples above and below, adds and removes columns as the space changes. columnSpan lets one element of a grid with columns take several of them. grow lets one part of a row take the space that is left, such as the main column next to a sidebar."
         , code = Just """Layout.stack [ Layout.gap 5 ]
     [ Layout.grid [ Layout.columns 3, Layout.gap 3 ]
         (List.map (\\n -> Card.view [] [ Text.paragraph ("Column " ++ String.fromInt n) ]) (List.range 1 6))
+    , Layout.grid [ Layout.columns 3, Layout.gap 3 ]
+        [ Layout.stack [ Layout.columnSpan 2 ] [ Card.view [] [ Text.paragraph "Two columns wide" ] ]
+        , Card.view [] [ Text.paragraph "One column" ]
+        ]
     , Layout.row [ Layout.gap 4, Layout.alignStart ]
         [ Card.view [ Card.title "Filters" ] [ Text.paragraph "As wide as its content." ]
         , Layout.stack [ Layout.grow, Layout.gap 3 ]
@@ -804,6 +808,10 @@ columnsAndGrow =
                     (\n -> card [] [ Text.paragraph ("Column " ++ String.fromInt n) ])
                     (List.range 1 6)
                 )
+            , Layout.grid [ Layout.columns 3, Layout.gap 3 ]
+                [ Layout.stack [ Layout.columnSpan 2 ] [ card [] [ Text.paragraph "Two columns wide" ] ]
+                , card [] [ Text.paragraph "One column" ]
+                ]
             , Layout.row [ Layout.gap 4, Layout.alignStart ]
                 [ card [ Card.title "Filters" ] [ Text.paragraph "As wide as its content." ]
                 , Layout.stack [ Layout.grow, Layout.gap 3 ]

@@ -2,7 +2,7 @@ module Klar.Layout exposing
     ( stack, row, grid, container
     , Attribute, gap, padding, fill, grow, width, fillRest, maxWidth, maxHeight, scroll
     , alignStart, alignCenter, alignEnd, alignStretch, alignBaseline, justifyCenter, justifyEnd, justifyBetween, wrap
-    , columns, minColumn
+    , columns, minColumn, columnSpan
     , id, ariaLabel
     , spacer, divider, dividerLabelled, dividerVertical
     )
@@ -57,7 +57,7 @@ numbers are rounded down to the step below (7 becomes 6, 9 becomes 8, 11 becomes
 
 # Grid columns
 
-@docs columns, minColumn
+@docs columns, minColumn, columnSpan
 
 
 # Names
@@ -95,6 +95,7 @@ type alias Config =
     , fillRest : Bool
     , columns : Maybe Int
     , minColumn : Maybe Int
+    , columnSpan : Maybe Int
     , maxWidth : Maybe Int
     , maxHeight : Maybe Int
     , scroll : Bool
@@ -116,6 +117,7 @@ defaults =
     , fillRest = False
     , columns = Nothing
     , minColumn = Nothing
+    , columnSpan = Nothing
     , maxWidth = Nothing
     , maxHeight = Nothing
     , scroll = False
@@ -314,6 +316,24 @@ minColumn px =
     Attribute (\config -> { config | minColumn = Just (max 16 px) })
 
 
+{-| How many columns the element takes in the `grid` it sits in: a chart over two
+columns next to two narrow tiles. It is at least 1 and never more than the columns of
+the grid, so `columnSpan 4` in a grid of `columns 3` takes the whole row. A responsive
+grid (`minColumn`) changes its number of columns with the width, so there every
+element takes one column. Give it to the layout that is the child of the grid, around
+a card if the cell is a card:
+
+    Layout.grid [ Layout.columns 3 ]
+        [ Layout.stack [ Layout.columnSpan 2 ] [ salesChartCard ]
+        , ordersStatCard
+        ]
+
+-}
+columnSpan : Int -> Attribute msg
+columnSpan n =
+    Attribute (\config -> { config | columnSpan = Just (max 1 n) })
+
+
 {-| The maximum width of a `container`, in pixels. The default is 1440. Other
 layouts ignore it.
 -}
@@ -438,7 +458,14 @@ grid attributes children =
                     "repeat(auto-fit, minmax(min(240px, 100%), 1fr))"
     in
     Html.div
-        (commonAttributes "klar-grid" [ ( "--klar-grid-template", template ) ] config)
+        (commonAttributes "klar-grid"
+            [ ( "--klar-grid-template", template )
+
+            -- the number of columns that a `columnSpan` inside is clamped to
+            , ( "--klar-grid-cols", String.fromInt (Maybe.withDefault 1 config.columns) )
+            ]
+            config
+        )
         children
 
 
@@ -541,6 +568,7 @@ commonAttributes block extra config =
                             else
                                 Nothing
                     , config.width |> Maybe.map (\w -> ( "--klar-fixed-w", String.fromInt w ++ "px" ))
+                    , config.columnSpan |> Maybe.map (\n -> ( "--klar-span", String.fromInt n ))
                     ]
     in
     [ Internal.cls
@@ -567,6 +595,11 @@ commonAttributes block extra config =
             ""
         , if config.grow then
             "klar-grow"
+
+          else
+            ""
+        , if config.columnSpan /= Nothing then
+            "klar-span"
 
           else
             ""
