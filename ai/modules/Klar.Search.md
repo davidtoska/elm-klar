@@ -91,7 +91,8 @@ filter : (a -> String) -> String -> List a -> List a
 
 Keeps the items that match, best matches first. Items with equal scores
 keep their original order. A query that is empty or only spaces returns the
-list unchanged.
+list unchanged. It is the short form of `filterBy` with one text: for items with a
+name and more (a city, a description), use `filterBy`.
 
     Search.filter identity "ber" [ "Åsberg", "Oslo", "Bergen" ] -- [ "Bergen", "Åsberg" ]
 
@@ -161,7 +162,9 @@ used. That is the start of the text, else the start of a word ("ber" marks
 "Bergen" in "Åsberg Bergen", not the "berg" inside "Åsberg"), else the first place
 inside the text; for a match of letters in order, each of those letters. Matching
 is done on the normalized text, so `"orsted"` highlights "Ørsted". The parts put
-together are always the whole text.
+together are always the whole text. It looks only at the text it is given: when an
+item matched through another text (`filterBy`'s city or keywords), the label may get
+no marks, or the marks of a looser match of the same letters.
 
     Search.highlight "ber" "Bergen" -- "Ber" in a <mark>, then "gen"
 

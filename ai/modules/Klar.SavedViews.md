@@ -364,9 +364,17 @@ What to send to a backend that keeps each view by its key:
 
   - `Created view`: a view the user saved. It has no key yet: store it, and give the
     list back to `setViews` with the key the backend gave it (`withKey`).
-  - `Updated view`: a view with a key whose name, note, rule, query or default changed
-    (a rename keeps the key, so it is an update, not a new view).
+  - `Updated view`: a view whose name, note, rule, query or default changed (a rename
+    keeps the key, so it is an update, not a new view). A view that has no key yet is
+    followed by its name, so a new view made the default before the backend answered
+    is an update of that name, not a second view.
   - `Deleted key`: the key of a view that the user deleted.
+
+The default is the user's own choice: a locked view (`asLocked`) whose only change is
+that it became, or stopped being, the default gives nothing, so nothing is written to a
+view the user does not own. Store the name of `defaultView` per user when your views
+are shared. Give a new view its key before it is renamed: a view without a key that is
+renamed reads as a new view.
 
 ### `changes`
 
@@ -377,8 +385,8 @@ changes : List SavedView -> List SavedView -> List Change
 The changes from one list of views to the next, for a backend that keeps each view
 by its key: compare `views` before and after `update` (with
 [Klar.ServerList](Klar.ServerList.md): the views before, and the `save` of the step).
-Views without a key are new ones: a view without a key that is not in the list before
-is `Created`. Unchanged views give nothing.
+A view without a key and with no view of its name before is `Created`. Unchanged views
+give nothing.
 
     SavedViews.changes (SavedViews.views model.views) (SavedViews.views views)
         |> List.map storeChange
@@ -576,8 +584,9 @@ onRetry : msg -> Attribute msg
 ```
 
 The message of the "Try again" button, shown when loading the views failed (and the
-problem is worth retrying, see `Remote.isRetryable`). While the views load again the
-button stays in its place, busy, so keyboard focus is not lost.
+problem is worth retrying, see `Remote.isRetryable`). While the views load (the first
+time, or again after "Try again") the list says it is loading, with no button; focus
+moves from the button to that status, so it stays in the popup.
 
 ### `label`
 

@@ -253,8 +253,9 @@ saved views are the ones you have stored; the one marked as default is applied (
 rule goes into the filter bar and its query into the table).
 
 To start somewhere else (the view the user had, the address of a link), give the state
-of this step to `applyView` or `fromQueryString` and follow that step instead: it
-carries the first request.
+of this step to `applyView`, `fromQueryString` or `setRule` and follow that step instead:
+it carries the first request. A view named before the views came from the backend waits
+for them: `setViews` applies it then, ahead of the default view.
 
 ### `update`
 
@@ -389,9 +390,11 @@ setViews : List SavedViews.SavedView -> State id row -> Step id row
 ```
 
 Replaces the saved views, for example when they came from the backend after the
-list was made. The default view is applied when the views arrive for the first time
-and the user has not filtered or paged the list yet; a later list (the echo of a store,
-another tab) only replaces the views, so the filters that are on the screen stay.
+list was made. When the views arrive for the first time, a view named before they came
+(by `applyView`, or the `view` of an address given to `fromQueryString`) is applied; else
+the default view is, if the user has not filtered or paged the list yet. A later list
+(the echo of a store, another tab) only replaces the views, so the filters that are on
+the screen stay.
 
 ### `applyView`
 
@@ -400,8 +403,9 @@ applyView : String -> State id row -> Step id row
 ```
 
 Applies the view with this name as if the user had picked it: a link that names a
-view (`#/orders?view=Open`) or the view the user had last time calls it. A name that is
-not in the list changes nothing.
+view (`#/orders?view=Open`) or the view the user had last time calls it. Before the views
+came from the backend the name waits for them, and `setViews` applies it when they come
+(ahead of the default view). A name that is not in the list changes nothing.
 
 ### `startSaveView`
 
@@ -450,7 +454,7 @@ fromQueryString : String -> State id row -> Step id row
 Puts the list where an address says (the part after the `?`, as `toQueryString`
 writes it) and asks when that is not what the list shows. A parameter that is missing
 takes the value of an empty list (no search, no sort, no filters, page 1), except the page
-size, which stays. An address with only `view=Name` applies that view; an address with
+size, which stays (a size above 500 counts as missing). An address with only `view=Name` applies that view; an address with
 none of these parameters is "Reset": the default view, or no filters. A parameter that
 cannot be read counts as missing.
 
@@ -528,7 +532,8 @@ mapTable : (Table.State id -> Table.State id) -> State id row -> Step id row
 
 Changes the table with a function of `Table` and asks again when that changed the
 query: the page size from a stored setting, the sort, the selection after a bulk
-action, the density.
+action, the density. A change that leaves the query alone (the density, the selection)
+asks for nothing, also before the first answer: follow the step of `init` too.
 
     ServerList.mapTable (Table.setPageSize 50) model.orders
 
