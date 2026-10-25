@@ -1183,7 +1183,7 @@ view toMsg attributes (State s) =
                            , Attr.attribute "aria-autocomplete" "list"
                            , Attr.attribute "aria-expanded" (boolString (s.open && not inactive))
                            , Internal.attrIf (s.open && not inactive && hasOptions) (Attr.attribute "aria-controls" (listId s.id))
-                           , case ( s.open, s.highlight ) of
+                           , case ( s.open && not inactive && hasOptions, s.highlight ) of
                                 ( True, Just minutes ) ->
                                     Attr.attribute "aria-activedescendant" (optionId s.id minutes)
 

@@ -1296,7 +1296,8 @@ resolvePreset config (Preset option) =
                             Ok ( start, finish )
 
 
-{-| The first day from `day` up to `last` that is not disabled.
+{-| The first day from `day` up to `last` that is not disabled. It stops on
+`last` itself, so it ends even where a step of one day would not move the date.
 -}
 firstAllowed : (Date -> Bool) -> Date -> Date -> Maybe Date
 firstAllowed isDisabled day last =
@@ -1304,7 +1305,11 @@ firstAllowed isDisabled day last =
         Nothing
 
     else if isDisabled day then
-        firstAllowed isDisabled (Date.addDays 1 day) last
+        if day == last then
+            Nothing
+
+        else
+            firstAllowed isDisabled (Date.addDays 1 day) last
 
     else
         Just day

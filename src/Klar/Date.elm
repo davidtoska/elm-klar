@@ -29,10 +29,12 @@ and read the parts with `year`, `month` and `day`.
     Date.fromParts 2026 10 20 |> Maybe.map Date.weekday -- Just 2, a Tuesday
 
 All calculations are pure arithmetic on the proleptic Gregorian calendar and
-are exact. A `Date` lies between 1 January of year 1 and 31 December 9999, the
-range of the four-digit years of `toIso`: `fromIso` gives `Nothing` outside it,
-and arithmetic that would leave it (`addDays`, `addMonths`, `fromEpochDay`)
-stops at its first or last day. A `Time.Posix` is
+are exact. A `Date` is a day in year 1 or later: arithmetic that would go
+before it (`addDays`, `addMonths`, `fromEpochDay`) stops at 1 January of year 1,
+and it never stops at the other end, so a later date always counts on and two
+dates are as many days apart as their day numbers differ. `toIso` and `fromIso`
+cover the four-digit years 1 to 9999; `toIso` writes a later year with all its
+digits, which `fromIso` does not read. A `Time.Posix` is
 only needed once, to get today's date with `fromPosix`.
 
 Store and send a date as the text of `toIso`, never as the moment of its
@@ -88,8 +90,8 @@ For reports and quick choices such as "This week" or "Last quarter".
 import Time
 
 
-{-| A calendar date: a day that exists, in year 1 or later (the arithmetic stays
-within year 9999). The type is opaque, so a date can never be 31 February or
+{-| A calendar date: a day that exists, in year 1 or later. The type is opaque,
+so a date can never be 31 February or
 month 13. Make one with
 `fromParts` or `fromIso`, and read it with `year`, `month` and `day`.
 -}
@@ -228,7 +230,8 @@ isDigits count text =
 
 
 {-| Writes `YYYY-MM-DD`, with the year padded to four digits, so that `fromIso`
-reads every date back.
+reads back every date up to 31 December 9999. A later year is written with all
+its digits (`10000-01-01`), which `fromIso` does not read.
 
     Date.fromParts 2026 3 5 |> Maybe.map Date.toIso -- Just "2026-03-05"
 
@@ -301,8 +304,7 @@ toEpochDay (Date date) =
 
 
 {-| The date of a day number: the inverse of `toEpochDay`. A number before
-1 January of year 1 (-719162) gives that day, and one after 31 December 9999
-(2932896) gives that day.
+1 January of year 1 (-719162) gives that day.
 
     Date.fromEpochDay 0 -- 1 January 1970
 
@@ -311,7 +313,7 @@ fromEpochDay : Int -> Date
 fromEpochDay days =
     let
         z =
-            clamp firstEpochDay lastEpochDay days + 719468
+            max firstEpochDay days + 719468
 
         era =
             floorDiv z 146097
@@ -354,7 +356,7 @@ fromEpochDay days =
 
 
 {-| Moves a date by a number of days, forwards or backwards, across months and
-years. It stops at 1 January of year 1 and at 31 December 9999.
+years. It stops at 1 January of year 1.
 
     Date.fromIso "2026-01-01" |> Maybe.map (Date.addDays -1 >> Date.toIso) -- Just "2025-12-31"
 
@@ -365,8 +367,7 @@ addDays n date =
 
 
 {-| Adds months, clamping the day to the end of the target month: 31 January
-plus one month is 28 February (29 in a leap year). It stops at January of year 1
-and at December 9999.
+plus one month is 28 February (29 in a leap year). It stops at January of year 1.
 
     Date.fromIso "2026-01-31" |> Maybe.map (Date.addMonths 1 >> Date.toIso) -- Just "2026-02-28"
 
@@ -377,7 +378,7 @@ addMonths : Int -> Date -> Date
 addMonths n (Date date) =
     let
         total =
-            clamp 12 (9999 * 12 + 11) (date.year * 12 + (date.month - 1) + n)
+            max 12 (date.year * 12 + (date.month - 1) + n)
 
         newYear =
             floorDiv total 12
@@ -393,7 +394,7 @@ addMonths n (Date date) =
 
 
 {-| Adds years, keeping the month and the day; 29 February becomes 28 February
-in a year that is not a leap year. It stops at year 1 and at 9999.
+in a year that is not a leap year. It stops at year 1.
 
     Date.fromIso "2024-02-29" |> Maybe.map (Date.addYears 1 >> Date.toIso) -- Just "2025-02-28"
 
@@ -531,8 +532,10 @@ endOfMonth (Date date) =
 `firstDay` (1 = Monday ... 7 = Sunday), padded with days from the neighboring
 months. Six rows are always returned, so a calendar keeps its height from
 month to month. The arguments are the first day of the week, the year and the
-month, in that order; a year outside 1 to 9999 or a month outside 1 to 12 is
-moved to the nearest one, and padding beyond 31 December 9999 repeats that day.
+month, in that order; a year before 1 is moved to year 1 and a month outside 1
+to 12 to the nearest one. Every cell is a different day (only January of year 1,
+in weeks that do not start on Monday, repeats its first day as the padding
+before it).
 
     -- weeks starting on Monday, for October 2026
     Date.monthGrid 1 2026 10
@@ -542,7 +545,7 @@ monthGrid : Int -> Int -> Int -> List (List Date)
 monthGrid firstDay y m =
     let
         first =
-            Date { year = clamp 1 9999 y, month = clamp 1 12 m, day = 1 }
+            Date { year = max 1 y, month = clamp 1 12 m, day = 1 }
 
         offset =
             modBy 7 (weekday first - firstDay)
@@ -563,8 +566,7 @@ monthGrid firstDay y m =
 
     Task.map2 Date.fromPosix Time.here Time.now
 
-A moment before year 1 gives 1 January of year 1, and one after 9999 gives
-31 December 9999.
+A moment before year 1 gives 1 January of year 1.
 
 -}
 fromPosix : Time.Zone -> Time.Posix -> Date
@@ -576,9 +578,6 @@ fromPosix zone posix =
     if y < 1 then
         fromEpochDay firstEpochDay
 
-    else if y > 9999 then
-        fromEpochDay lastEpochDay
-
     else
         Date
             { year = y
@@ -587,16 +586,11 @@ fromPosix zone posix =
             }
 
 
-{-| The day numbers of 1 January of year 1 and of 31 December 9999.
+{-| The day number of 1 January of year 1.
 -}
 firstEpochDay : Int
 firstEpochDay =
     -719162
-
-
-lastEpochDay : Int
-lastEpochDay =
-    2932896
 
 
 {-| The first moment of a date in a time zone: the inverse of `fromPosix`, for the
