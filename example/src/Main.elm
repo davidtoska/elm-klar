@@ -31,6 +31,7 @@ import Klar.Link as Link
 import Klar.Locale as Locale exposing (Locale)
 import Klar.Menu as Menu
 import Klar.Overlay as Overlay exposing (Overlay)
+import Klar.PageHeader as PageHeader
 import Klar.Radio as Radio
 import Klar.Remote as Remote exposing (Remote)
 import Klar.SegmentedControl as SegmentedControl
@@ -41,6 +42,7 @@ import Klar.SideNav as SideNav
 import Klar.Text as Text
 import Klar.Theme as Theme exposing (Density(..), Tone(..))
 import Klar.Toast as Toast
+import Page.Applications.Processes as Studio
 import Page.Effect as Effect exposing (Effect(..))
 import Page.Gallery as Gallery
 import Page.Gallery.Catalog as Catalog
@@ -90,6 +92,7 @@ type alias Model =
     , tools : Drawer.State
     , overview : Overview.Model
     , orders : Orders.Model
+    , studio : Studio.Model
     , products : Products.Model
     , gallery : Gallery.Model
     }
@@ -138,6 +141,7 @@ init _ url key =
             , overview = overview
             , orders = orders
             , products = products
+            , studio = Studio.init
             , gallery = Gallery.init
             }
 
@@ -207,6 +211,7 @@ type Msg
     | OverviewMsg Overview.Msg
     | OrdersMsg Orders.Msg
     | ProductsMsg Products.Msg
+    | StudioMsg Studio.Msg
     | GalleryMsg Gallery.Msg
 
 
@@ -222,7 +227,19 @@ routeChanged url model =
 
         next =
             { model
-                | route = route
+                | studio =
+                    if route == model.route then
+                        model.studio
+
+                    else
+                        Studio.leave model.studio
+                , gallery =
+                    if route == model.route then
+                        model.gallery
+
+                    else
+                        Gallery.leave model.gallery
+                , route = route
                 , shell = AppShell.setPage menu (routeKey route) model.shell
             }
     in
@@ -546,6 +563,13 @@ update msg model =
             in
             applyEffects effects { model | products = drained, backend = backend } (Cmd.map ProductsMsg cmd)
 
+        StudioMsg inner ->
+            let
+                ( studio, cmd ) =
+                    Studio.update inner model.studio
+            in
+            ( { model | studio = studio }, Cmd.map StudioMsg cmd )
+
         GalleryMsg inner ->
             let
                 ( gallery, cmd ) =
@@ -586,6 +610,9 @@ data again, gallery pages are created the first time.
 enter : Route -> Model -> ( Model, Cmd Msg )
 enter route model =
     case route of
+        ProcessStudio ->
+            ( model, Cmd.none )
+
         Overview ->
             let
                 ( page, backend, cmd ) =
@@ -732,6 +759,9 @@ shortcuts =
 routeKey : Route -> String
 routeKey route =
     case route of
+        ProcessStudio ->
+            "process-studio"
+
         Overview ->
             "overview"
 
@@ -779,6 +809,7 @@ menu =
             |> SideNav.withIcon Icon.home
         , SideNav.item Ids.string { key = "orders", label = "Orders", href = Route.path Orders }
             |> SideNav.withIcon Icon.clipboard
+        , SideNav.item Ids.string { key = "process-studio", label = "Process studio", href = Route.path ProcessStudio } |> SideNav.withIcon Icon.gitBranch
         , SideNav.item Ids.string { key = "products", label = "Products", href = Route.path Products }
             |> SideNav.withIcon Icon.database
         ]
@@ -819,6 +850,9 @@ subscriptions model =
 
             OrderDetail _ ->
                 Sub.map OrdersMsg (Orders.subscriptions model.orders)
+
+            ProcessStudio ->
+                Sub.none
 
             Products ->
                 Sub.map ProductsMsg (Products.subscriptions model.products)
@@ -907,6 +941,9 @@ viewPage model =
             { content = content, overlays = [] }
     in
     case model.route of
+        ProcessStudio ->
+            plain (Layout.stack [ Layout.gap 4 ] [ PageHeader.view [ PageHeader.title "Process studio", PageHeader.subtitle "Build, run and inspect AI work, human tasks and approval." ], Alert.view [ Alert.tone Info, Alert.compact ] "Interactive demo. The Elm server, identities and AI results are simulated.", Html.map StudioMsg (Studio.view model.studio) ])
+
         Overview ->
             mapView OverviewMsg (Overview.view (pageContext model) model.overview)
 

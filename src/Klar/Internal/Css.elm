@@ -34,6 +34,7 @@ import Klar.Internal.Css.Table as Table
 import Klar.Internal.Css.Tokens as Tokens
 import Klar.Internal.Css.Uploads as Uploads
 import Klar.Internal.Css.Workbench as Workbench
+import Klar.Internal.Css.Workflow as Workflow
 
 
 {-| All rules of the library.
@@ -69,5 +70,6 @@ css =
         , Kanban.css
         , Uploads.css
         , CodeQuantity.css
+        , Workflow.css
         , Density.css
         ]

@@ -5917,6 +5917,229 @@
         "staging"
       ],
       "reference": "ai/modules/Klar.UploadQueue.md"
+    },
+    {
+      "name": "Klar.Workflow",
+      "import": "import Klar.Workflow as Workflow",
+      "group": "Processes and state",
+      "purpose": "Ordered workflow definitions shared by a builder, a runner and a server.",
+      "whenToUse": "people design processes with AI work, review, branches and bounded returns.",
+      "whenNot": "only a form's progress is needed; use `Klar.Stepper`.",
+      "state": [],
+      "msg": [],
+      "ids": [],
+      "stateful": false,
+      "quickPath": [],
+      "mainFunctions": [
+        "node",
+        "edge",
+        "loop",
+        "input",
+        "ai",
+        "human",
+        "task",
+        "decision"
+      ],
+      "related": [],
+      "keywords": [
+        "workflow",
+        "processes and state",
+        "ordered",
+        "definitions",
+        "shared",
+        "builder"
+      ],
+      "reference": "ai/modules/Klar.Workflow.md"
+    },
+    {
+      "name": "Klar.Workflow.Engine",
+      "import": "import Klar.Workflow.Engine as Engine",
+      "group": "Processes and state",
+      "purpose": "Pure, deterministic execution state for an ordered workflow.",
+      "whenToUse": "implementing or simulating a workflow server with explicit human decisions.",
+      "whenNot": "rendering a process; use `Klar.WorkflowRun`.",
+      "state": [],
+      "msg": [],
+      "ids": [],
+      "stateful": false,
+      "quickPath": [],
+      "mainFunctions": [
+        "start",
+        "complete",
+        "choose",
+        "fail",
+        "retry",
+        "pause",
+        "resume",
+        "cancel"
+      ],
+      "related": [],
+      "keywords": [
+        "engine",
+        "workflow",
+        "processes and state",
+        "deterministic",
+        "execution",
+        "state",
+        "ordered"
+      ],
+      "reference": "ai/modules/Klar.Workflow.Engine.md"
+    },
+    {
+      "name": "Klar.Workflow.Codec",
+      "import": "import Klar.Workflow.Codec as Codec",
+      "group": "Processes and state",
+      "purpose": "Versioned JSON for workflow definitions, suitable for file exchange and APIs.",
+      "whenToUse": "saving a draft or sending a definition to a workflow server.",
+      "whenNot": "only keeping editor state in memory; use `Klar.Workflow` directly.",
+      "state": [],
+      "msg": [],
+      "ids": [],
+      "stateful": false,
+      "quickPath": [],
+      "mainFunctions": [
+        "encode",
+        "decoder"
+      ],
+      "related": [],
+      "keywords": [
+        "codec",
+        "workflow",
+        "processes and state",
+        "versioned",
+        "definitions",
+        "suitable",
+        "exchange"
+      ],
+      "reference": "ai/modules/Klar.Workflow.Codec.md"
+    },
+    {
+      "name": "Klar.WorkflowNode",
+      "import": "import Klar.WorkflowNode as Node",
+      "group": "Processes and state",
+      "purpose": "A compact, selectable workflow step with a kind, status and input/output ports.",
+      "whenToUse": "composing process diagrams or a palette of reusable nodes.",
+      "whenNot": "editing a whole workflow; use `Klar.WorkflowBuilder`.",
+      "state": [],
+      "msg": [],
+      "ids": [],
+      "stateful": false,
+      "quickPath": [],
+      "mainFunctions": [
+        "view"
+      ],
+      "related": [],
+      "keywords": [
+        "workflow node",
+        "workflownode",
+        "processes and state",
+        "compact",
+        "selectable",
+        "workflow",
+        "status",
+        "input"
+      ],
+      "reference": "ai/modules/Klar.WorkflowNode.md"
+    },
+    {
+      "name": "Klar.WorkflowBuilder",
+      "import": "import Klar.WorkflowBuilder as Builder",
+      "group": "Processes and state",
+      "purpose": "A controlled, vertical workflow editor with a node palette, explicit branches, bounded return arrows and an inspector for the selected node.",
+      "whenToUse": "people graphically compose AI/human processes without an infinite canvas.",
+      "whenNot": "following an executing instance; use `Klar.WorkflowRun`.",
+      "state": [],
+      "msg": [],
+      "ids": [],
+      "stateful": false,
+      "quickPath": [],
+      "mainFunctions": [
+        "view",
+        "locale",
+        "selected",
+        "onSelect",
+        "onAdd",
+        "onChange",
+        "readOnly",
+        "id"
+      ],
+      "related": [],
+      "keywords": [
+        "workflow builder",
+        "workflowbuilder",
+        "processes and state",
+        "controlled",
+        "vertical",
+        "workflow",
+        "editor",
+        "palette"
+      ],
+      "reference": "ai/modules/Klar.WorkflowBuilder.md"
+    },
+    {
+      "name": "Klar.WorkflowRun",
+      "import": "import Klar.WorkflowRun as Runner",
+      "group": "Processes and state",
+      "purpose": "Live execution diagram, context and attempt history for a workflow snapshot.",
+      "whenToUse": "a person needs to see which step is active and inspect intermediate results.",
+      "whenNot": "editing a definition; use `Klar.WorkflowBuilder`.",
+      "state": [],
+      "msg": [],
+      "ids": [],
+      "stateful": false,
+      "quickPath": [],
+      "mainFunctions": [
+        "view",
+        "viewRemote",
+        "locale",
+        "selected",
+        "onSelect",
+        "onRetry",
+        "id"
+      ],
+      "related": [],
+      "keywords": [
+        "workflow run",
+        "workflowrun",
+        "processes and state",
+        "execution",
+        "diagram",
+        "context",
+        "attempt",
+        "history"
+      ],
+      "reference": "ai/modules/Klar.WorkflowRun.md"
+    },
+    {
+      "name": "Klar.StateMachine",
+      "import": "import Klar.StateMachine as Machine",
+      "group": "Processes and state",
+      "purpose": "A small state machine diagram with enabled event buttons and explicit returns.",
+      "whenToUse": "inspecting a step's lifecycle or letting a person trigger valid state events.",
+      "whenNot": "modelling a multi-step process; use `Klar.Workflow`.",
+      "state": [
+        "State"
+      ],
+      "msg": [],
+      "ids": [],
+      "stateful": false,
+      "quickPath": [],
+      "mainFunctions": [
+        "transition",
+        "view"
+      ],
+      "related": [],
+      "keywords": [
+        "state machine",
+        "statemachine",
+        "processes and state",
+        "small",
+        "state",
+        "machine",
+        "diagram",
+        "enabled"
+      ],
+      "reference": "ai/modules/Klar.StateMachine.md"
     }
   ]
 }

@@ -5,6 +5,11 @@ adding is a minor release, changing or removing is a major one.
 
 ## Unreleased
 
+### Processes and state
+- Add seven workflow/state modules, a graphical process studio, dedicated component pages and four executable templates, including membership admission with role-assigned interview, recommendation, director approval and enrollment.
+- Validate bindings, unique outputs, bounded cycles and paths to a terminal output. Returns invalidate obsolete downstream results while retaining audit history; manual and AI steps both enforce required inputs.
+- Freeze request identities, reject invalid/stale actions, recover ongoing workers after errors and guard file imports against late replies. Stage ownership changes explicitly and namespace builder fields for safe composition.
+
 Every group of modules was audited against the best in its class, improved, reviewed and fixed
 on its own branch, with shared decisions: `ariaLabel` is a name only a screen reader hears and
 `label` is visible text, a main value is `value` / `setValue`, remote data comes once as a

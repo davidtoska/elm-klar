@@ -1,5 +1,8 @@
 module Showcase.Doc exposing
-    ( example
+    ( configuredExample
+    , configuredPage
+    , configuredSection
+    , example
     , page
     , props
     , section
@@ -25,6 +28,30 @@ The styles are in `showcase.css`; they use the design tokens of the library.
 
 import Html exposing (Html)
 import Html.Attributes as Attr
+import Showcase.Config as Config exposing (Config)
+
+
+configuredExample : Config -> List String -> { title : String, description : Maybe String, code : Maybe String } -> Html msg -> Html msg
+configuredExample config components options content =
+    Config.only config components (example options content)
+
+
+configuredPage : Config -> { title : String, description : String } -> List (Html msg) -> Html msg
+configuredPage config options sections =
+    if config.component == "" then
+        page options sections
+
+    else
+        Html.div [ Attr.class "showcase-doc" ] sections
+
+
+configuredSection : Config -> List String -> String -> String -> List (Html msg) -> Html msg
+configuredSection config components title description children =
+    if Config.include config components then
+        section title description children
+
+    else
+        Html.text ""
 
 
 {-| A documentation page: title, short description, then sections.

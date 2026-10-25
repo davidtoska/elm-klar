@@ -185,3 +185,12 @@ One file per exposed module, generated from the doc comments by `npm run gen:ai-
 ## Files and media
 
 - [Klar.UploadQueue](Klar.UploadQueue.md): A local file-transfer workbench: validated file staging, an explicit add action, and an application-controlled queue with exact byte progress.
+## Processes and state
+
+- [Klar.Workflow](Klar.Workflow.md): Ordered workflow definitions shared by a builder, a runner and a server.
+- [Klar.Workflow.Engine](Klar.Workflow.Engine.md): Pure, deterministic execution state for an ordered workflow.
+- [Klar.Workflow.Codec](Klar.Workflow.Codec.md): Versioned JSON for workflow definitions, suitable for file exchange and APIs.
+- [Klar.WorkflowNode](Klar.WorkflowNode.md): A compact, selectable workflow step with a kind, status and input/output ports.
+- [Klar.WorkflowBuilder](Klar.WorkflowBuilder.md): A controlled, vertical workflow editor with a node palette, explicit branches, bounded return arrows and an inspector for the selected node.
+- [Klar.WorkflowRun](Klar.WorkflowRun.md): Live execution diagram, context and attempt history for a workflow snapshot.
+- [Klar.StateMachine](Klar.StateMachine.md): A small state machine diagram with enabled event buttons and explicit returns.
