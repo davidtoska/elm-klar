@@ -397,8 +397,8 @@ customLink :
     -> Attribute msg
 ```
 
-Draws some links of the text yourself. The function gets every link that is drawn:
-its address (`href`, after the checks of this module, so `javascript:` and the like
+Draws some links of the text yourself. The function gets every link of the text
+(not the link that stands in for an image that is not loaded, see `images`): its address (`href`, after the checks of this module, so `javascript:` and the like
 never reach it, and a link to a heading of the text already has the prefix), whether
 it goes to another site, its title and its words as Html, and gives the Html to show,
 or `Nothing` for the link as it is drawn without the function. Use it for citations
