@@ -27,13 +27,21 @@ norwegianBankAccount : Mask
 norwegianPostalCode : Mask
 postalCode : String -> Maybe Mask
 phone : Mask
+ean13 : Mask
 pattern : String -> Maybe Mask
+setMask : Mask -> State -> State
+
+-- The Nordic business numbers
+swedishOrganisationNumber : Mask
+danishCvrNumber : Mask
+finnishBusinessId : Mask
 
 -- The identifier
 value : State -> Maybe String
 text : State -> String
+problem : List (Attribute msg) -> State -> Maybe String
 setValue : Maybe String -> State -> State
-reset : State -> State
+clear : State -> State
 touch : State -> State
 isComplete : State -> Bool
 isValid : State -> Bool
@@ -100,7 +108,8 @@ attribute. The second is the `Mask`, which says what is accepted. The applicatio
 reads the identifier with `value`, which is `Nothing` until the identifier is
 complete and its check digits are right, and uses `isTouched` to show errors of its
 own only after the user has been in the field once. It reacts to changes by comparing
-`value` before and after `update`.
+`value` before and after `update`. `text` is what the field shows, and `problem` the
+message it shows, for an error summary of your own.
 
 `label`, `labelHidden`, `hint`, `error`, `errorMaybe`, `required` and `optionalText`
 are the common field attributes. They come with the field wrapper
@@ -110,17 +119,22 @@ error comes and goes.
 
 **Masks.** A `Mask` is a value, made by a function: `iban`,
 `norwegianOrganisationNumber`, `norwegianBankAccount`, `norwegianPostalCode`,
-`postalCode "SE"`, `phone`, or a pattern of your own with `pattern "@@-####"`. A mask
+`postalCode "SE"`, `phone`, `ean13` (the barcode number of a product), the business
+numbers of Sweden, Denmark and Finland, or a pattern of your own with
+`pattern "@@-####"`. A mask
 that can fail to be made (an unknown country, a pattern that makes no sense) gives
 `Maybe`, so the application knows at once, not when the user is in the field. Build
-the masks once, in `init`.
+the masks once, in `init`; `setMask` changes the mask of a field that is on the
+screen, such as the postal code of an address whose country changes.
 
 **What is typed is not changed behind the user's back.** Separators (spaces, hyphens,
 points, slashes, parentheses) can be typed anywhere or left out: the field puts them
 in the right places, and they are not part of the value. Letters are written in
-capitals. Nothing else is quietly dropped: a letter in a field for digits stays where
-it was typed, and the field says so at once. Text that is too long stays too, and is
-reported. `value` is `Nothing` until all of that is fixed.
+capitals, and the full-width digits and letters of an IME (`１２３`) count as the
+ordinary ones. Nothing else is quietly dropped: a letter in a field for digits stays
+where it was typed, and the field says so at once. Text that is too long stays too, and
+is reported. `value` is `Nothing` until all of that is fixed. While the user is typing,
+`setValue` leaves the field alone: what they type wins.
 
 **Errors.** The messages are specific: "The check digit is wrong", "An IBAN from NO
 has 15 characters (12 entered)", "Too short: 6 of 9 digits". An error that more typing
@@ -152,9 +166,11 @@ field keeps the text as typed and asks for the number without `(0)`.
 suits the mask (numeric for digits, telephone pad for a phone number) and without
 automatic capitals, corrections and spell checking. Identifiers read from left to
 right in every language, so the input is always left to right. Enter writes the
-identifier in its groups and still lets a surrounding form submit. Errors are announced
-when they appear, and a counter such as `6/9` next to the field (hidden from screen
-readers) shows how far the user has come.
+identifier in its groups and still lets a surrounding form submit; the Enter that ends
+an IME composition only picks the characters. Errors are announced when they appear,
+and a message does not change while the user types on (a value that is too long says
+how long it should be, not how long it is now). A counter such as `6/9` next to the
+field (hidden from screen readers) shows how far the user has come.
 
 The built-in texts (the errors) follow `locale`.
 
@@ -295,7 +311,8 @@ The postal codes of a country, by its two-letter ISO 3166 code (`"SE"` for
 around the code, are fine. It is for a country that is not fixed, such as the one in an
 address, and `postalCode "NO"` is the Norwegian mask too, so every country of the list
 works the same way; where the country is Norway, `norwegianPostalCode` has no `Nothing`
-to handle. `Nothing` for a country that is not in the list (Norway,
+to handle. When the country of the address changes, give the field the new mask with
+`setMask`. `Nothing` for a country that is not in the list (Norway,
 Sweden, Denmark, Finland, Iceland, Germany, Austria, Switzerland, Liechtenstein, the
 Netherlands, Belgium, Luxembourg, France, Spain, Italy, Portugal, Poland, Czechia,
 Slovakia, Estonia, the United States, Japan, Australia and New Zealand); the postal
@@ -313,6 +330,17 @@ number, 7 to 15 digits in all, as in `+47 912 34 567`. A Norwegian number (`+47`
 have exactly eight digits after the code. Spaces, hyphens, points and parentheses may be
 typed and are not part of the value, which is `+4791234567`. This is a help for typing,
 not a phone number database.
+
+### `ean13`
+
+```elm
+ean13 : Mask
+```
+
+The number under the barcode of a product, a GTIN-13 (EAN-13): thirteen digits
+where the last is a check digit (modulus 10), `5901234123457`. A scanner that types
+the number and an Enter works too: the Enter writes it and lets a form go on. The
+value is the thirteen digits.
 
 ### `pattern`
 
@@ -341,9 +369,61 @@ The value is the characters of the slots (`AB1234`); `text` is what the field sh
 (`AB-1234`). Use the shown form when the hyphen belongs to the identifier.
 
 `Nothing` for a pattern without slots, a pattern that ends in a backslash, one with a
-letter (of any alphabet, `å` and `é` too) or a digit that is not a slot (the user would
-have to type it; the application can add a fixed start itself), one with a control
-character, and one longer than 64 characters. There is no check digit.
+letter of an alphabet that has capitals (A to Z, `å`, `é`, `ж`) or a digit 0 to 9 that
+is not a slot (it could be taken for what the user types; the application can add a
+fixed start itself), one with a control character, and one longer than 64 characters.
+A character of a script without capitals (`号`) can be a fixed character. There is no
+check digit; `ean13` and the Norwegian masks have one.
+
+### `setMask`
+
+```elm
+setMask : Mask -> State -> State
+```
+
+Gives the field another mask and keeps its text, written again in the groups of
+the new mask (or kept as it is, with the message about it, when it does not fit). For
+a field whose rule depends on other data: the postal code of an address when its
+country changes. Whether the user has been in the field stays as it was.
+
+    CountryChanged country ->
+        case MaskedInput.postalCode country of
+            Just mask ->
+                ( { model | postal = MaskedInput.setMask mask model.postal }, Cmd.none )
+
+            Nothing ->
+                -- no fixed pattern for this country: a plain text field instead
+                ( model, Cmd.none )
+
+## The Nordic business numbers
+
+### `swedishOrganisationNumber`
+
+```elm
+swedishOrganisationNumber : Mask
+```
+
+A Swedish organisation number: ten digits where the last is a check digit (the
+Luhn modulus 10), written `556012-5790`. The value is the ten digits.
+
+### `danishCvrNumber`
+
+```elm
+danishCvrNumber : Mask
+```
+
+A Danish CVR number, the number of a business: eight digits where the last is a
+check digit (modulus 11), `24256790`. The value is the eight digits; the `DK` of a VAT
+number is not part of it.
+
+### `finnishBusinessId`
+
+```elm
+finnishBusinessId : Mask
+```
+
+A Finnish business ID (Y-tunnus): seven digits and a check digit (modulus 11),
+written `0112038-9`. The value is the eight digits.
 
 ## The identifier
 
@@ -366,7 +446,21 @@ text : State -> String
 
 The text in the field, written in its groups (`NO93 8601 1117 947`), or exactly as
 typed while it holds a character that does not belong or an edit in the middle waits
-to be written.
+to be written. Together with `value` it tells an empty field from an unfinished one.
+
+### `problem`
+
+```elm
+problem : List (Attribute msg) -> State -> Maybe String
+```
+
+The message the field shows under itself about what is in it, in the language of
+the attributes, or `Nothing`: "The check digit is wrong", "Too short: 6 of 9 digits".
+It follows the same timing as the field: an unfinished value has no message until the
+field is left (or `touch` is used). Pass the attributes you give to `view`; your own
+`error` is not part of it. For an error summary of your own:
+
+    MaskedInput.problem ibanAttributes (MaskedInput.touch model.iban)
 
 ### `setValue`
 
@@ -379,10 +473,15 @@ from a server (`NO9386011117947`) or as a person wrote it (`no93 8601 1117 947`)
 field writes it in its groups. Whatever it is, nothing is dropped: if it has a character
 that does not belong, the field shows it as it is, with the message about it.
 
-### `reset`
+While the user is typing in the field (they have typed since they came into it, and
+have not left it or pressed Enter yet), it changes nothing: what they type wins, and
+the application learns the result by comparing `value` before and after `update`. To
+replace their text on purpose, such as for a "Reset" shortcut, `clear` the field first.
+
+### `clear`
 
 ```elm
-reset : State -> State
+clear : State -> State
 ```
 
 Empties the field and forgets that the user has been in it (`isTouched` is
@@ -427,7 +526,7 @@ isTouched : State -> Bool
 ```
 
 `True` once the user has left the field or pressed Enter in it, or `touch` was
-used. Use it to show errors of your own only after the first visit. `reset` makes it
+used. Use it to show errors of your own only after the first visit. `clear` makes it
 `False` again.
 
 ## Label, hint and error

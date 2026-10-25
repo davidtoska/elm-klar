@@ -44,4 +44,9 @@ css =
 }
 
 .klar-money.klar-input--disabled .klar-money__currency { color: var(--klar-text-disabled); }
+
+/* Forced colors: the dimmed code of a disabled field keeps its meaning. */
+@media (forced-colors: active) {
+  .klar-money.klar-input--disabled .klar-money__currency { color: GrayText; }
+}
 """

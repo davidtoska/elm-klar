@@ -66,6 +66,9 @@ type Checksum
     = NoChecksum
     | OrganisationNumber
     | BankAccount
+    | Gtin
+    | Luhn
+    | Mod11 (List Int)
 
 
 {-| What was read from the text: the characters that are the value (without separators,
@@ -138,7 +141,7 @@ read shape raw =
             { kept = [], count = 0, rejected = Nothing, slots = slotsOf shape }
 
         scanned =
-            String.foldl (scan shape) start raw
+            String.foldl (scan shape) start (String.map halfWidth raw)
     in
     { value = String.fromList (List.reverse scanned.kept)
     , rejected = scanned.rejected
@@ -570,6 +573,27 @@ checkIssue shape value =
             else
                 Just WrongCheckDigit
 
+        Slots _ Gtin ->
+            if Checksum.mod10 value then
+                Nothing
+
+            else
+                Just WrongCheckDigit
+
+        Slots _ Luhn ->
+            if Checksum.luhn value then
+                Nothing
+
+            else
+                Just WrongCheckDigit
+
+        Slots _ (Mod11 weights) ->
+            if Checksum.mod11 weights value then
+                Nothing
+
+            else
+                Just WrongCheckDigit
+
         Iban ->
             if Checksum.mod97 value then
                 Nothing
@@ -866,3 +890,23 @@ postalPattern country =
 
         _ ->
             Nothing
+
+
+{-| The full-width forms of the ASCII digits, letters and signs that an IME types
+(`１２３`, `ＡＢ`), and its wide space, as the ordinary ones: the same kind of
+normalisation as writing letters in capitals.
+-}
+halfWidth : Char -> Char
+halfWidth c =
+    let
+        code =
+            Char.toCode c
+    in
+    if code >= 0xFF01 && code <= 0xFF5E then
+        Char.fromCode (code - 0xFEE0)
+
+    else if code == 0x3000 then
+        ' '
+
+    else
+        c

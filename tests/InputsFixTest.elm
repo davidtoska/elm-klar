@@ -805,7 +805,7 @@ removeFirst attributes name state =
 
 given : List FileDrop.FileInfo -> FilesStep
 given files state =
-    Ok (FileDrop.setFiles files state)
+    Ok (FileDrop.setValues files state)
 
 
 afterFiles : List FilesStep -> FileDrop.State -> Result String FileDrop.State
@@ -815,12 +815,32 @@ afterFiles steps state =
 
 acceptedNames : Result String FileDrop.State -> Result String (List String)
 acceptedNames =
-    Result.map (FileDrop.files >> List.map .name)
+    Result.map (FileDrop.values >> List.map .name)
 
 
-refusedNames : Result String FileDrop.State -> Result String (List ( String, FileDrop.Problem ))
+refusedNames : Result String FileDrop.State -> Result String (List ( String, String ))
 refusedNames =
-    Result.map (FileDrop.rejected >> List.map (\( file, problem ) -> ( file.name, problem )))
+    Result.map (FileDrop.rejected >> List.map (\( file, problem ) -> ( file.name, reason problem )))
+
+
+{-| The kind of a problem, from the predicates the application has.
+-}
+reason : FileDrop.Problem -> String
+reason problem =
+    if FileDrop.isWrongType problem then
+        "wrong type"
+
+    else if FileDrop.isTooLarge problem then
+        "too large"
+
+    else if FileDrop.isTooMany problem then
+        "too many"
+
+    else if FileDrop.isDuplicate problem then
+        "duplicate"
+
+    else
+        "something else"
 
 
 viewOfFiles : List (FileDrop.Attribute Msg) -> FileDrop.State -> Query.Single Msg
@@ -917,8 +937,8 @@ singleFileTests =
             , test "a refused file is still refused, with its reason" <|
                 \_ ->
                     afterFiles [ choose [ FileDrop.maxFiles 1, FileDrop.accept [ ".pdf" ] ] [ exe "x.exe" 10 ] ] emptyDrop
-                        |> Expect.all [ acceptedNames >> Expect.equal (Ok []), refusedNames >> Expect.equal (Ok [ ( "x.exe", FileDrop.WrongType ) ]) ]
-            , test "a file given with setFiles is replaced by the next choice" <|
+                        |> Expect.all [ acceptedNames >> Expect.equal (Ok []), refusedNames >> Expect.equal (Ok [ ( "x.exe", "wrong type" ) ]) ]
+            , test "a file given with setValues is replaced by the next choice" <|
                 \_ ->
                     afterFiles [ given [ pdf "server.pdf" 10 ], choose [ FileDrop.maxFiles 1 ] [ pdf "a.pdf" 10 ] ] emptyDrop
                         |> acceptedNames
@@ -944,7 +964,7 @@ singleFileTests =
             [ test "it still keeps the files and refuses the ones over the limit" <|
                 \_ ->
                     afterFiles [ choose [ FileDrop.maxFiles 2 ] [ pdf "a.pdf" 1, pdf "b.pdf" 2, pdf "c.pdf" 3 ] ] emptyDrop
-                        |> Expect.all [ acceptedNames >> Expect.equal (Ok [ "a.pdf", "b.pdf" ]), refusedNames >> Expect.equal (Ok [ ( "c.pdf", FileDrop.TooMany ) ]) ]
+                        |> Expect.all [ acceptedNames >> Expect.equal (Ok [ "a.pdf", "b.pdf" ]), refusedNames >> Expect.equal (Ok [ ( "c.pdf", "too many" ) ]) ]
             , test "a field without a limit and without multiple still replaces" <|
                 \_ ->
                     afterFiles [ choose [] [ pdf "a.pdf" 1 ], choose [] [ pdf "b.pdf" 2 ] ] emptyDrop
@@ -961,7 +981,7 @@ removalTests =
             [ FileDrop.multiple, FileDrop.accept [ ".pdf" ], FileDrop.maxSize 1000 ]
     in
     describe "FileDrop: removing a file keeps the result of the others"
-        [ describe "files added with setFiles are not checked, then or later"
+        [ describe "files added with setValues are not checked, then or later"
             [ test "a file that is too large is not refused after another file is removed" <|
                 \_ ->
                     afterFiles [ given [ pdf "big.pdf" 5000, pdf "small.pdf" 10 ], remove several "small.pdf" ] emptyDrop
@@ -986,12 +1006,12 @@ removalTests =
                 \_ ->
                     afterFiles [ given [ pdf "a.pdf" 1, pdf "b.pdf" 1 ], choose [ FileDrop.multiple, FileDrop.maxFiles 2 ] [ pdf "c.pdf" 1 ] ] emptyDrop
                         |> refusedNames
-                        |> Expect.equal (Ok [ ( "c.pdf", FileDrop.TooMany ) ])
+                        |> Expect.equal (Ok [ ( "c.pdf", "too many" ) ])
             , test "a new file that repeats one of them is a duplicate" <|
                 \_ ->
                     afterFiles [ given [ pdf "a.pdf" 1 ], choose [ FileDrop.multiple ] [ pdf "a.pdf" 1 ] ] emptyDrop
                         |> refusedNames
-                        |> Expect.equal (Ok [ ( "a.pdf", FileDrop.Duplicate ) ])
+                        |> Expect.equal (Ok [ ( "a.pdf", "duplicate" ) ])
             ]
         , describe "the result stays with the file"
             [ test "an accepted file stays accepted when the rules are stricter at the next removal" <|
@@ -1011,7 +1031,7 @@ removalTests =
                         ]
                         emptyDrop
                         |> refusedNames
-                        |> Expect.equal (Ok [ ( "x.exe", FileDrop.WrongType ) ])
+                        |> Expect.equal (Ok [ ( "x.exe", "wrong type" ) ])
             , test "a file refused for its size stays refused, also when the limit is raised later" <|
                 \_ ->
                     afterFiles
@@ -1020,7 +1040,7 @@ removalTests =
                         ]
                         emptyDrop
                         |> refusedNames
-                        |> Expect.equal (Ok [ ( "big.pdf", FileDrop.TooLarge ) ])
+                        |> Expect.equal (Ok [ ( "big.pdf", "too large" ) ])
             ]
         , describe "a file refused because of the others is checked again"
             [ test "a file over maxFiles is accepted when there is room" <|
@@ -1038,7 +1058,7 @@ removalTests =
                         , remove [ FileDrop.maxFiles 2 ] "a.pdf"
                         ]
                         emptyDrop
-                        |> Expect.all [ acceptedNames >> Expect.equal (Ok [ "b.pdf", "c.pdf" ]), refusedNames >> Expect.equal (Ok [ ( "d.pdf", FileDrop.TooMany ) ]) ]
+                        |> Expect.all [ acceptedNames >> Expect.equal (Ok [ "b.pdf", "c.pdf" ]), refusedNames >> Expect.equal (Ok [ ( "d.pdf", "too many" ) ]) ]
             , test "a duplicate is accepted when the file it repeated is gone" <|
                 \_ ->
                     afterFiles
@@ -1529,8 +1549,17 @@ inlineEditTests =
                         , \_ -> viewOfEdit [] failedSave |> Query.has [ Selector.text "Try again" ]
                         ]
                         ()
-            , test "text that is not being edited is plain text without a button" <|
-                \_ -> viewOfEdit off customer |> Query.hasNot [ Selector.tag "button" ]
+            , test "disabled text is the same button, inactive and out of the Tab order, so it keeps its focus" <|
+                \_ ->
+                    viewOfEdit off customer
+                        |> Query.find [ Selector.class "klar-inline-edit__display" ]
+                        |> Query.has
+                            [ Selector.class "klar-inline-edit__display--disabled"
+                            , Selector.attribute (Attr.attribute "aria-disabled" "true")
+                            , Selector.attribute (Attr.tabindex -1)
+                            ]
+            , test "a click on disabled text does nothing" <|
+                \_ -> try off [ Selector.class "klar-inline-edit__display" ] Event.click customer |> nothingHappens
             , test "after a failed save the retry button is inactive" <|
                 \_ ->
                     try off [ Selector.tag "button", Selector.containing [ Selector.text "Try again" ] ] Event.click failedSave

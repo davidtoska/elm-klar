@@ -1132,8 +1132,8 @@ css =
   display: flex;
   align-items: center;
   justify-content: center;
-  width: 40px;
-  height: 40px;
+  width: var(--klar-control-lg);
+  height: var(--klar-control-lg);
   border-radius: 50%;
   background: var(--klar-gray-100);
   color: var(--klar-gray-500);
@@ -1150,7 +1150,7 @@ css =
   flex-wrap: wrap;
   align-items: center;
   justify-content: center;
-  gap: 6px 10px;
+  gap: var(--klar-space-1) var(--klar-space-2);
 }
 
 .klar-filedrop__title { font-weight: var(--klar-weight-medium); color: var(--klar-text); }
@@ -1160,10 +1160,10 @@ css =
   flex-direction: row;
   justify-content: flex-start;
   padding: var(--klar-space-2) var(--klar-space-3);
-  text-align: left;
+  text-align: start;
 }
 
-.klar-filedrop--compact .klar-filedrop__icon { width: 28px; height: 28px; }
+.klar-filedrop--compact .klar-filedrop__icon { width: var(--klar-space-8); height: var(--klar-space-8); }
 
 .klar-filedrop__list {
   display: flex;
@@ -1177,11 +1177,12 @@ css =
   display: flex;
   align-items: center;
   gap: var(--klar-space-3);
-  padding: 4px var(--klar-space-2) 4px var(--klar-space-3);
-  min-height: 40px;
+  padding-block: var(--klar-space-1);
+  padding-inline: var(--klar-space-3) var(--klar-space-2);
+  min-height: var(--klar-control-lg);
 }
 
-.klar-filedrop__file + .klar-filedrop__file { border-top: 1px solid var(--klar-border-subtle); }
+.klar-filedrop__file + .klar-filedrop__file { border-block-start: 1px solid var(--klar-border-subtle); }
 
 .klar-filedrop__file-icon { display: flex; color: var(--klar-text-muted); }
 .klar-filedrop__file--invalid .klar-filedrop__file-icon { color: var(--klar-danger); }
@@ -1209,13 +1210,35 @@ css =
   color: var(--klar-danger);
 }
 
+/* Forced colors: the tinted zone of a drag, the red edge of a refusal and the
+   colored icons are gone, so the states get system colors and a heavier edge. */
+@media (forced-colors: active) {
+  .klar-filedrop--over .klar-filedrop__zone {
+    border-color: Highlight;
+    border-style: solid;
+    outline: 1px solid Highlight;
+  }
+
+  .klar-filedrop--invalid .klar-filedrop__zone { border-style: solid; border-width: 2px; }
+
+  .klar-filedrop--disabled .klar-filedrop__zone { border-color: GrayText; color: GrayText; }
+
+  .klar-filedrop__file--invalid { border-inline-start: 3px solid CanvasText; }
+
+  .klar-filedrop__file-icon,
+  .klar-filedrop__file--invalid .klar-filedrop__file-icon,
+  .klar-filedrop__file-problem { color: CanvasText; }
+
+  .klar-filedrop__input:focus-visible ~ .klar-filedrop__text .klar-filedrop__browse { outline: 2px solid Highlight; }
+}
+
 /* ---- Inline edit ----------------------------------------------------- */
 
 .klar-inline-edit {
   display: flex;
   flex-wrap: wrap;
   align-items: center;
-  gap: 4px 12px;
+  gap: var(--klar-space-1) var(--klar-space-3);
   min-width: 0;
 }
 
@@ -1227,19 +1250,19 @@ css =
 .klar-inline-edit__display {
   display: inline-flex;
   align-items: center;
-  gap: 6px;
+  gap: var(--klar-space-1);
   position: relative;
-  left: -5px;
+  inset-inline-start: calc(-1 * var(--klar-space-1) - 1px);
   max-width: 100%;
   min-height: var(--klar-control-sm);
   margin: 0;
-  padding: 0 4px;
+  padding: 0 var(--klar-space-1);
   border: 1px solid transparent;
   border-radius: var(--klar-radius);
   background: transparent;
   color: var(--klar-text);
   font: inherit;
-  text-align: left;
+  text-align: start;
   cursor: text;
   transition: background-color var(--klar-dur-fast) var(--klar-ease), border-color var(--klar-dur-fast) var(--klar-ease);
 }
@@ -1249,11 +1272,13 @@ css =
   border-color: var(--klar-border);
 }
 
-/* While saving or after a failed save the text keeps its place (and the
-   keyboard focus), but cannot be edited. */
-.klar-inline-edit__display--busy { cursor: default; }
+/* While saving the text keeps its place (and the keyboard focus), but cannot be
+   edited; a disabled field is the same button, looking like plain text. */
+.klar-inline-edit__display--busy,
+.klar-inline-edit__display--disabled { cursor: default; }
 
-.klar-inline-edit__display--busy:hover {
+.klar-inline-edit__display--busy:hover,
+.klar-inline-edit__display--disabled:hover {
   background: transparent;
   border-color: transparent;
 }
@@ -1273,24 +1298,33 @@ css =
   .klar-inline-edit__pencil { opacity: 1; }
 }
 
-.klar-inline-edit__static {
-  display: inline-flex;
-  align-items: center;
-  min-height: var(--klar-control-sm);
-}
-
 .klar-inline-edit__text { min-width: 0; overflow-wrap: anywhere; }
+.klar-inline-edit__text--multiline { white-space: pre-wrap; }
 .klar-inline-edit__text--empty { color: var(--klar-text-muted); }
 
-.klar-inline-edit__box { width: 100%; padding-right: 2px; }
+.klar-inline-edit__box { width: 100%; padding-inline-end: 2px; }
+
+/* A text of several lines: the box grows with its text area, and the buttons stay at
+   the top. */
+.klar-inline-edit__box--multiline {
+  height: auto;
+  align-items: flex-start;
+  padding-block: var(--klar-space-1);
+}
+
+.klar-inline-edit__textarea {
+  min-height: 4.5em;
+  resize: vertical;
+  line-height: 1.5;
+}
 
 .klar-inline-edit__action {
   display: flex;
   align-items: center;
   justify-content: center;
   flex: none;
-  width: 22px;
-  height: 22px;
+  width: calc(var(--klar-control-sm) - 4px);
+  height: calc(var(--klar-control-sm) - 4px);
   padding: 0;
   border: 0;
   border-radius: var(--klar-radius);
@@ -1306,12 +1340,12 @@ css =
 .klar-inline-edit__action:disabled,
 .klar-inline-edit__action:disabled:hover { background: transparent; color: var(--klar-text-disabled); cursor: not-allowed; }
 
-.klar-inline-edit__error { margin-top: 4px; }
+.klar-inline-edit__error { margin-block-start: var(--klar-space-1); }
 
 .klar-inline-edit__saving {
   display: inline-flex;
   align-items: center;
-  gap: 6px;
+  gap: var(--klar-space-1);
   font-size: var(--klar-text-sm);
   color: var(--klar-text-muted);
 }
@@ -1320,8 +1354,8 @@ css =
   display: flex;
   flex-wrap: wrap;
   align-items: center;
-  gap: 6px var(--klar-space-2);
-  padding: 4px var(--klar-space-2);
+  gap: var(--klar-space-1) var(--klar-space-2);
+  padding: var(--klar-space-1) var(--klar-space-2);
   background: var(--klar-danger-subtle);
   border: 1px solid var(--klar-danger-border);
   border-radius: var(--klar-radius);
@@ -1330,6 +1364,31 @@ css =
 }
 
 .klar-inline-edit__failure-icon { display: flex; color: var(--klar-danger); }
+
+/* Forced colors: the hover background, the muted texts and the colored buttons
+   are gone, so the states get system colors and an edge. */
+@media (forced-colors: active) {
+  .klar-inline-edit__display:hover { border-color: Highlight; }
+
+  .klar-inline-edit__display--busy:hover,
+  .klar-inline-edit__display--disabled:hover { border-color: transparent; }
+
+  .klar-inline-edit__display--disabled .klar-inline-edit__text,
+  .klar-inline-edit__text--empty { color: GrayText; }
+
+  .klar-inline-edit__pencil,
+  .klar-inline-edit__action,
+  .klar-inline-edit__action--save { color: ButtonText; }
+
+  .klar-inline-edit__action:hover { outline: 1px solid Highlight; }
+
+  .klar-inline-edit__action:disabled,
+  .klar-inline-edit__action:disabled:hover { color: GrayText; outline: none; }
+
+  .klar-inline-edit__failure { border-color: CanvasText; }
+
+  .klar-inline-edit__failure-icon { color: CanvasText; }
+}
 
 /* ---- Form layout ----------------------------------------------------- */
 

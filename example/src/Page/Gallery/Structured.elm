@@ -6,6 +6,7 @@ your own), and exact money: amounts that are never a `Float`.
 -}
 
 import Html exposing (Html)
+import Klar.Button as Button
 import Klar.Layout as Layout
 import Klar.Locale exposing (Locale)
 import Klar.MaskedInput as MaskedInput
@@ -24,8 +25,11 @@ type alias Model =
     { iban : MaskedInput.State
     , orgnr : MaskedInput.State
     , account : MaskedInput.State
+    , gtin : MaskedInput.State
+    , nordic : { se : MaskedInput.State, dk : MaskedInput.State, fi : MaskedInput.State }
     , postalNo : MaskedInput.State
     , postalNl : MaskedInput.State
+    , postalCountry : String
     , phone : MaskedInput.State
     , sku : MaskedInput.State
     , nok : MoneyInput.State
@@ -41,8 +45,13 @@ type Msg
     = IbanMsg MaskedInput.Msg
     | OrgnrMsg MaskedInput.Msg
     | AccountMsg MaskedInput.Msg
+    | GtinMsg MaskedInput.Msg
+    | SwedishMsg MaskedInput.Msg
+    | DanishMsg MaskedInput.Msg
+    | FinnishMsg MaskedInput.Msg
     | PostalNoMsg MaskedInput.Msg
     | PostalNlMsg MaskedInput.Msg
+    | PostalCountryPicked String
     | PhoneMsg MaskedInput.Msg
     | SkuMsg MaskedInput.Msg
     | NokMsg MoneyInput.Msg
@@ -58,8 +67,15 @@ init =
     ( { iban = MaskedInput.init "structured-iban" MaskedInput.iban
       , orgnr = MaskedInput.init "structured-orgnr" MaskedInput.norwegianOrganisationNumber
       , account = MaskedInput.init "structured-account" MaskedInput.norwegianBankAccount
+      , gtin = MaskedInput.init "structured-gtin" MaskedInput.ean13
+      , nordic =
+            { se = MaskedInput.init "structured-se" MaskedInput.swedishOrganisationNumber
+            , dk = MaskedInput.init "structured-dk" MaskedInput.danishCvrNumber
+            , fi = MaskedInput.init "structured-fi" MaskedInput.finnishBusinessId
+            }
       , postalNo = MaskedInput.init "structured-postal-no" MaskedInput.norwegianPostalCode
       , postalNl = MaskedInput.init "structured-postal-nl" (MaskedInput.postalCode "NL" |> Maybe.withDefault MaskedInput.norwegianPostalCode)
+      , postalCountry = "NL"
       , phone = MaskedInput.init "structured-phone" MaskedInput.phone
       , sku = MaskedInput.init "structured-sku" skuMask
       , nok = MoneyInput.init "structured-nok" Money.nok
@@ -100,11 +116,32 @@ update msg model =
         AccountMsg inner ->
             masked inner model.account (\state -> { model | account = state }) AccountMsg
 
+        GtinMsg inner ->
+            masked inner model.gtin (\state -> { model | gtin = state }) GtinMsg
+
+        SwedishMsg inner ->
+            masked inner model.nordic.se (\state -> { model | nordic = { se = state, dk = model.nordic.dk, fi = model.nordic.fi } }) SwedishMsg
+
+        DanishMsg inner ->
+            masked inner model.nordic.dk (\state -> { model | nordic = { se = model.nordic.se, dk = state, fi = model.nordic.fi } }) DanishMsg
+
+        FinnishMsg inner ->
+            masked inner model.nordic.fi (\state -> { model | nordic = { se = model.nordic.se, dk = model.nordic.dk, fi = state } }) FinnishMsg
+
         PostalNoMsg inner ->
             masked inner model.postalNo (\state -> { model | postalNo = state }) PostalNoMsg
 
         PostalNlMsg inner ->
             masked inner model.postalNl (\state -> { model | postalNl = state }) PostalNlMsg
+
+        PostalCountryPicked country ->
+            -- the field keeps what was typed, written in the groups of the new country
+            case MaskedInput.postalCode country of
+                Just mask ->
+                    ( { model | postalCountry = country, postalNl = MaskedInput.setMask mask model.postalNl }, Cmd.none )
+
+                Nothing ->
+                    ( model, Cmd.none )
 
         PhoneMsg inner ->
             masked inner model.phone (\state -> { model | phone = state }) PhoneMsg
@@ -242,6 +279,36 @@ viewIdentifiers locale model =
                     ]
                 ]
             )
+        , Doc.example
+            { title = "Business numbers of Sweden, Denmark and Finland"
+            , description = Just "Each with its check digit: Luhn for Sweden, modulus 11 for Denmark and Finland. Try 556012-5790, 24256790 and 0112038-9."
+            , code = Just "MaskedInput.init \"supplier-se\" MaskedInput.swedishOrganisationNumber"
+            }
+            (grid
+                [ Layout.stack [ Layout.gap 2 ]
+                    [ MaskedInput.view SwedishMsg [ MaskedInput.label "Organisationsnummer (Sweden)", MaskedInput.locale locale ] model.nordic.se
+                    , readout model.nordic.se
+                    ]
+                , Layout.stack [ Layout.gap 2 ]
+                    [ MaskedInput.view DanishMsg [ MaskedInput.label "CVR number (Denmark)", MaskedInput.locale locale ] model.nordic.dk
+                    , readout model.nordic.dk
+                    ]
+                , Layout.stack [ Layout.gap 2 ]
+                    [ MaskedInput.view FinnishMsg [ MaskedInput.label "Y-tunnus (Finland)", MaskedInput.locale locale ] model.nordic.fi
+                    , readout model.nordic.fi
+                    ]
+                ]
+            )
+        , Doc.example
+            { title = "Product barcode"
+            , description = Just "The GTIN-13 (EAN-13) under the barcode of a product, with its check digit (modulus 10). A scanner that types the number and Enter works too. Try 5901234123457."
+            , code = Just "MaskedInput.init \"article-gtin\" MaskedInput.ean13"
+            }
+            (Layout.stack [ Layout.gap 2 ]
+                [ MaskedInput.view GtinMsg [ MaskedInput.label "EAN-13", MaskedInput.locale locale ] model.gtin
+                , readout model.gtin
+                ]
+            )
         ]
 
 
@@ -279,7 +346,7 @@ viewCodes locale model =
         "A postal code has no check digit, so the application knows which ones exist. The phone number is the international form with a country code (+47 912 34 567); it is a help for typing, not a phone number database. A pattern of your own is made with a tiny language, and an invalid pattern is a Nothing that the application sees at once."
         [ Doc.example
             { title = "Postal codes"
-            , description = Just "Each country writes them in its own way: 0150 in Norway, 1234 AB in the Netherlands (in capitals, with the space)."
+            , description = Just "Each country writes them in its own way: 0150 in Norway, 123 45 in Sweden, 1234 AB in the Netherlands (in capitals, with the space). The second field is the postal code of an address: when its country changes, setMask gives it the rule of the new country and keeps what was typed."
             , code = Just postalCode
             }
             (grid
@@ -288,7 +355,19 @@ viewCodes locale model =
                     , readout model.postalNo
                     ]
                 , Layout.stack [ Layout.gap 2 ]
-                    [ MaskedInput.view PostalNlMsg [ MaskedInput.label "Postal code (the Netherlands)", MaskedInput.locale locale ] model.postalNl
+                    [ Layout.row [ Layout.gap 2, Layout.wrap ]
+                        (List.map
+                            (\( code, name ) ->
+                                Button.view
+                                    [ Button.small
+                                    , Button.pressed (model.postalCountry == code)
+                                    , Button.onClick (PostalCountryPicked code)
+                                    ]
+                                    name
+                            )
+                            [ ( "NO", "Norway" ), ( "SE", "Sweden" ), ( "NL", "The Netherlands" ) ]
+                        )
+                    , MaskedInput.view PostalNlMsg [ MaskedInput.label "Postal code of the address", MaskedInput.locale locale ] model.postalNl
                     , readout model.postalNl
                     ]
                 ]
@@ -322,7 +401,15 @@ postalCode =
     """MaskedInput.norwegianPostalCode
 
 -- Nothing for a country that is not in the list
-MaskedInput.postalCode "NL" -- Just (a mask for 1234 AB)"""
+MaskedInput.postalCode "NL" -- Just (a mask for 1234 AB)
+
+-- the country of the address changed: the same field, the new rule
+case MaskedInput.postalCode country of
+    Just mask ->
+        { model | postal = MaskedInput.setMask mask model.postal }
+
+    Nothing ->
+        model"""
 
 
 phoneCode : String
@@ -353,7 +440,7 @@ skuCode =
 viewMoney : Locale -> Model -> Html Msg
 viewMoney locale model =
     Doc.section "Money"
-        "An amount is a whole number of minor units and a currency, never a Float. The field reads 1 234,50 and 1,234.50 and 'kr 1 234,50'; it writes the amount with the decimals of the currency when it is left; it never rounds what was typed. More decimals than the currency has is an error (try 12.505 in NOK), and so is an amount outside the limits, which stays in the field as typed. The currency code stands at the end of the field."
+        "An amount is a whole number of minor units and a currency, never a Float. The field reads 1 234,50 and 1,234.50 and 'kr 1 234,50'; it writes the amount with the decimals of the currency when it is left; it never rounds what was typed. More decimals than the currency has is an error (try 12.505 in NOK), and so is an amount outside the limits, which stays in the field as typed. In Norwegian, 10.000 is refused as unclear rather than read as ten, since many people write ten thousand that way. The currency code stands at the end of the field."
         [ Doc.example
             { title = "NOK, JPY and KWD"
             , description = Just "Two decimals, none, and three. Each has a minimum and a maximum. Try 12,5 and 12.505 in NOK, 1500 and 1.5 in JPY, and 1.234 in KWD."

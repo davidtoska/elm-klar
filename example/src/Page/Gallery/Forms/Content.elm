@@ -45,14 +45,14 @@ init =
     , files =
         Dict.fromList
             [ ( "files-attachments"
-              , FileDrop.setFiles
+              , FileDrop.setValues
                     [ { name = "purchase-order-10412.pdf", size = 245760, mime = "application/pdf" }
                     , { name = "damaged-goods-2026-10-02.jpg", size = 1843200, mime = "image/jpeg" }
                     ]
                     (FileDrop.init "files-attachments")
               )
             , ( "files-photo"
-              , FileDrop.setFiles
+              , FileDrop.setValues
                     [ { name = "product-photo-warehouse-hamburg-aisle-14-shelf-3-final-version-cropped-2026-10-20.png"
                       , size = 524288
                       , mime = "image/png"
@@ -112,19 +112,6 @@ filesOf key model =
 inlineOf : String -> Model -> InlineEdit.State
 inlineOf key model =
     Dict.get key model.inlines |> Maybe.withDefault (InlineEdit.init key "")
-
-
-{-| A failed save with its problem written in the language of the page: the
-problem was made when the save failed, and is made again here so that it follows
-the language switch like everything else.
--}
-localizeInline : Locale -> InlineEdit.State -> InlineEdit.State
-localizeInline lang state =
-    if InlineEdit.isFailed state then
-        InlineEdit.failed (Remote.problem Remote.network) state
-
-    else
-        state
 
 
 
@@ -343,7 +330,7 @@ fileDrops lang model =
             filesOf "files-attachments" model
     in
     Doc.section "File drop"
-        "Drop files on the field, or use \"Choose files\" (Tab to the button, Enter or Space opens the file dialog). The files are checked against the allowed types, the largest size, the number of files and duplicates. The contents of the files are not read or sent by the library: it hands the application the name, size and type (FileDrop.files) and the browser's own File values (FileDrop.rawFiles) for a request the application makes."
+        "Drop files on the field, paste them (a screenshot with Ctrl+V while the focus is in the zone), or use \"Choose files\" (Tab to the button, Enter or Space opens the file dialog). The files are checked against the allowed types, the largest size, the number of files and duplicates. The contents of the files are not read or sent by the library: it hands the application the name, size and type (FileDrop.values) and the browser's own File values (FileDrop.rawFiles, or FileDrop.chosen for one request per file) for a request the application makes. What a choice did is announced once (\"2 files added, 1 refused\"), and a removed file hands the focus to the next one."
         [ Doc.example
             { title = "Several files"
             , description = Just "PDF or images, at most 5 MB, up to three files. Try an .exe file or a large file to see the refusals. Refused files stay in the list with a message until you remove them."
@@ -355,7 +342,7 @@ fileDrops lang model =
     ]
     model.attachments
 
-FileDrop.files model.attachments -- List FileInfo, only the accepted ones"""
+FileDrop.values model.attachments -- List FileInfo, only the accepted ones"""
             }
             (stack
                 [ FileDrop.view (FilesMsg "files-attachments")
@@ -368,7 +355,7 @@ FileDrop.files model.attachments -- List FileInfo, only the accepted ones"""
                     attachments
                 , readout
                     ("Accepted files: "
-                        ++ String.fromInt (List.length (FileDrop.files attachments))
+                        ++ String.fromInt (List.length (FileDrop.values attachments))
                         ++ ", refused: "
                         ++ String.fromInt (List.length (FileDrop.rejected attachments))
                     )
@@ -376,7 +363,7 @@ FileDrop.files model.attachments -- List FileInfo, only the accepted ones"""
             )
         , Doc.example
             { title = "One file, compact and disabled"
-            , description = Just "Without multiple a new choice replaces the old one."
+            , description = Just "Without multiple a new choice replaces the old one, unless it is refused: then the good file stays. A file dropped on the disabled field is cancelled, not opened by the browser."
             , code = Just """FileDrop.view PhotoMsg [ FileDrop.label "Photo", FileDrop.accept [ "image/*" ], FileDrop.compact ] state"""
             }
             (grid 300
@@ -398,7 +385,7 @@ FileDrop.files model.attachments -- List FileInfo, only the accepted ones"""
                     [ FileDrop.label "Documentation"
                     , FileDrop.required
                     , FileDrop.errorMaybe
-                        (if List.isEmpty (FileDrop.files (filesOf "files-error" model)) then
+                        (if List.isEmpty (FileDrop.values (filesOf "files-error" model)) then
                             Just "Attach at least one document"
 
                          else
@@ -420,12 +407,12 @@ FileDrop.files model.attachments -- List FileInfo, only the accepted ones"""
 inlineEdits : Locale -> Model -> Html Msg
 inlineEdits lang model =
     Doc.section "Inline edit"
-        "Text that can be clicked to edit (Tab to the text, Enter or Space starts editing). Enter saves, Escape cancels, and leaving the field saves. The save can take time or fail; then a spinner, a message and \"Try again\" are shown."
+        "Text that can be clicked to edit (Tab to the text, Enter or Space starts editing). Enter saves, Escape cancels, and leaving the field saves; switching to another window does not. The save can take time or fail; then a spinner, a message and \"Try again\" are shown, and a click on the text opens the refused text again to correct it."
         [ Doc.example
             { title = "Contact with validation and saving"
             , description = Just "The name is required and at most 30 characters. Turn on \"Simulate a failure when saving\" to see the failed state with \"Try again\"."
             , code = Just """InlineEdit.view ContactMsg
-    [ InlineEdit.label "Contact"
+    [ InlineEdit.ariaLabel "Contact"
     , InlineEdit.validate (Validate.run Locale.en (Validate.all [ Validate.required, Validate.maxLength 30 ]))
     ]
     model.contact
@@ -437,27 +424,37 @@ inlineEdits lang model =
                 [ Layout.row [ Layout.gap 4, Layout.alignCenter, Layout.wrap ]
                     [ Text.strong "Contact:"
                     , InlineEdit.view (InlineMsg contactKey)
-                        [ InlineEdit.label "Contact"
+                        [ InlineEdit.ariaLabel "Contact"
                         , InlineEdit.validate (Validate.run lang (Validate.all [ Validate.required, Validate.maxLength 30 ]))
                         , InlineEdit.maxLength 40
                         , InlineEdit.locale lang
                         ]
-                        (localizeInline lang (inlineOf contactKey model))
+                        (inlineOf contactKey model)
                     ]
                 , Layout.row [ Layout.gap 4, Layout.alignCenter, Layout.wrap ]
                     [ Text.strong "Reference:"
                     , InlineEdit.view (InlineMsg "inline-reference")
-                        [ InlineEdit.label "Reference"
+                        [ InlineEdit.ariaLabel "Reference"
                         , InlineEdit.emptyText "Add reference"
                         , InlineEdit.placeholder "For example PO-2041"
                         , InlineEdit.locale lang
                         ]
                         (inlineOf "inline-reference" model)
                     ]
+                , Layout.row [ Layout.gap 4, Layout.alignStart, Layout.wrap ]
+                    [ Text.strong "Note:"
+                    , InlineEdit.view (InlineMsg "inline-note")
+                        [ InlineEdit.ariaLabel "Delivery note"
+                        , InlineEdit.multiline
+                        , InlineEdit.emptyText "Add a delivery note (Enter is a new line, Ctrl+Enter saves)"
+                        , InlineEdit.locale lang
+                        ]
+                        (inlineOf "inline-note" model)
+                    ]
                 , Layout.row [ Layout.gap 4, Layout.alignCenter, Layout.wrap ]
                     [ Text.strong "Locked:"
                     , InlineEdit.view (always NoOp)
-                        [ InlineEdit.label "Warehouse"
+                        [ InlineEdit.ariaLabel "Warehouse"
                         , InlineEdit.disabled True
                         , InlineEdit.locale lang
                         ]
@@ -479,7 +476,7 @@ inlineEdits lang model =
             }
             (narrow 340
                 [ InlineEdit.view (InlineMsg "inline-long")
-                    [ InlineEdit.label "Note"
+                    [ InlineEdit.ariaLabel "Note"
                     , InlineEdit.locale lang
                     ]
                     (inlineOf "inline-long" model)

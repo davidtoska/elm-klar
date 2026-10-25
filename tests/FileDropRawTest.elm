@@ -66,13 +66,13 @@ suite =
                     state =
                         choose (FileDrop.init "contract")
                 in
-                ( FileDrop.files state, List.length (FileDrop.rawFiles state) )
+                ( FileDrop.values state, List.length (FileDrop.rawFiles state) )
                     |> Expect.equal ( [ contract ], 0 )
-        , test "a file put in with setFiles has no File" <|
+        , test "a file put in with setValues has no File" <|
             \_ ->
                 FileDrop.init "contract"
-                    |> FileDrop.setFiles [ contract ]
-                    |> (\state -> ( FileDrop.files state, FileDrop.rawFiles state ))
+                    |> FileDrop.setValues [ contract ]
+                    |> (\state -> ( FileDrop.values state, FileDrop.rawFiles state ))
                     |> Expect.equal ( [ contract ], [] )
         , test "Form.rawFiles reads the field of the form, and is empty for a field that holds none" <|
             \_ ->

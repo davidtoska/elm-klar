@@ -2,9 +2,10 @@ module Klar.Money exposing
     ( Money, fromMinor, fromMajorAndMinor, zero, toMinor, currencyOf
     , Currency, currency, currencyCode, decimals, symbol, isActive, allCurrencies
     , nok, sek, dkk, isk, eur, usd, gbp, chf, jpy, cad, aud, cny
-    , add, subtract, sum, multiply, percentOf, fraction, allocate, split, negate, abs
+    , add, subtract, sum, totals, multiply, percentOf, fraction, convert, allocate, split, negate, abs
     , compare, isZero, isPositive, isNegative
-    , parse, parseRounded, toString, toSymbolString, toAmountString, toDecimalString, fromDecimalString
+    , parse, parseRounded, toString, toSymbolString, toAmountString, toDecimalString, fromDecimalString, toFloat
+    , minorDecoder, decimalDecoder, encodeMinor, encodeDecimal
     , Problem, problemText
     )
 
@@ -13,6 +14,7 @@ together with its currency. There is no `Float` in it, so there is no 0.1 + 0.2.
 
 Use when: every amount of money the application keeps, adds or splits, in an exact currency.
 Do not use when: the user types the amount (`Klar.MoneyInput`) or the number is not money, such as a quantity or a percentage (`Klar.NumberInput`).
+Quick path: `minorDecoder`, `toString`, `add`, `sum`, `percentOf`, `encodeMinor`
 
     import Klar.Locale as Locale
     import Klar.Money as Money exposing (Money)
@@ -63,7 +65,15 @@ made: `fromMinor` says `Nothing`, and a calculation that leaves the range says
 Amounts can be compared with `==`: two amounts are equal when the currency and the
 number of minor units are. A `Money` is not `comparable`, so it cannot be a `Dict` key
 or a `Set` member; use `( currencyCode (currencyOf amount), toMinor amount )` for that.
-Sort with `List.sortWith Money.compare`.
+Sort with `List.sortWith Money.compare`, and add up a list in several currencies with
+`totals`.
+
+**From the server and back.** `minorDecoder` reads a whole number of minor units
+(`12550`) and `decimalDecoder` an amount written in decimals (`"125.50"`, or the JSON
+number `125.5`); `encodeMinor` and `encodeDecimal` write them. They refuse rather than
+round: `"125.505"` for NOK is an error in the decoder, not 125.51.
+
+    Decode.field "total" (Money.minorDecoder Money.nok)
 
 The built-in texts (`problemText`, the number format) follow a
 [Klar.Locale](Klar-Locale).
@@ -83,7 +93,7 @@ The built-in texts (`problemText`, the number format) follow a
 
 # Calculating
 
-@docs add, subtract, sum, multiply, percentOf, fraction, allocate, split, negate, abs
+@docs add, subtract, sum, totals, multiply, percentOf, fraction, convert, allocate, split, negate, abs
 
 
 # Comparing
@@ -93,7 +103,12 @@ The built-in texts (`problemText`, the number format) follow a
 
 # Reading and writing
 
-@docs parse, parseRounded, toString, toSymbolString, toAmountString, toDecimalString, fromDecimalString
+@docs parse, parseRounded, toString, toSymbolString, toAmountString, toDecimalString, fromDecimalString, toFloat
+
+
+# JSON
+
+@docs minorDecoder, decimalDecoder, encodeMinor, encodeDecimal
 
 
 # Problems
@@ -102,6 +117,9 @@ The built-in texts (`problemText`, the number format) follow a
 
 -}
 
+import Dict
+import Json.Decode as Decode exposing (Decoder)
+import Json.Encode as Encode
 import Klar.Format as Format
 import Klar.Locale as Locale exposing (Locale)
 import Klar.Money.Arithmetic as Arithmetic
@@ -388,6 +406,35 @@ sum cur amounts =
     List.foldl (\amount total -> Result.andThen (\running -> add running amount) total) (Ok (zero cur)) amounts
 
 
+{-| The total of each currency in a list of amounts in several currencies, sorted by
+the code of the currency: the foot of an invoice list or a dashboard in NOK, EUR and
+USD. An empty list has no totals. `Err` only when a total is out of range.
+
+    Money.totals [ nokAmount, eurAmount, otherNokAmount ]
+    -- Ok [ EUR total, NOK total ]
+
+-}
+totals : List Money -> Result Problem (List Money)
+totals amounts =
+    amounts
+        |> List.foldl
+            (\(Money cur minor) result ->
+                Result.andThen
+                    (\byCode ->
+                        case Dict.get (currencyCode cur) byCode of
+                            Just (Money _ before) ->
+                                checked cur (before + minor)
+                                    |> Result.map (\total -> Dict.insert (currencyCode cur) total byCode)
+
+                            Nothing ->
+                                Ok (Dict.insert (currencyCode cur) (Money cur minor) byCode)
+                    )
+                    result
+            )
+            (Ok Dict.empty)
+        |> Result.map Dict.values
+
+
 {-| An amount times a whole number: three of a 125.50 NOK article. A negative factor
 gives a negative amount. `Err` when the result is out of range.
 -}
@@ -438,6 +485,43 @@ fraction numerator denominator (Money cur minor) =
 
                 else
                     checked cur magnitude
+
+
+{-| An amount in another currency, at a rate written as a ratio of whole numbers:
+1 EUR = 11.7425 NOK is `{ numerator = 117425, denominator = 10000 }`. The decimals
+of the two currencies are taken care of (NOK has two, JPY none, KWD three), and the
+result is rounded half away from zero to the minor unit of the new currency, exactly,
+like `fraction`.
+
+    Money.convert { numerator = 117425, denominator = 10000 } Money.nok euros
+
+`Err` when the denominator is not above zero, or when a number is out of range.
+
+-}
+convert : { numerator : Int, denominator : Int } -> Currency -> Money -> Result Problem Money
+convert rate ((Currency to) as target) (Money (Currency from) minor) =
+    let
+        shift =
+            to.decimals - from.decimals
+
+        scale =
+            10 ^ Basics.abs shift
+
+        ( numerator, denominator ) =
+            if shift >= 0 then
+                ( rate.numerator * scale, rate.denominator )
+
+            else
+                ( rate.numerator, rate.denominator * scale )
+    in
+    if rate.denominator < 1 then
+        Err BadFraction
+
+    else if Basics.abs numerator > Arithmetic.maxMinor || denominator > Arithmetic.maxMinor then
+        Err OutOfRange
+
+    else
+        fraction numerator denominator (Money target minor)
 
 
 {-| Divides an amount into parts in proportion to the weights, so that the parts
@@ -563,7 +647,10 @@ isNegative (Money _ minor) =
 [`NumberInput.parseIn`](Klar-NumberInput#parseIn): `,` and `.` are both a decimal
 separator, spaces and no-break spaces are ignored, and `1.234,56` and `1,234.56` are
 both 1234.56. The language decides what a lone comma before three digits means:
-`1,234` is 1234 in English and 1.234 in Norwegian.
+`1,234` is 1234 in English and 1.234 in Norwegian. A lone point before digits
+grouped like thousands in Norwegian (`10.000`), where the decimal separator is a
+comma, is refused as unclear: many people write ten thousand that way, and reading it
+as ten would be a thousand times wrong. `10.5` and `0.500` are still decimals.
 
 On top of that it takes away the code and the symbol of the currency (`NOK 1 234`,
 `1 234,50 kr`, `$100` in a field for USD), a leading `-`, `−` or `+`, parentheses for
@@ -573,7 +660,8 @@ It never rounds and never guesses. The result is an `Err` for text that is not a
 amount, for more decimals than the currency has (`100,505` NOK: use `parseRounded`
 to round it; `100,500` is fine, it is the same amount), for separators that cannot
 be read (`1.2.3`), for a comma before three digits in English in a currency with
-three decimals (`1,234` KWD could be a thousand or one and a bit), for an amount of
+three decimals (`1,234` KWD could be a thousand or one and a bit), for `10.000` in
+Norwegian (ten thousand or ten), for an amount of
 another currency (`$100` in a NOK field) and for an amount out of range. Thousands are
 grouped by three: the Indian grouping `1,23,456` is not read, and is refused as unclear
 (write `123456` or `123,456`).
@@ -587,6 +675,8 @@ grouped by three: the Indian grouping `1,23,456` is not read, and is refused as 
     Money.parse Locale.nb Money.nok "(100)" -- Ok -100.00 NOK
 
     Money.parse Locale.en Money.nok "12.505" -- Err (NOK has 2 decimals)
+
+    Money.parse Locale.nb Money.nok "10.000" -- Err (unclear: 10 000 or 10,00?)
 
 -}
 parse : Locale -> Currency -> String -> Result Problem Money
@@ -608,6 +698,7 @@ readAmount : Bool -> Locale -> Currency -> String -> Result Problem Money
 readAmount rounded locale ((Currency details) as cur) text =
     Reading.read
         { grouping = groupingCharacter locale
+        , decimal = separatorCharacter (Locale.decimalSeparator locale)
         , decimals = details.decimals
         , marks = Currencies.marks details.code
         }
@@ -623,6 +714,9 @@ readAmount rounded locale ((Currency details) as cur) text =
 
                     Reading.UnclearSeparators ->
                         UnclearSeparators
+
+                    Reading.UnclearGrouping ->
+                        UnclearGrouping
             )
         |> Result.andThen (fromReading rounded cur)
 
@@ -632,7 +726,14 @@ character that `1,234` is split at.
 -}
 groupingCharacter : Locale -> Maybe Char
 groupingCharacter locale =
-    case String.uncons (Locale.thousandSeparator locale) of
+    separatorCharacter (Locale.thousandSeparator locale)
+
+
+{-| A separator of a language when it is a comma or a point.
+-}
+separatorCharacter : String -> Maybe Char
+separatorCharacter separator =
+    case String.uncons separator of
         Just ( c, "" ) ->
             if c == ',' || c == '.' then
                 Just c
@@ -768,10 +869,10 @@ amountText locale parts =
            )
 
 
-{-| The amount with its code, the way `Klar.Format.currency` writes an amount: the
-number format of the language, a real minus sign, and no-break spaces so that an
-amount never breaks over two lines. The code is the same in every language, so it
-cannot be mistaken for another currency.
+{-| The amount with its code: the number format of the language (the one of
+`Klar.Format`), a real minus sign, and no-break spaces so that an amount never breaks
+over two lines. The code is the same in every language, so it cannot be mistaken for
+another currency (`kr` is NOK, SEK, DKK and ISK); `toSymbolString` writes the symbol.
 
     Money.toString Locale.nb price -- "1 234,50 NOK"
 
@@ -883,6 +984,78 @@ toDecimalString (Money (Currency details) minor) =
            )
 
 
+{-| The amount as a `Float` in the main unit (125.5 for 125.50 NOK, 1500 for 1500
+JPY), with the decimals of its currency. It is for drawing only: a chart, the length
+of a bar. Never calculate with it or store it, since a `Float` is not exact (0.1 +
+0.2 is not 0.3); calculate with the functions of this module.
+-}
+toFloat : Money -> Float
+toFloat (Money (Currency details) minor) =
+    Basics.toFloat minor / Basics.toFloat (10 ^ details.decimals)
+
+
+{-| Reads a whole number of minor units in a currency (`12550` is 125.50 NOK), the
+way `toMinor` and `encodeMinor` write it. A number with decimals or one out of range
+fails the decoder.
+
+    Decode.field "amount" (Money.minorDecoder Money.nok)
+
+-}
+minorDecoder : Currency -> Decoder Money
+minorDecoder cur =
+    Decode.int
+        |> Decode.andThen
+            (\minor ->
+                case fromMinor cur minor of
+                    Just money ->
+                        Decode.succeed money
+
+                    Nothing ->
+                        Decode.fail (problemText Locale.en OutOfRange)
+            )
+
+
+{-| Reads an amount written in decimals in a currency: a string such as `"125.50"`
+or `"-3"`, the way `toDecimalString` and `encodeDecimal` write it, or a JSON number
+such as `125.5`. More decimals than the currency has fail the decoder ("NOK has 2
+decimals") rather than being rounded; so does an amount out of range.
+
+    Decode.field "price" (Money.decimalDecoder Money.eur)
+
+-}
+decimalDecoder : Currency -> Decoder Money
+decimalDecoder cur =
+    Decode.oneOf [ Decode.string, Decode.map String.fromFloat Decode.float ]
+        |> Decode.andThen
+            (\text ->
+                case fromDecimalString cur (String.trim text) of
+                    Ok money ->
+                        Decode.succeed money
+
+                    Err problem ->
+                        Decode.fail (problemText Locale.en problem)
+            )
+
+
+{-| The amount as a whole number of minor units (`12550` for 125.50 NOK), for a
+server that keeps minor units; `minorDecoder` reads it back. The currency is not in
+it: send its code (`currencyCode`) next to it when it is not fixed.
+-}
+encodeMinor : Money -> Encode.Value
+encodeMinor money =
+    Encode.int (toMinor money)
+
+
+{-| The amount as a string in decimals with a point (`"125.50"`, `"-3.000"` for KWD),
+the way `toDecimalString` writes it, for a server that keeps decimals;
+`decimalDecoder` reads it back. A string, not a JSON number, so that no program on
+the way turns it into a `Float`.
+-}
+encodeDecimal : Money -> Encode.Value
+encodeDecimal money =
+    Encode.string (toDecimalString money)
+
+
 
 -- PROBLEMS
 
@@ -897,6 +1070,7 @@ type Problem
     | NotAnAmount
     | TooManyDecimals Currency
     | UnclearSeparators
+    | UnclearGrouping
     | OutOfRange
     | DifferentCurrencies Currency Currency
     | NoShares
@@ -943,6 +1117,19 @@ problemText locale problem =
             Locale.pick locale
                 { nb = "Uklare skilletegn: skriv beløpet med ett desimalskilletegn"
                 , en = "The separators are unclear: write the amount with one decimal separator"
+                }
+
+        UnclearGrouping ->
+            let
+                example =
+                    "10" ++ Locale.thousandSeparator locale ++ "000"
+
+                decimal =
+                    "10" ++ Locale.decimalSeparator locale ++ "50"
+            in
+            Locale.pick locale
+                { nb = "Uklart skilletegn: skriv tusener som " ++ example ++ " og desimaler som " ++ decimal
+                , en = "The separator is unclear: write thousands as " ++ example ++ " and decimals as " ++ decimal
                 }
 
         OutOfRange ->

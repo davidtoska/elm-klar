@@ -1429,18 +1429,18 @@
         "init",
         "update",
         "view",
-        "files",
+        "values",
         "rawFiles"
       ],
       "mainFunctions": [
         "view",
         "init",
         "update",
-        "files",
+        "values",
         "rawFiles",
+        "chosen",
         "rejected",
-        "hasProblems",
-        "isTouched"
+        "hasProblems"
       ],
       "related": [
         "Klar.AppShell",
@@ -1771,7 +1771,14 @@
       "msg": [],
       "ids": [],
       "stateful": false,
-      "quickPath": [],
+      "quickPath": [
+        "minorDecoder",
+        "toString",
+        "add",
+        "sum",
+        "percentOf",
+        "encodeMinor"
+      ],
       "mainFunctions": [
         "fromMinor",
         "fromMajorAndMinor",
@@ -1823,10 +1830,10 @@
         "init",
         "update",
         "value",
+        "text",
+        "problem",
         "setValue",
-        "currencyOf",
-        "setCurrency",
-        "setLimits"
+        "currencyOf"
       ],
       "related": [
         "Klar.Field",

@@ -21,6 +21,8 @@ suite =
         [ organisationNumberTests
         , bankAccountTests
         , ibanChecksumTests
+        , gtinTests
+        , nordicTests
         , ibanTableTests
         , readingTests
         , writingTests
@@ -696,9 +698,18 @@ readingTests =
                     )
         , test "a character outside A to Z and 0 to 9 does not belong, whatever it looks like" <|
             \_ ->
-                [ "é", "ø", "Å", "٣", "１", "ß", "😀", "_", "#", "+" ]
+                [ "é", "ø", "Å", "٣", "²", "ß", "😀", "_", "#", "+" ]
                     |> List.map (\text -> (Shape.read postalNo text).rejected /= Nothing)
                     |> Expect.equal (List.repeat 10 True)
+        , test "the full-width digits and letters of an IME are the ordinary ones" <|
+            \_ ->
+                Expect.equal ( "0150", Nothing )
+                    (let
+                        reading =
+                            Shape.read postalNo "０１５０"
+                     in
+                     ( reading.value, reading.rejected )
+                    )
         , test "the fixed characters of a pattern may be typed, and are dropped" <|
             \_ ->
                 Expect.equal ( "AB1234", Nothing )
@@ -1250,3 +1261,40 @@ postalTyped country text =
 
         Nothing ->
             "?"
+
+
+gtinTests : Test
+gtinTests =
+    describe "the GTIN check digit (modulus 10)"
+        [ test "known product numbers are right" <|
+            \_ ->
+                [ "5901234123457", "4006381333931", "7038010069307", "0012345678905" ]
+                    |> List.filter (\gtin -> not (Checksum.mod10 gtin))
+                    |> Expect.equal []
+        , test "every other last digit is wrong" <|
+            \_ ->
+                List.range 0 9
+                    |> List.map (\d -> "590123412345" ++ String.fromInt d)
+                    |> List.filter Checksum.mod10
+                    |> Expect.equal [ "5901234123457" ]
+        , test "two neighbours swapped are found" <|
+            \_ -> Expect.equal False (Checksum.mod10 "5901234213457")
+        , test "text that is not digits is wrong" <|
+            \_ -> Expect.equal False (Checksum.mod10 "59012341234A7")
+        , test "a single digit is not a number with a check digit" <|
+            \_ -> Expect.equal False (Checksum.mod10 "0")
+        ]
+
+
+nordicTests : Test
+nordicTests =
+    describe "the Nordic business numbers"
+        [ test "the Luhn digit of a Swedish organisation number" <|
+            \_ -> Expect.equal [ True, False ] [ Checksum.luhn "5560125790", Checksum.luhn "5560125791" ]
+        , test "the Luhn digit finds two neighbours swapped" <|
+            \_ -> Expect.equal False (Checksum.luhn "5561025790")
+        , test "a Danish CVR number" <|
+            \_ -> Expect.equal [ True, False ] [ Checksum.mod11 [ 2, 7, 6, 5, 4, 3, 2 ] "24256790", Checksum.mod11 [ 2, 7, 6, 5, 4, 3, 2 ] "24256791" ]
+        , test "a Finnish business ID" <|
+            \_ -> Expect.equal [ True, False ] [ Checksum.mod11 [ 7, 9, 10, 5, 8, 4, 2 ] "01120389", Checksum.mod11 [ 7, 9, 10, 5, 8, 4, 2 ] "01120388" ]
+        ]
