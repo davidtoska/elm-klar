@@ -32,7 +32,7 @@ suite =
     describe "Klar.CodeBlock"
         [ test "plain source does not allocate a DOM span for every line" <|
             \_ ->
-                widget [] (String.repeat 10000 "x\n") |> Query.findAll [ S.class "klar-code-block__line" ] |> Query.count (Expect.equal 0)
+                widget [] (String.repeat 10000 "x\n") |> Query.findAll [ S.class "klar-source__line" ] |> Query.count (Expect.equal 0)
         , describe "Lexical highlighting preserves source"
             (List.map (\( label, mode ) -> fuzz Fuzz.string (label ++ " round trips all characters") <| \text -> Lexer.highlight mode text |> restore |> Expect.equal text)
                 [ ( "plain", Lexer.Plain ), ( "JSON", Lexer.Json ), ( "Elm", Lexer.Elm ) ]
@@ -82,10 +82,10 @@ suite =
                 widget [] "abc" |> Query.find [ S.id "payload" ] |> Query.has [ S.attribute (Attr.tabindex 0), S.attribute (Attr.attribute "role" "region"), S.attribute (Attr.attribute "aria-label" "Order payload") ]
         , test "line-number gutter is hidden from screen readers" <|
             \_ ->
-                widget [ Code.lineNumbers True ] "one\ntwo" |> Query.find [ S.class "klar-code-block__numbers" ] |> Query.has [ S.attribute (Attr.attribute "aria-hidden" "true") ]
+                widget [ Code.lineNumbers True ] "one\ntwo" |> Query.find [ S.class "klar-source__numbers" ] |> Query.has [ S.attribute (Attr.attribute "aria-hidden" "true") ]
         , test "line numbers are absent unless requested" <|
             \_ ->
-                widget [] "one\ntwo" |> Query.findAll [ S.class "klar-code-block__numbers" ] |> Query.count (Expect.equal 0)
+                widget [] "one\ntwo" |> Query.findAll [ S.class "klar-source__numbers" ] |> Query.count (Expect.equal 0)
         , test "a preview discloses its visible and total counts" <|
             \_ ->
                 widget [ Code.maxLines 2 ] "one\ntwo\nthree" |> Query.has [ S.text "2 of 3 lines shown — preview truncated" ]
@@ -97,7 +97,7 @@ suite =
                 widget [ Code.maxLines 1, Code.download "order.json" ] source |> Query.find [ S.tag "a" ] |> Query.has [ S.attribute (Attr.href ("data:text/plain;charset=utf-8," ++ Internal.percentEncode source)), S.attribute (Attr.download "order.json"), S.attribute (Attr.target "_blank") ]
         , test "only existing positive lines are highlighted" <|
             \_ ->
-                widget [ Code.highlightLines [ -1, 0, 2, 2, 99 ] ] "one\ntwo\nthree" |> Query.findAll [ S.class "klar-code-block__line--marked" ] |> Query.count (Expect.equal 1)
+                widget [ Code.highlightLines [ -1, 0, 2, 2, 99 ] ] "one\ntwo\nthree" |> Query.findAll [ S.class "klar-source__line--marked" ] |> Query.count (Expect.equal 1)
         , test "an empty source is named explicitly" <|
             \_ ->
                 widget [] "" |> Query.has [ S.text "Empty source" ]

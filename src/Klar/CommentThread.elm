@@ -485,10 +485,10 @@ view toMsg attributes data ((State state) as original) =
                             [ Html.div [ Internal.cls [ "klar-comment-thread__byline" ] ]
                                 [ Avatar.view [ Avatar.extraSmall, Avatar.decorative ] item.author
                                 , Html.strong [] [ Html.text item.author ]
-                                , Html.span [ Internal.cls [ "klar-comment-thread__time" ] ] [ Html.text (Settings.dateTime c.locale c.settings item.at) ]
+                                , Html.span [ Internal.cls [ "klar-comment-thread__time" ] ] [ Html.text (Settings.dateTime (Settings.withLocale c.locale c.settings) item.at) ]
                                 , case item.editedAt of
                                     Just at ->
-                                        Html.span [ Internal.cls [ "klar-comment-thread__time" ] ] [ Html.text (pick "Edited " "Redigert " ++ Settings.dateTime c.locale c.settings at) ]
+                                        Html.span [ Internal.cls [ "klar-comment-thread__time" ] ] [ Html.text (pick "Edited " "Redigert " ++ Settings.dateTime (Settings.withLocale c.locale c.settings) at) ]
 
                                     Nothing ->
                                         Html.text ""

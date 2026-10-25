@@ -181,7 +181,7 @@ view attributes data =
                         , Html.div [ Internal.cls [ "klar-audit-log__body" ] ]
                             [ Html.div [ Internal.cls [ "klar-audit-log__head" ] ]
                                 [ Html.span [] [ Html.strong [] [ Html.text e.actor ], Html.text (" · " ++ e.action) ]
-                                , Html.span [ Internal.cls [ "klar-workbench__meta" ] ] [ Html.text (Settings.dateTime c.locale c.settings e.at) ]
+                                , Html.span [ Internal.cls [ "klar-workbench__meta" ] ] [ Html.text (Settings.dateTime (Settings.withLocale c.locale c.settings) e.at) ]
                                 ]
                             , if e.detail == "" then
                                 Html.text ""

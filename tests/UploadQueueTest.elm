@@ -113,7 +113,7 @@ suite =
                     pick [ Upload.maxSize 1200 ] [ sample ] (Upload.init "uploads") |> Result.map Upload.files |> Expect.equal (Ok [ sample ])
             , test "a file one byte too large remains rejected" <|
                 \_ ->
-                    pick [ Upload.maxSize 1199 ] [ sample ] (Upload.init "uploads") |> Result.map Upload.rejected |> Expect.equal (Ok [ ( sample, FileDrop.TooLarge ) ])
+                    pick [ Upload.maxSize 1199 ] [ sample ] (Upload.init "uploads") |> Result.map (Upload.rejected >> List.map (Tuple.mapSecond FileDrop.isTooLarge)) |> Expect.equal (Ok [ ( sample, True ) ])
             , test "an uppercase extension matches without changing the filename" <|
                 \_ ->
                     let
@@ -123,7 +123,7 @@ suite =
                     pick [ Upload.accept [ ".pdf" ] ] [ file ] (Upload.init "uploads") |> Result.map Upload.files |> Expect.equal (Ok [ file ])
             , test "MIME groups are validated for dropped or chosen files" <|
                 \_ ->
-                    pick [ Upload.accept [ "image/*" ] ] [ sample ] (Upload.init "uploads") |> Result.map Upload.rejected |> Expect.equal (Ok [ ( sample, FileDrop.WrongType ) ])
+                    pick [ Upload.accept [ "image/*" ] ] [ sample ] (Upload.init "uploads") |> Result.map (Upload.rejected >> List.map (Tuple.mapSecond FileDrop.isWrongType)) |> Expect.equal (Ok [ ( sample, True ) ])
             , test "files beyond the staged-batch count remain visibly rejected" <|
                 \_ ->
                     let
@@ -133,10 +133,10 @@ suite =
                         third =
                             { sample | name = "third.pdf" }
                     in
-                    pick [ Upload.maxFiles 2 ] [ sample, second, third ] (Upload.init "uploads") |> Result.map Upload.rejected |> Expect.equal (Ok [ ( third, FileDrop.TooMany ) ])
+                    pick [ Upload.maxFiles 2 ] [ sample, second, third ] (Upload.init "uploads") |> Result.map (Upload.rejected >> List.map (Tuple.mapSecond FileDrop.isTooMany)) |> Expect.equal (Ok [ ( third, True ) ])
             , test "duplicate selections are not uploaded twice" <|
                 \_ ->
-                    pick [] [ sample, sample ] (Upload.init "uploads") |> Result.map Upload.rejected |> Expect.equal (Ok [ ( sample, FileDrop.Duplicate ) ])
+                    pick [] [ sample, sample ] (Upload.init "uploads") |> Result.map (Upload.rejected >> List.map (Tuple.mapSecond FileDrop.isDuplicate)) |> Expect.equal (Ok [ ( sample, True ) ])
             , test "metadata-only test events never invent a browser File" <|
                 \_ ->
                     pick [] [ sample ] (Upload.init "uploads") |> Result.map (Upload.rawFiles >> List.length) |> Expect.equal (Ok 0)

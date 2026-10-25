@@ -130,7 +130,7 @@ view locale model =
                                 (String.fromInt count ++ " columns")
                         )
                         [ 3, 4, 5, 6 ]
-                        ++ [ Switch.view [ Switch.label "Read only", Switch.checked model.readOnly, Switch.onToggle ReadOnly, Switch.locale locale ]
+                        ++ [ Switch.view [ Switch.label "Read only", Switch.checked model.readOnly, Switch.onCheck ReadOnly, Switch.locale locale ]
                            , Button.view [ Button.small, Button.onClick Reset ] "Reset example"
                            ]
                     )

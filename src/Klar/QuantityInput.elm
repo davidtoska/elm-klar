@@ -535,7 +535,7 @@ view toMsg attributes catalogue state_ =
                         catalogue.units
                 )
     in
-    Field.viewStable field
+    Field.view field
         (Html.div [ Internal.classes [ ( "klar-quantity", True ), ( "klar-quantity--invalid", problem /= Nothing ), ( "klar-quantity--disabled", c.disabled ) ] ]
             [ Html.input
                 (Field.controlAttributes field

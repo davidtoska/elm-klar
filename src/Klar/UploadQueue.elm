@@ -162,7 +162,7 @@ update msg (State state) =
                     pickerEmpty picker
 
                 changed =
-                    ( FileDrop.files state.picker, FileDrop.rejected state.picker ) /= ( FileDrop.files picker, FileDrop.rejected picker )
+                    ( FileDrop.values state.picker, FileDrop.rejected state.picker ) /= ( FileDrop.values picker, FileDrop.rejected picker )
             in
             ( State
                 { state
@@ -192,7 +192,7 @@ update msg (State state) =
 -}
 files : State -> List FileInfo
 files (State state) =
-    FileDrop.files state.picker
+    FileDrop.values state.picker
 
 
 {-| Actual accepted browser files, without reading them. Only these are eligible
@@ -212,7 +212,7 @@ rejected (State state) =
 
 pickerEmpty : FileDrop.State -> Bool
 pickerEmpty picker =
-    List.isEmpty (FileDrop.files picker) && List.isEmpty (FileDrop.rejected picker)
+    List.isEmpty (FileDrop.values picker) && List.isEmpty (FileDrop.rejected picker)
 
 
 {-| Whether staging can be added under the current rules: actual browser files

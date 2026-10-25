@@ -200,7 +200,7 @@ view attributes data =
                     |> splitTokens
                     |> List.indexedMap
                         (\index line ->
-                            Html.span [ Internal.classes [ ( "klar-code-block__line", True ), ( "klar-code-block__line--marked", Set.member (index + 1) c.highlights ) ] ]
+                            Html.span [ Internal.classes [ ( "klar-source__line", True ), ( "klar-source__line--marked", Set.member (index + 1) c.highlights ) ] ]
                                 (List.map renderToken line)
                         )
                     |> List.intersperse (Html.text "\n")
@@ -217,35 +217,35 @@ view attributes data =
         counts =
             Format.int c.locale shown ++ pick " of " " av " ++ Format.int c.locale total ++ pick " lines shown" " linjer vist"
     in
-    Html.div [ Internal.cls [ "klar-code-block" ] ]
-        [ Html.div [ Internal.cls [ "klar-code-block__toolbar" ] ]
+    Html.div [ Internal.cls [ "klar-source" ] ]
+        [ Html.div [ Internal.cls [ "klar-source__toolbar" ] ]
             [ Html.strong [] [ Html.text data.label ]
             , case c.download of
                 Just name ->
                     Html.a
-                        [ Attr.href ("data:text/plain;charset=utf-8," ++ Internal.percentEncode data.source), Attr.download name, Attr.target "_blank", Attr.rel "noopener", Internal.cls [ "klar-code-block__download" ], Attr.attribute "aria-label" (pick "Download " "Last ned " ++ data.label) ]
+                        [ Attr.href ("data:text/plain;charset=utf-8," ++ Internal.percentEncode data.source), Attr.download name, Attr.target "_blank", Attr.rel "noopener", Internal.cls [ "klar-source__download" ], Attr.attribute "aria-label" (pick "Download " "Last ned " ++ data.label) ]
                         [ Html.text (pick "Download source" "Last ned kilde") ]
 
                 Nothing ->
                     Html.text ""
             ]
         , Html.div
-            ([ Attr.id data.id, Attr.tabindex 0, Attr.attribute "role" "region", Attr.attribute "aria-label" data.label, Internal.cls [ "klar-code-block__scroll" ] ]
+            ([ Attr.id data.id, Attr.tabindex 0, Attr.attribute "role" "region", Attr.attribute "aria-label" data.label, Internal.cls [ "klar-source__scroll" ] ]
                 ++ (c.maxHeight |> Maybe.map (\pixels -> [ Internal.styleVars [ ( "--klar-code-height", Internal.px pixels ) ] ]) |> Maybe.withDefault [])
             )
             [ if c.lineNumbers then
-                Html.pre [ Internal.cls [ "klar-code-block__numbers" ], Attr.attribute "aria-hidden" "true" ]
+                Html.pre [ Internal.cls [ "klar-source__numbers" ], Attr.attribute "aria-hidden" "true" ]
                     [ Html.text (List.range 1 shown |> List.map String.fromInt |> String.join "\n") ]
 
               else
                 Html.text ""
-            , Html.pre [ Internal.cls [ "klar-code-block__source" ] ] [ Html.code [] renderedSource ]
+            , Html.pre [ Internal.cls [ "klar-source__source" ] ] [ Html.code [] renderedSource ]
             ]
         , if truncated then
-            Html.div [ Internal.cls [ "klar-code-block__notice" ], Attr.attribute "role" "status" ] [ Html.text (counts ++ pick " — preview truncated" " — forhåndsvisningen er avkortet") ]
+            Html.div [ Internal.cls [ "klar-source__notice" ], Attr.attribute "role" "status" ] [ Html.text (counts ++ pick " — preview truncated" " — forhåndsvisningen er avkortet") ]
 
           else if data.source == "" then
-            Html.div [ Internal.cls [ "klar-code-block__notice" ], Attr.attribute "role" "status" ] [ Html.text (pick "Empty source" "Tom kilde") ]
+            Html.div [ Internal.cls [ "klar-source__notice" ], Attr.attribute "role" "status" ] [ Html.text (pick "Empty source" "Tom kilde") ]
 
           else
             Html.text ""
@@ -261,7 +261,7 @@ renderToken token =
         _ ->
             Html.span
                 [ Internal.cls
-                    [ "klar-code-block__token--"
+                    [ "klar-source__token--"
                         ++ (case token.kind of
                                 Lexer.Keyword ->
                                     "keyword"

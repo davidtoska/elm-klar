@@ -214,7 +214,7 @@ view attributes data =
                                     Html.strong [] [ Html.text item.title ]
                             , Html.p [ Internal.cls [ "klar-workbench__prose" ] ] [ Html.text item.body ]
                             , Html.div [ Internal.cls [ "klar-workbench__meta" ] ]
-                                [ Html.text (Settings.dateTime c.locale c.settings item.at)
+                                [ Html.text (Settings.dateTime (Settings.withLocale c.locale c.settings) item.at)
                                 , if item.unread then
                                     Html.strong [] [ Html.text (pick "Unread" "Ulest") ]
 
@@ -239,7 +239,7 @@ view attributes data =
                     [ Html.span [ Attr.attribute "role" "status" ] [ Html.text (Format.int c.locale (List.length unread) ++ pick " unread of " " uleste av " ++ Format.int c.locale (List.length items) ++ pick " loaded" " innlastede") ]
                     , case c.unreadOnly of
                         Just ( value, toMsg ) ->
-                            Switch.view ([ Switch.checked value, Switch.onToggle toMsg, Switch.label (pick "Unread only" "Bare uleste") ] ++ (Maybe.map (\domId -> [ Switch.id (domId ++ "-unread") ]) c.domId |> Maybe.withDefault []))
+                            Switch.view ([ Switch.checked value, Switch.onCheck toMsg, Switch.label (pick "Unread only" "Bare uleste") ] ++ (Maybe.map (\domId -> [ Switch.id (domId ++ "-unread") ]) c.domId |> Maybe.withDefault []))
 
                         Nothing ->
                             Html.text ""
