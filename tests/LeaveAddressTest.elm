@@ -9,7 +9,7 @@ the new address, `Push` and `Replace` report once, at once, with their address.
 
 import Expect
 import Fuzz exposing (Fuzzer)
-import Klar.Internal.Leave as Leave exposing (Effect(..))
+import Klar.Internal.Leave as Leave exposing (Change(..), Effect(..))
 import Klar.LeaveGuard as LeaveGuard
 import Test exposing (Test, describe, fuzz, test)
 import Url
@@ -36,23 +36,19 @@ pageOf address =
     String.left 1 address
 
 
-{-| The address changed: `Leave.changed` with what the address and the address of the
-page that is shown mean, as `LeaveGuard.onUrlChange` gives them.
+{-| The address changed: `Leave.changed` with what the address means, as
+`LeaveGuard.onUrlChange` gives it.
 -}
-changed : String -> State -> ( State, List Effect, Bool )
+changed : String -> State -> ( State, List Effect, Change )
 changed address state =
-    Leave.changed address (pageOf address) (Maybe.map pageOf state.shown) state
+    Leave.changed address (pageOf address) state
 
 
-{-| A guard on this address, after the first change (it knows what the page means).
+{-| A guard on this address, as `LeaveGuard.initAt` makes it (it knows what the page means).
 -}
 watching : String -> State
 watching address =
-    let
-        state =
-            Leave.watch address Leave.init
-    in
-    { state | page = Just (pageOf address) }
+    Leave.watch address (pageOf address) Leave.init
 
 
 dirtyAt : String -> State
@@ -66,11 +62,11 @@ scenarioTests =
         [ test "clean: a new address is a page" <|
             \_ ->
                 changed "b" (watching "a")
-                    |> Expect.equal ( { dirty = [], held = Leave.Idle, shown = Just "b", away = Nothing, page = Just "b" }, [], True )
+                    |> Expect.equal ( { dirty = [], held = Leave.Idle, shown = Just "b", away = Nothing, page = Just "b" }, [], Enter )
         , test "clean: the address of the page that is shown is ignored" <|
             \_ ->
                 changed "a" (watching "a")
-                    |> Expect.equal ( watching "a", [], False )
+                    |> Expect.equal ( watching "a", [], Ignore )
         , test "dirty: Back opens the question and leaves the page alone" <|
             \_ ->
                 let
@@ -79,7 +75,7 @@ scenarioTests =
                 in
                 Expect.equal
                     { shown = state.shown, away = state.away, held = state.held, effects = effects, entered = entered }
-                    { shown = Just "a", away = Just "b", held = Leave.FromBrowser "b", effects = [ Open ], entered = False }
+                    { shown = Just "a", away = Just "b", held = Leave.FromBrowser "b", effects = [ Open ], entered = Ignore }
         , test "Stay pushes the address of the page that is shown" <|
             \_ ->
                 let
@@ -100,7 +96,7 @@ scenarioTests =
                         Leave.stay asked
                 in
                 changed "a" stayed
-                    |> Expect.equal ( stayed, [], False )
+                    |> Expect.equal ( stayed, [], Ignore )
         , test "Leave replaces the address with itself, gives the changes up and hands the target back, already there" <|
             \_ ->
                 let
@@ -123,7 +119,7 @@ scenarioTests =
                     ( entered, effects, isPage ) =
                         changed "b" left
                 in
-                Expect.equal ( entered.shown, effects, isPage ) ( Just "b", [], True )
+                Expect.equal ( entered.shown, effects, isPage ) ( Just "b", [], Enter )
         , test "a second Back while the question is open replaces the address asked for" <|
             \_ ->
                 let
@@ -141,7 +137,7 @@ scenarioTests =
                         changed "b" (dirtyAt "a")
                 in
                 changed "b" first
-                    |> Expect.equal ( first, [], False )
+                    |> Expect.equal ( first, [], Ignore )
         , test "coming back to the shown page closes the question" <|
             \_ ->
                 let
@@ -149,7 +145,7 @@ scenarioTests =
                         changed "b" (dirtyAt "a")
                 in
                 changed "a" first
-                    |> Expect.equal ( { first | held = Leave.Idle, away = Nothing }, [ Close ], False )
+                    |> Expect.equal ( { first | held = Leave.Idle, away = Nothing }, [ Close ], Ignore )
         , test "a link asked while the browser question is open replaces it, and Stay still puts the address right" <|
             \_ ->
                 let
@@ -201,15 +197,27 @@ scenarioTests =
                     ( state, effects, isPage ) =
                         changed "c" (Leave.setDirty 1 False asked)
                 in
-                Expect.equal { held = state.held, shown = state.shown, effects = effects, isPage = isPage } { held = Leave.Idle, shown = Just "c", effects = [ Close ], isPage = True }
-        , test "dirty: another address of the page that is shown asks nothing and keeps the page" <|
+                Expect.equal { held = state.held, shown = state.shown, effects = effects, isPage = isPage } { held = Leave.Idle, shown = Just "c", effects = [ Close ], isPage = Enter }
+        , test "dirty: another address of the page that is shown asks nothing, keeps the work and tells the page to apply it" <|
             \_ ->
                 changed "a?sort" (dirtyAt "a")
-                    |> Expect.equal ( { dirty = [ 1 ], held = Leave.Idle, shown = Just "a?sort", away = Nothing, page = Just "a" }, [], False )
-        , test "clean: another address of the page that is shown enters it, as any address" <|
+                    |> Expect.equal ( { dirty = [ 1 ], held = Leave.Idle, shown = Just "a?sort", away = Nothing, page = Just "a" }, [], Same )
+        , test "clean: another address of the page that is shown is the same page too" <|
             \_ ->
                 changed "a?sort" (watching "a")
-                    |> (\( state, effects, entered ) -> Expect.equal ( state.shown, effects, entered ) ( Just "a?sort", [], True ))
+                    |> (\( state, effects, entered ) -> Expect.equal ( state.shown, effects, entered ) ( Just "a?sort", [], Same ))
+        , test "dirty: a tab that follows the address, there and back, stays on the page with its work" <|
+            \_ ->
+                let
+                    ( onTab, _, toTab ) =
+                        changed "a?tab" (dirtyAt "a")
+
+                    ( back, effects, toStart ) =
+                        changed "a" onTab
+                in
+                Expect.equal
+                    { toTab = toTab, toStart = toStart, effects = effects, shown = back.shown, dirty = Leave.isDirty back, open = Leave.isOpen back }
+                    { toTab = Same, toStart = Same, effects = [], shown = Just "a", dirty = True, open = False }
         , test "a link to the page that is shown goes, even when something is dirty" <|
             \_ -> Leave.request "a" (dirtyAt "a?sort") |> Expect.equal Nothing
         , test "a link to another page still asks" <|
@@ -221,30 +229,32 @@ scenarioTests =
                         changed "b" (dirtyAt "a")
                 in
                 changed "a?sort" asked
-                    |> (\( state, effects, entered ) -> Expect.equal ( state.held, state.shown, ( effects, entered ) ) ( Leave.Idle, Just "a?sort", ( [ Close ], False ) ))
-        , test "the page that is shown is learned from its address at the first change" <|
+                    |> (\( state, effects, entered ) -> Expect.equal ( state.held, state.shown, ( effects, entered ) ) ( Leave.Idle, Just "a?sort", ( [ Close ], Same ) ))
+        , test "the page you start on is known before the first change: a link to it goes at once" <|
             \_ ->
-                let
-                    started =
-                        Leave.watch "a" Leave.init |> Leave.setDirty 1 True
-
-                    ( state, effects, entered ) =
-                        changed "a?sort" started
-                in
-                Expect.equal ( state.page, effects, entered ) ( Just "a", [], False )
-        , test "Leave to the page that is shown hands it back, so the work is reset" <|
+                Leave.watch "a?sort" "a" Leave.init
+                    |> Leave.setDirty 1 True
+                    |> Leave.request "a"
+                    |> Expect.equal Nothing
+        , test "Leave to the page that is shown, asked while the browser question is open, hands it back and the push of it is ignored" <|
             \_ ->
                 let
                     ( asked, _, _ ) =
                         changed "b" (dirtyAt "a")
 
                     held =
-                        Leave.request "c" asked |> Maybe.withDefault asked
+                        Leave.request "a" asked |> Maybe.withDefault asked
 
-                    ( _, _, decision ) =
+                    ( left, effects, decision ) =
                         Leave.leave held
+
+                    -- follow pushes the address of "a", which is the page that is shown
+                    ( arrived, pushEffects, change ) =
+                        changed "a" left
                 in
-                Expect.equal decision (Just ( "c", False ))
+                Expect.equal
+                    { effects = effects, decision = decision, dirty = Leave.isDirty left, change = change, pushEffects = pushEffects, shown = arrived.shown }
+                    { effects = [ Close ], decision = Just ( "a", False ), dirty = False, change = Ignore, pushEffects = [], shown = Just "a" }
         ]
 
 
@@ -258,7 +268,7 @@ unwatchedTests =
                         Leave.setDirty 1 True Leave.init
                 in
                 changed "b" state
-                    |> Expect.equal ( state, [], True )
+                    |> Expect.equal ( state, [], Enter )
         , test "the public onUrlChange on a guard made with init enters the page" <|
             \_ ->
                 let
@@ -270,7 +280,7 @@ unwatchedTests =
                             |> LeaveGuard.setDirty 1 True
                             |> (\guard -> LeaveGuard.onUrlChange .path url guard)
                 in
-                Expect.equal (Just "/") entered
+                Expect.equal (LeaveGuard.Enter "/") entered
         ]
 
 
@@ -331,7 +341,7 @@ eventFuzzer =
 
 start : World
 start =
-    { state = Leave.watch "a" Leave.init, browser = { entries = [ "a" ], index = 0 }, reports = 0, undecided = 0 }
+    { state = Leave.watch "a" "a" Leave.init, browser = { entries = [ "a" ], index = 0 }, reports = 0, undecided = 0 }
 
 
 current : Browser -> String

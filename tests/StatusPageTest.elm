@@ -430,11 +430,11 @@ problemTests =
         [ test "uses the ready-made texts of the problem's kind" <|
             \_ ->
                 page [] (StatusPage.fromProblem (Remote.problem Remote.conflict))
-                    |> H.inside [ heading ] [ Selector.text "The data changed in the meantime" ]
+                    |> H.inside [ heading ] [ Selector.text "This conflicts with the current data" ]
         , test "in the language of the page" <|
             \_ ->
                 page [ StatusPage.locale Locale.nb ] (StatusPage.fromProblem (Remote.problem Remote.conflict))
-                    |> H.inside [ heading ] [ Selector.text "Dataene er endret i mellomtiden" ]
+                    |> H.inside [ heading ] [ Selector.text "Dette er i konflikt med dataene slik de er nå" ]
         , test "the title and the detail the application gave the problem are used" <|
             \_ ->
                 page []

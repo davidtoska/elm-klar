@@ -116,13 +116,19 @@ suite =
                                 -- nodes of the body are its own children (the marker of old
                                 -- data is one node that is empty text while the data is
                                 -- fresh), so Elm patches them in place and focus stays.
+                                -- Elm keeps a node by its index among the children, so the
+                                -- body is the third child in every one of these states: the
+                                -- live region, the marker (or its placeholder), the body.
                                 body [] data
                                     |> Query.fromHtml
                                     |> Query.children []
                                     |> Query.first
-                                    |> Query.children [ Selector.tag "p" ]
-                                    |> Query.first
-                                    |> Query.has [ Selector.text "data" ]
+                                    |> Query.children []
+                                    |> Expect.all
+                                        [ Query.count (Expect.equal 3)
+                                        , Query.index 0 >> Query.has [ roleStatus ]
+                                        , Query.index 2 >> Query.has [ Selector.tag "p", Selector.text "data" ]
+                                        ]
                     )
             )
         , test "while loading the live region says what is loading, outside the busy placeholder" <|

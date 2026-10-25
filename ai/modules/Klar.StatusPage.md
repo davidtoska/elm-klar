@@ -124,7 +124,16 @@ when no element has the id.
 screen while the new request is on its way, with `retrying`: the button turns busy
 where it is and keeps focus, instead of a skeleton that takes the focused button away.
 When the answer comes, the page goes and the content (or a new status page) takes its
-place: move focus to it.
+place: move focus to it. For this retry, keep the `Failed` value and set a flag of
+your own: `Remote.refresh` of a `Failed` gives `Loading`, which would put a skeleton in
+place of the page and take the focused button with it. Settle the answer as usual
+(`Remote.settle`) and clear the flag there.
+
+    ReloadOrder ->
+        ( { model | reloading = True }, fetchOrder model.orderId )
+
+    GotOrder result ->
+        ( { model | order = Remote.settle model.order result, reloading = False }, Cmd.none )
 
     StatusPage.view
         [ StatusPage.onRetry ReloadOrder, StatusPage.retrying model.reloading ]

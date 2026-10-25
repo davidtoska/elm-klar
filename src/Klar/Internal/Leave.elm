@@ -1,5 +1,6 @@
 module Klar.Internal.Leave exposing
-    ( Effect(..)
+    ( Change(..)
+    , Effect(..)
     , Held(..)
     , State
     , changed
@@ -40,9 +41,10 @@ entry). "Stay" pushes the address of the page that is shown (`Push`), which is t
 one move that does not need to know the direction.
 
 An address is a departure only when it means another page: the machine knows what the
-page that is shown means to the application (`page`, the target of its address), and
-an address with the same target (a query that the target does not see: a sort, a
-filter, a tab) is taken as the page's own new address, without a question.
+page that is shown means to the application (`page`, the target of its address, from
+the start), and an address with the same target (a query that the target does not see:
+a sort, a filter, a tab) is taken as the page's own new address, without a question,
+and the application is told to apply it (`Same`), dirty or not.
 
 -}
 
@@ -65,6 +67,15 @@ type Held target
     | FromBrowser target
 
 
+{-| What the page has to do after a change of the address: show the page of the new
+address, apply the new address to the page that is shown (the same target), or nothing.
+-}
+type Change
+    = Enter
+    | Same
+    | Ignore
+
+
 {-| What the guard has to do on behalf of the machine.
 -}
 type Effect
@@ -79,11 +90,11 @@ init =
     { dirty = [], held = Idle, shown = Nothing, away = Nothing, page = Nothing }
 
 
-{-| The address the page shows right now.
+{-| The address the page shows right now, and what it means to the application.
 -}
-watch : String -> State source target -> State source target
-watch address state =
-    { state | shown = Just address }
+watch : String -> target -> State source target -> State source target
+watch address page state =
+    { state | shown = Just address, page = Just page }
 
 
 setDirty : source -> Bool -> State source target -> State source target
@@ -154,43 +165,33 @@ dismiss state =
         ( { state | held = Idle, away = Nothing }, [ Close ] )
 
 
-{-| The address changed (`onUrlChange`). The result says whether the page may
-enter this address (`True`), and what the guard has to do. `target` is what the
-address means to the application, and `shownTarget` what the address of the page
-that is shown means (`Nothing` when it is not known).
+{-| The address changed (`onUrlChange`). The result says what the page has to do with
+this address (`Change`), and what the guard has to do. `target` is what the address
+means to the application.
 -}
-changed : String -> target -> Maybe target -> State source target -> ( State source target, List Effect, Bool )
-changed address target shownTarget before =
-    let
-        state =
-            case before.page of
-                Just _ ->
-                    before
-
-                Nothing ->
-                    { before | page = shownTarget }
-    in
+changed : String -> target -> State source target -> ( State source target, List Effect, Change )
+changed address target state =
     if state.shown == Nothing then
         -- Not watching the address: nothing to compare with, every change is a page.
-        ( state, [], True )
+        ( state, [], Enter )
 
     else if state.shown == Just address then
         -- The page the user is on. Either a report of our own move (Push, Replace),
         -- or the user came back to it with the buttons while the question was open.
         case ( state.away, state.held ) of
             ( Just _, FromBrowser _ ) ->
-                ( { state | held = Idle, away = Nothing }, [ Close ], False )
+                ( { state | held = Idle, away = Nothing }, [ Close ], Ignore )
 
             ( Just _, _ ) ->
-                ( { state | away = Nothing }, [], False )
+                ( { state | away = Nothing }, [], Ignore )
 
             ( Nothing, _ ) ->
-                ( state, [], False )
+                ( state, [], Ignore )
 
     else if state.page == Just target then
-        -- The page that is shown, at another address: no departure. A question the
-        -- browser buttons opened is answered (the bar is at this page again); the page
-        -- is entered again only when nothing is dirty, as any address is.
+        -- The page that is shown, at another address: no departure, dirty or not. A
+        -- question the browser buttons opened is answered (the bar is at this page
+        -- again), and the application applies the address to the page it shows.
         ( { state
             | shown = Just address
             , away = Nothing
@@ -206,7 +207,7 @@ changed address target shownTarget before =
 
           else
             []
-        , List.isEmpty state.dirty
+        , Same
         )
 
     else if List.isEmpty state.dirty then
@@ -216,15 +217,15 @@ changed address target shownTarget before =
 
           else
             [ Close ]
-        , True
+        , Enter
         )
 
     else if state.away == Just address && isFromBrowser state.held then
         -- The same report twice.
-        ( state, [], False )
+        ( state, [], Ignore )
 
     else
-        ( { state | away = Just address, held = FromBrowser target }, [ Open ], False )
+        ( { state | away = Just address, held = FromBrowser target }, [ Open ], Ignore )
 
 
 isFromBrowser : Held target -> Bool

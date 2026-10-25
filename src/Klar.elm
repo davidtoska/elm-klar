@@ -231,7 +231,8 @@ done, whether the element was found or not, so use one that changes nothing:
 It waits one frame, so it also works on an element that the same `update` creates. Use it
 where an element that had focus goes away and the component cannot know where focus
 should go next: after "Try again" of a region (`RemoteView.id`, `Stat.id`, `Chart.id`,
-`Timeline.id`), after an approval decision (`ApprovalFlow.id`), after a save that replaced
+`Timeline.id`), on a status page that replaced the content (`StatusPage.id`), when a bulk
+bar goes away (`BulkBar.id`), after an approval decision (`ApprovalFlow.id`), after a save that replaced
 a switch or a checkbox, or on the next tag after one was removed. Dialogs, drawers, the
 palette, the shell and the table move focus themselves; never call it for them.
 

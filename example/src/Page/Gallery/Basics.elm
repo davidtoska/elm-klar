@@ -909,19 +909,22 @@ viewRemote locale model =
                     [ EmptyState.view [ EmptyState.compact, EmptyState.icon Icon.database, EmptyState.title "Nothing requested yet" ] ]
 
                 _ ->
-                    -- loading, failure with a retry, and the data: no `case` of ours
+                    -- loading, failure with a retry, empty and the data: no `case` of ours
                     RemoteView.view
-                        [ RemoteView.onRetry Retried, RemoteView.locale locale, RemoteView.loadingLabel "Loading orders" ]
+                        [ RemoteView.onRetry Retried
+                        , RemoteView.locale locale
+                        , RemoteView.loadingLabel "Loading orders"
+                        , RemoteView.emptyState
+                            [ EmptyState.icon Icon.inbox
+                            , EmptyState.title "No orders to show"
+                            , EmptyState.description "There are no orders yet."
+                            , EmptyState.actions [ Button.view [ Button.onClick (Requested Works) ] "Load orders" ]
+                            ]
+                        ]
                         model.orders
                         (\orders ->
                             if List.isEmpty orders then
-                                [ EmptyState.view
-                                    [ EmptyState.icon Icon.inbox
-                                    , EmptyState.title "No orders to show"
-                                    , EmptyState.description "There are no orders yet."
-                                    , EmptyState.actions [ Button.view [ Button.onClick (Requested Works) ] "Load orders" ]
-                                    ]
-                                ]
+                                []
 
                             else
                                 [ Layout.stack [ Layout.gap 0 ]
@@ -1461,18 +1464,19 @@ remoteCode : String
 remoteCode =
     """-- model:   orders : Remote (List Order)
 
--- RemoteView draws loading, the failure with Try again, and old (Kept) data
--- while it refreshes: no case of your own, so Kept data never hides
-Card.view [ Card.flush ]
-    (RemoteView.view [ RemoteView.onRetry Retry, RemoteView.loadingLabel "Loading orders" ]
-        model.orders
-        (\\orders ->
-            if List.isEmpty orders then
-                [ EmptyState.view [ EmptyState.title "No orders to show" ] ]
+-- loading, failure with a retry, empty, refreshing and old data: no `case` of ours
+RemoteView.view
+    [ RemoteView.onRetry Retry
+    , RemoteView.loadingLabel "Loading orders"
+    , RemoteView.emptyState [ EmptyState.title "No orders to show" ]
+    ]
+    model.orders
+    (\\orders ->
+        if List.isEmpty orders then
+            []
 
-            else
-                [ viewOrders orders ]
-        )
+        else
+            [ viewOrders orders ]
     )
 
 -- update: a ticket makes the answer to an old request count for nothing

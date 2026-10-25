@@ -103,7 +103,8 @@ refresh failed):
     Alert.stale [] Reload (Remote.staleIn "orders" model.orders)
 
 `refreshWith` is `settle` with the time of the answer, for requests that carry it, so
-that old data says "Old data from 14:05". For a new question (another customer,
+that old data says "Old data from 14:05"; its fresh data is `Kept`, which holds that
+time, where `settle` gives `Loaded`. For a new question (another customer,
 another period) the old answer does not apply: set `Loading` instead of `refresh`.
 When the user can ask again before the answer comes (a search, a drawer that opens
 another order), put the question in the message (`GotCustomer id result`) and settle
@@ -298,8 +299,10 @@ refresh never writes over good data.
         )
 
 The answer of an `Http` request comes as it is, with no time: this is the line for it.
-When you do have the time of the answer, `refreshWith` does the same and remembers it,
-so that old data says when it was loaded ("Old data from 14:05").
+When you do have the time of the answer, `refreshWith` remembers it, so that old data
+says when it was loaded ("Old data from 14:05"). The two differ in one thing: an `Ok`
+of `settle` is `Loaded`, an `Ok` of `refreshWith` is `Kept` (fresh, with the time).
+Components and `toMaybe` read both the same way.
 
 ### `refreshWith`
 
@@ -310,6 +313,11 @@ refreshWith : Remote a -> Result Problem a -> Time.Posix -> Remote a
 `settle`, for an answer whose time you have: `Ok` gives fresh data that
 remembers when it was loaded, so that old data says when ("Old data from 14:05"
 instead of "Old data"). `Err` is the same as for `settle`.
+
+Fresh data with a time is `Kept`, not `Loaded` (it is not refreshing and not old:
+`isRefreshing` and `isStale` are `False`). A `case` of your own on the result
+needs the `Kept` branch, or reads it with `toMaybe`: a `case` that only knows
+`Loaded` would show a skeleton for good.
 
     GotOrders result at ->
         ( { model | orders = Remote.refreshWith model.orders result at }, Cmd.none )
@@ -484,7 +492,9 @@ below.
   - `forbidden`: the user may not do this (403)
   - `unauthorized`: the user must sign in again (401)
   - `validation`: the server rejected what was sent (400 or 422)
-  - `conflict`: the data changed in the meantime (409)
+  - `conflict`: the request clashes with the data as it is now (409): it changed in
+    the meantime, or what was sent is already there (a number or a name that is taken,
+    an order that has already shipped)
   - `tooManyRequests`: the server asks to wait before the next request (429)
   - `unknown`: anything else
 
@@ -550,7 +560,10 @@ The server rejected what was sent (400 or 422).
 conflict : Kind
 ```
 
-The data changed in the meantime (409).
+The request clashes with the data as it is now (409): the data changed in the
+meantime, or what was sent clashes with what is already there (a number that is
+taken, an order that has already shipped). Trying the same again does not help, so
+components offer no "Try again".
 
 ### `tooManyRequests`
 
