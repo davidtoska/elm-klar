@@ -305,6 +305,17 @@ css =
 
 .klar-card--flush > .klar-card__body { padding: 0; }
 
+/* ---- Print: text, layout and cards ------------------------------------
+   Paper has no scroll bars: a scroll area prints all of its content, a code block
+   wraps its long lines, and a card is not cut between two pages when it fits on one. */
+
+@media print {
+  .klar-scroll { max-height: none; overflow: visible; }
+  .klar-code-block { white-space: pre-wrap; overflow-wrap: anywhere; }
+  .klar-card { break-inside: avoid; }
+  .klar-card--raised { box-shadow: none; }
+}
+
 .klar-card__footer {
   display: flex;
   flex-wrap: wrap;

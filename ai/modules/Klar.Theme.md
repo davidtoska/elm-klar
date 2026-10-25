@@ -304,7 +304,8 @@ The tokens:
   - Space and shape: `--klar-space-1` to `--klar-space-12` (a 4px grid),
     `--klar-radius-sm`, `--klar-radius`, `--klar-radius-lg`.
   - Controls and rows: `--klar-control-sm` (26px), `--klar-control` (32px),
-    `--klar-control-lg` (40px), `--klar-row-compact` (28px), `--klar-row` (36px),
+    `--klar-control-lg` (40px) at normal density (the density of the page moves
+    them, see `Size`), `--klar-row-compact` (28px), `--klar-row` (36px),
     `--klar-row-comfortable` (46px).
   - Layout: `--klar-header-h`, `--klar-sidebar-w`, `--klar-page-max`.
   - Depth and motion: `--klar-shadow-xs` to `--klar-shadow-lg`,

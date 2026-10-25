@@ -168,6 +168,13 @@ layoutTests =
                 Layout.container [ Layout.fillRest ] [ Layout.stack [ Layout.fillRest ] [] ]
                     |> Query.fromHtml
                     |> Query.has [ Selector.classes [ "klar-container", "klar-fill-rest" ] ]
+        , test "on paper a scroll area shows all of its content, and a card is not cut in two" <|
+            \_ ->
+                Expect.all
+                    [ \css -> String.contains "@media print {\n  .klar-scroll { max-height: none; overflow: visible; }" css |> Expect.equal True
+                    , \css -> String.contains "  .klar-card { break-inside: avoid; }" css |> Expect.equal True
+                    ]
+                    Klar.css
         , test "the stylesheet makes a container with fillRest a flex column" <|
             \_ ->
                 Expect.equal True (String.contains ".klar-container.klar-fill-rest { display: flex; flex-direction: column; }" Klar.css)

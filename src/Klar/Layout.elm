@@ -30,7 +30,8 @@ They are plain `div` elements that you configure with a list of attributes.
 Not every attribute applies to every layout: `wrap` and `alignBaseline` are for
 rows, `justifyCenter`, `justifyEnd` and `justifyBetween` for rows and stacks,
 `columns` and `minColumn` for grids and `maxWidth` for containers. An attribute
-that does not apply is ignored.
+that does not apply is ignored. `id`, `ariaLabel`, `padding`, `maxHeight` and
+`scroll` apply to every layout.
 
 Spacing uses the 4px scale of the design tokens in the stylesheet: step `n` is
 the custom property `--klar-space-n`, so `gap 2` is 8px, `gap 4` is 16px and
