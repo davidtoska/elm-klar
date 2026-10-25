@@ -12,12 +12,14 @@ import Klar.Button as Button
 import Klar.Icon as Icon
 import Klar.Locale as Locale
 import Klar.Remote as Remote
+import Klar.Settings as Settings
 import Klar.StatusPage as StatusPage exposing (Kind)
 import Support.FlowHtml as H
 import Test exposing (Test, describe, fuzz, test)
 import Test.Html.Event as Event
 import Test.Html.Query as Query
 import Test.Html.Selector as Selector exposing (Selector)
+import Time
 
 
 type Msg
@@ -39,6 +41,7 @@ suite =
         , problemTests
         , iconAndToneTests
         , focusTests
+        , retryingAndBackTests
         ]
 
 
@@ -551,4 +554,43 @@ focusTests =
             \_ ->
                 page [ StatusPage.id "order-created" ] StatusPage.success
                     |> H.count 1 [ Selector.id "order-created" ]
+        ]
+
+
+{-| `retrying` keeps the retry button in place, busy; `backAt` says when maintenance ends.
+-}
+retryingAndBackTests : Test
+retryingAndBackTests =
+    let
+        retryButton =
+            [ Selector.tag "button", Selector.containing [ Selector.text "Try again" ] ]
+
+        twoThirty =
+            Time.millisToPosix ((14 * 60 + 30) * 60 * 1000)
+    in
+    describe "retrying and the time back"
+        [ test "while retrying the button is still there, busy" <|
+            \_ ->
+                page [ StatusPage.onRetry Retry, StatusPage.retrying True ] StatusPage.server
+                    |> H.inside retryButton [ H.attr "aria-busy" "true" ]
+        , test "not retrying by default" <|
+            \_ ->
+                page [ StatusPage.onRetry Retry ] StatusPage.server
+                    |> H.none [ Selector.attribute (Attr.attribute "aria-busy" "true") ]
+        , test "maintenance says when it is expected back, in UTC without settings" <|
+            \_ ->
+                page [ StatusPage.backAt twoThirty ] StatusPage.maintenance
+                    |> H.has [ Selector.text "Expected back at 14:30 UTC." ]
+        , test "in the zone of the settings and the language of the page" <|
+            \_ ->
+                page [ StatusPage.backAt twoThirty, StatusPage.settings (Settings.withZone Time.utc Settings.default), StatusPage.locale Locale.nb ] StatusPage.maintenance
+                    |> H.has [ Selector.text "Ventet tilbake kl. 14:30." ]
+        , test "a description of your own wins" <|
+            \_ ->
+                page [ StatusPage.backAt twoThirty, StatusPage.description "Back tomorrow." ] StatusPage.maintenance
+                    |> H.none [ Selector.text "Expected back" ]
+        , test "other kinds ignore it" <|
+            \_ ->
+                page [ StatusPage.backAt twoThirty ] StatusPage.server
+                    |> H.none [ Selector.text "Expected back" ]
         ]

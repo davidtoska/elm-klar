@@ -43,6 +43,7 @@ import Set exposing (Set)
 import Showcase.Doc as Doc
 import Showcase.Sample as Sample
 import Task
+import Time
 
 
 
@@ -541,6 +542,7 @@ statusSection locale model =
                 , labelled "StatusPage.network" (frame 380 (StatusPage.view [ StatusPage.locale locale, StatusPage.onRetry NoOp ] StatusPage.network))
                 , labelled "StatusPage.retrying True: the button is busy where it is and keeps focus" (frame 380 (StatusPage.view [ StatusPage.locale locale, StatusPage.onRetry NoOp, StatusPage.retrying True ] StatusPage.network))
                 , labelled "StatusPage.maintenance" (frame 380 (StatusPage.view [ StatusPage.locale locale, StatusPage.onRetry NoOp ] StatusPage.maintenance))
+                , labelled "StatusPage.maintenance with backAt (UTC without settings)" (frame 380 (StatusPage.view [ StatusPage.locale locale, StatusPage.onRetry NoOp, StatusPage.backAt (Time.millisToPosix 52200000) ] StatusPage.maintenance))
                 ]
             )
         , Doc.example

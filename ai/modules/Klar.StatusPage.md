@@ -32,12 +32,14 @@ actions : List (Html msg) -> Attribute msg
 reference : String -> Attribute msg
 onRetry : msg -> Attribute msg
 retrying : Bool -> Attribute msg
+backAt : Time.Posix -> Attribute msg
 
 -- Structure and text
 headingLevel : Int -> Attribute msg
 standalone : Attribute msg
 id : String -> Attribute msg
 locale : Locale.Locale -> Attribute msg
+settings : Settings.Settings -> Attribute msg
 ```
 
 ## Documentation
@@ -228,7 +230,7 @@ maintenance : Kind
 ```
 
 The service is down on purpose: "Down for maintenance", with a wrench. Worth
-trying again (`onRetry`) in a few minutes.
+trying again (`onRetry`) in a few minutes; `backAt` says when it is expected back.
 
 ### `fromProblem`
 
@@ -334,6 +336,22 @@ shows a spinner, is busy and ignores clicks, and keeps focus where it is
 
     StatusPage.retrying model.reloading
 
+### `backAt`
+
+```elm
+backAt : Time.Posix -> Attribute msg
+```
+
+When the service is expected back, for `maintenance`: the sentence under the title
+becomes "We are making improvements. Expected back at 14:30." The time is written in the
+zone of `settings` (in UTC, ending in "UTC", without it), as a time of day, so it is
+meant for a pause within the day. A `description` of your own wins over it; other
+kinds of page ignore it.
+
+    StatusPage.view
+        [ StatusPage.backAt model.backAt, StatusPage.settings model.settings ]
+        StatusPage.maintenance
+
 ## Structure and text
 
 ### `headingLevel`
@@ -380,3 +398,12 @@ The language of the built-in text: the texts of the kinds, "Try again" and
 the label of the reference. The default is [`Locale.default`](Klar.Locale.md#default),
 which is English. The title and the explanation of a `fromProblem` page come from
 the problem, in this language.
+
+### `settings`
+
+```elm
+settings : Settings.Settings -> Attribute msg
+```
+
+The settings of the application (`Klar.Settings`): the time zone of the time of
+`backAt`. The default is `Settings.default`.

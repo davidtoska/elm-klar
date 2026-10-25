@@ -224,7 +224,18 @@ A page that is made of many parts (twenty contact rows, tags, files) is one sour
 combine their flags in one function of yours and call `setDirty` once after each
 update. [`FormLayout.unsavedChanges`](Klar-Form-Layout#unsavedChanges) and
 [`FormLayout.unsavedFlag`](Klar-Form-Layout#unsavedFlag) show the same fact to the user, in the
-form; this guard acts on it.
+form; this guard acts on it. Which forms "Leave" gave up is `dirtySources` of the guard
+you had before `update`, so reset exactly those:
+
+    GuardMsg inner ->
+        let
+            givenUp =
+                LeaveGuard.dirtySources model.guard
+
+            ( guard, cmd, decision ) =
+                LeaveGuard.update inner model.guard
+        in
+        ...
 
 **After "Leave".** `setDirty` states what is true now; it does not say "something changed".
 "Leave" gives the changes up, so the guard forgets every dirty mark, but your model still

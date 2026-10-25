@@ -1,8 +1,8 @@
 module Klar.StatusPage exposing
     ( view
     , Kind, success, pageNotFound, forbidden, unauthorized, server, network, maintenance, fromProblem
-    , Attribute, title, description, icon, actions, reference, onRetry, retrying
-    , headingLevel, standalone, id, locale
+    , Attribute, title, description, icon, actions, reference, onRetry, retrying, backAt
+    , headingLevel, standalone, id, locale, settings
     )
 
 {-| A page that stands for a whole result: "Order created", "No access", "Page
@@ -113,12 +113,12 @@ selects completely (`user-select: all`); then `Ctrl C` copies it.
 
 # Content
 
-@docs Attribute, title, description, icon, actions, reference, onRetry, retrying
+@docs Attribute, title, description, icon, actions, reference, onRetry, retrying, backAt
 
 
 # Structure and text
 
-@docs headingLevel, standalone, id, locale
+@docs headingLevel, standalone, id, locale, settings
 
 -}
 
@@ -129,6 +129,8 @@ import Klar.Icon as Icon exposing (Icon)
 import Klar.Internal as Internal
 import Klar.Locale as Locale exposing (Locale)
 import Klar.Remote as Remote exposing (Problem)
+import Klar.Settings as Settings exposing (Settings)
+import Time
 
 
 
@@ -201,7 +203,7 @@ network =
 
 
 {-| The service is down on purpose: "Down for maintenance", with a wrench. Worth
-trying again (`onRetry`) in a few minutes.
+trying again (`onRetry`) in a few minutes; `backAt` says when it is expected back.
 -}
 maintenance : Kind
 maintenance =
@@ -242,6 +244,8 @@ type alias Config msg =
     , reference : Maybe String
     , onRetry : Maybe msg
     , retrying : Bool
+    , backAt : Maybe Time.Posix
+    , settings : Settings
     , headingLevel : Int
     , standalone : Bool
     , id : Maybe String
@@ -259,6 +263,8 @@ configure attributes =
         , reference = Nothing
         , onRetry = Nothing
         , retrying = False
+        , backAt = Nothing
+        , settings = Settings.default
         , headingLevel = 1
         , standalone = False
         , id = Nothing
@@ -340,6 +346,30 @@ retrying value =
     Attribute (\config -> { config | retrying = value })
 
 
+{-| When the service is expected back, for `maintenance`: the sentence under the title
+becomes "We are making improvements. Expected back at 14:30." The time is written in the
+zone of `settings` (in UTC, ending in "UTC", without it), as a time of day, so it is
+meant for a pause within the day. A `description` of your own wins over it; other
+kinds of page ignore it.
+
+    StatusPage.view
+        [ StatusPage.backAt model.backAt, StatusPage.settings model.settings ]
+        StatusPage.maintenance
+
+-}
+backAt : Time.Posix -> Attribute msg
+backAt at =
+    Attribute (\config -> { config | backAt = Just at })
+
+
+{-| The settings of the application (`Klar.Settings`): the time zone of the time of
+`backAt`. The default is `Settings.default`.
+-}
+settings : Settings -> Attribute msg
+settings given =
+    Attribute (\config -> { config | settings = given })
+
+
 {-| The level of the title element, from 1 to 6. The default is 1, because the
 page is normally the whole page. Use another level when the page sits inside a
 layout that already has an `h1`. A number outside the range counts as the nearest
@@ -399,7 +429,7 @@ view attributes kind =
             configure attributes
 
         facts =
-            describe config.locale kind
+            describe config kind
 
         shownTitle =
             Maybe.withDefault facts.title config.title
@@ -511,8 +541,12 @@ type alias Facts =
     }
 
 
-describe : Locale -> Kind -> Facts
-describe language kind =
+describe : Config msg -> Kind -> Facts
+describe config kind =
+    let
+        language =
+            config.locale
+    in
     case kind of
         Success ->
             { icon = Icon.checkCircle
@@ -544,10 +578,18 @@ describe language kind =
             , title = Locale.pick language { nb = "Under vedlikehold", en = "Down for maintenance" }
             , description =
                 Just
-                    (Locale.pick language
-                        { nb = "Vi gjør forbedringer og er snart tilbake. Prøv igjen om noen minutter."
-                        , en = "We are making improvements and will be back shortly. Try again in a few minutes."
-                        }
+                    (case config.backAt of
+                        Just at ->
+                            Locale.pick language
+                                { nb = "Vi gjør forbedringer. Ventet tilbake kl. " ++ Settings.time config.settings at ++ "."
+                                , en = "We are making improvements. Expected back at " ++ Settings.time config.settings at ++ "."
+                                }
+
+                        Nothing ->
+                            Locale.pick language
+                                { nb = "Vi gjør forbedringer og er snart tilbake. Prøv igjen om noen minutter."
+                                , en = "We are making improvements and will be back shortly. Try again in a few minutes."
+                                }
                     )
             , code = Nothing
             , retryable = True
