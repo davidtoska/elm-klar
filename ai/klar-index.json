@@ -2525,7 +2525,7 @@
       "group": "Date and time",
       "purpose": "A month calendar for choosing a day or a period, with small marks on days.",
       "whenToUse": "the calendar should always be visible, such as a delivery schedule or a day chooser beside a list of orders.",
-      "whenNot": "you need a form field with a popup (as `Klar.DatePicker` or `Klar.DateRangePicker`).",
+      "whenNot": "you need a form field with a popup (use `Klar.DatePicker` or `Klar.DateRangePicker`).",
       "state": [
         "State"
       ],
@@ -2538,24 +2538,27 @@
         "init",
         "update",
         "view",
-        "selected"
+        "value"
       ],
       "mainFunctions": [
         "view",
         "init",
         "initRange",
         "update",
-        "updateWithEvent",
-        "selected",
+        "value",
+        "setValue",
         "range",
-        "isChoosing"
+        "setRange"
       ],
       "related": [
         "Klar.Theme",
         "Klar.Date",
         "Klar.DatePicker",
         "Klar.DateRangePicker",
-        "Klar.Locale"
+        "Klar.Locale",
+        "Klar.Recurrence",
+        "Klar.Remote",
+        "Klar.Settings"
       ],
       "keywords": [
         "calendar",
@@ -2630,10 +2633,10 @@
         "init",
         "update",
         "value",
-        "setRule",
+        "setValue",
+        "isValid",
         "problem",
-        "problemText",
-        "start"
+        "problemText"
       ],
       "related": [
         "Klar.Recurrence",

@@ -11,7 +11,7 @@ Not meant for application code.
 
 import Klar.Format as Format
 import Klar.Locale as Locale exposing (Locale)
-import Klar.Recurrence.Spec exposing (End(..), Missing(..), Ordinal(..), Pattern(..), Problem(..), Spec)
+import Klar.Recurrence.Spec exposing (End(..), Missing(..), Ordinal(..), Pattern(..), Problem(..), Reason(..), Spec)
 
 
 
@@ -575,14 +575,97 @@ problemText locale problem =
                 , en = "Cannot read \"" ++ part ++ "\"."
                 }
 
-        Unsupported what ->
-            Locale.pick locale
-                { nb = "Støttes ikke i en gjentakelsesregel: " ++ what ++ "."
-                , en = "Not supported in a recurrence rule: " ++ what ++ "."
-                }
+        Unsupported part reason ->
+            unsupportedText locale part reason
 
         Conflict what ->
             Locale.pick locale
                 { nb = what ++ " kan ikke brukes sammen."
                 , en = what ++ " cannot be used together."
+                }
+
+
+{-| A part of an RRULE that is not read, and why, in the language of the locale.
+The part itself is data (written as the RRULE has it); only the reason is words.
+-}
+unsupportedText : Locale -> String -> Reason -> String
+unsupportedText locale part reason =
+    let
+        lead =
+            Locale.pick locale
+                { nb = "Støttes ikke i en gjentakelsesregel: "
+                , en = "Not supported in a recurrence rule: "
+                }
+    in
+    case reason of
+        Plain ->
+            lead ++ part ++ "."
+
+        With other ->
+            lead ++ part ++ Locale.pick locale { nb = " sammen med ", en = " together with " } ++ other ++ "."
+
+        OutsideRule ->
+            Locale.pick locale
+                { nb = part ++ " er ikke en del av gjentakelsesregelen: gi bare verdien av RRULE, datoene rundt den hører ikke med."
+                , en = part ++ " is not part of the recurrence rule: give only the value of the RRULE, the dates around it are not part of it."
+                }
+
+        SeveralLines ->
+            Locale.pick locale
+                { nb = lead ++ "flere linjer. Gi bare verdien av RRULE."
+                , en = lead ++ "several lines. Give only the value of the RRULE."
+                }
+
+        UntilWithTime ->
+            Locale.pick locale
+                { nb = lead ++ part ++ ". Bare en dato leses, som UNTIL=20271231: gi siste dag som en dato."
+                , en = lead ++ part ++ ". Only a date is read, such as UNTIL=20271231: give the last day as a date."
+                }
+
+        WeekStartWithInterval ->
+            Locale.pick locale
+                { nb = lead ++ part ++ " med et intervall over 1. Ukene telles fra mandag."
+                , en = lead ++ part ++ " with an interval above 1. Weeks are counted from Monday."
+                }
+
+        DaysWithDailyInterval ->
+            Locale.pick locale
+                { nb = lead ++ part ++ " med FREQ=DAILY og et intervall over 1 (hver n-te dag, men bare på de ukedagene)."
+                , en = lead ++ part ++ " with FREQ=DAILY and an interval above 1 (every n-th day, but only on those weekdays)."
+                }
+
+        SeveralMonths ->
+            Locale.pick locale
+                { nb = lead ++ part ++ " med flere måneder."
+                , en = lead ++ part ++ " with several months."
+                }
+
+        SeveralDays ->
+            Locale.pick locale
+                { nb = lead ++ part ++ " med flere dager."
+                , en = lead ++ part ++ " with several days."
+                }
+
+        LastFromDay28 ->
+            Locale.pick locale
+                { nb = lead ++ "BYSETPOS=-1 med " ++ part ++ ". Den siste dagen leses bare fra dagene 28 og utover."
+                , en = lead ++ "BYSETPOS=-1 with " ++ part ++ ". The last day is only read from the days from 28 on."
+                }
+
+        EveryWeekdayOf context example ->
+            Locale.pick locale
+                { nb = lead ++ part ++ " med " ++ context ++ " (hver slik dag i måneden). Gi nummeret, som " ++ example ++ "."
+                , en = lead ++ part ++ " with " ++ context ++ " (every such day of the month). Give the number, such as " ++ example ++ "."
+                }
+
+        SeveralDaysWith context ->
+            Locale.pick locale
+                { nb = lead ++ part ++ " med flere dager med " ++ context ++ "."
+                , en = lead ++ part ++ " with several days with " ++ context ++ "."
+                }
+
+        OrdinalBeyondFourth ->
+            Locale.pick locale
+                { nb = lead ++ part ++ ". Bare den første til den fjerde og den siste leses."
+                , en = lead ++ part ++ ". Only the first to the fourth and the last are read."
                 }

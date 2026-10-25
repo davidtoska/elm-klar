@@ -6,7 +6,7 @@ import Klar.Date as Date exposing (Date)
 import Klar.Locale as Locale
 import Klar.Recurrence as Recurrence exposing (Rule)
 import Klar.Recurrence.RRule as RRule
-import Klar.Recurrence.Spec as Spec exposing (Problem(..))
+import Klar.Recurrence.Spec as Spec exposing (Problem(..), Reason(..))
 import Support.RecurrenceFuzz exposing (paramsFuzzer, startFuzzer)
 import Support.RecurrenceReference as Reference exposing (Ending(..), Params, date)
 import Test exposing (Test, describe, fuzzWith, test)
@@ -26,11 +26,21 @@ suite =
         , bounds
         , words
         , againstTheReference
+        , partsFromTheStart
+        , endAccessors
         ]
 
 
 
 -- HELPERS
+
+
+{-| A start for `fromRRule` where the text has every part, so the start
+changes nothing: a Tuesday, the 20th of October.
+-}
+anyStart : { start : Date }
+anyStart =
+    { start = date 2026 10 20 }
 
 
 type alias Built =
@@ -468,7 +478,7 @@ rrule =
             rruleOf (build pattern options)
 
         read input =
-            text (Result.map Recurrence.toRRule (Recurrence.fromRRule input))
+            text (Result.map Recurrence.toRRule (Recurrence.fromRRule anyStart input))
     in
     describe "RRULE text"
         [ test "every day" <|
@@ -583,8 +593,8 @@ rruleRejects =
         [ rejects "" EmptyText
         , rejects "   " EmptyText
         , rejects "RRULE:" EmptyText
-        , rejects "FREQ=HOURLY" (Unsupported "FREQ=HOURLY")
-        , rejects "FREQ=SECONDLY;INTERVAL=5" (Unsupported "FREQ=SECONDLY")
+        , rejects "FREQ=HOURLY" (Unsupported "FREQ=HOURLY" Plain)
+        , rejects "FREQ=SECONDLY;INTERVAL=5" (Unsupported "FREQ=SECONDLY" Plain)
         , rejects "FREQ=FORTNIGHTLY" (CannotRead "FREQ=FORTNIGHTLY")
         , rejects "INTERVAL=2" (MissingPart "FREQ")
         , rejects "FREQ=WEEKLY" (MissingPart "BYDAY")
@@ -596,47 +606,47 @@ rruleRejects =
         , rejects "FREQ=DAILY;INTERVAL=x" (CannotRead "INTERVAL=x")
         , rejects "FREQ=DAILY;COUNT=0" (CountTooSmall 0)
         , rejects "FREQ=DAILY;COUNT=3;UNTIL=20271231" (Conflict "COUNT and UNTIL")
-        , rejects "FREQ=DAILY;UNTIL=20271231T235959Z" (Unsupported "UNTIL=20271231T235959Z (only a date, such as UNTIL=20271231, is read: give the last day as a date)")
+        , rejects "FREQ=DAILY;UNTIL=20271231T235959Z" (Unsupported "UNTIL=20271231T235959Z" UntilWithTime)
         , rejects "FREQ=DAILY;UNTIL=20271331" (CannotRead "UNTIL=20271331")
         , rejects "FREQ=DAILY;UNTIL=2027" (CannotRead "UNTIL=2027")
         , rejects "FREQ=DAILY;FREQ=DAILY" (RepeatedPart "FREQ")
-        , rejects "FREQ=DAILY;BYHOUR=9" (Unsupported "BYHOUR")
-        , rejects "FREQ=DAILY;X-NOTE=1" (Unsupported "X-NOTE")
-        , rejects "FREQ=DAILY;INTERVAL=2;BYDAY=MO" (Unsupported "BYDAY with FREQ=DAILY and an interval above 1 (every n-th day, but only on those weekdays)")
-        , rejects "FREQ=DAILY;BYDAY=1MO" (Unsupported "BYDAY=1MO with FREQ=DAILY")
-        , rejects "FREQ=DAILY;BYDAY=MO;BYMONTH=1" (Unsupported "BYMONTH with FREQ=DAILY")
-        , rejects "FREQ=DAILY;BYSETPOS=1" (Unsupported "BYSETPOS with FREQ=DAILY")
-        , rejects "FREQ=WEEKLY;BYDAY=1MO" (Unsupported "BYDAY=1MO with FREQ=WEEKLY")
+        , rejects "FREQ=DAILY;BYHOUR=9" (Unsupported "BYHOUR" Plain)
+        , rejects "FREQ=DAILY;X-NOTE=1" (Unsupported "X-NOTE" Plain)
+        , rejects "FREQ=DAILY;INTERVAL=2;BYDAY=MO" (Unsupported "BYDAY" DaysWithDailyInterval)
+        , rejects "FREQ=DAILY;BYDAY=1MO" (Unsupported "BYDAY=1MO" (With "FREQ=DAILY"))
+        , rejects "FREQ=DAILY;BYDAY=MO;BYMONTH=1" (Unsupported "BYMONTH" (With "FREQ=DAILY"))
+        , rejects "FREQ=DAILY;BYSETPOS=1" (Unsupported "BYSETPOS" (With "FREQ=DAILY"))
+        , rejects "FREQ=WEEKLY;BYDAY=1MO" (Unsupported "BYDAY=1MO" (With "FREQ=WEEKLY"))
         , rejects "FREQ=WEEKLY;BYDAY=XX" (CannotRead "BYDAY=XX")
-        , rejects "FREQ=WEEKLY;BYDAY=MO;BYMONTH=1" (Unsupported "BYMONTH with FREQ=WEEKLY")
-        , rejects "FREQ=WEEKLY;INTERVAL=2;BYDAY=MO;WKST=SU" (Unsupported "WKST=SU with an interval above 1 (weeks are counted from Monday)")
+        , rejects "FREQ=WEEKLY;BYDAY=MO;BYMONTH=1" (Unsupported "BYMONTH" (With "FREQ=WEEKLY"))
+        , rejects "FREQ=WEEKLY;INTERVAL=2;BYDAY=MO;WKST=SU" (Unsupported "WKST=SU" WeekStartWithInterval)
         , rejects "FREQ=WEEKLY;BYDAY=MO;WKST=XX" (CannotRead "WKST=XX")
-        , rejects "FREQ=MONTHLY;BYDAY=5TU" (Unsupported "BYDAY=5TU (only the first to the fourth and the last are read)")
-        , rejects "FREQ=MONTHLY;BYDAY=-2TU" (Unsupported "BYDAY=-2TU (only the first to the fourth and the last are read)")
-        , rejects "FREQ=MONTHLY;BYDAY=MO" (Unsupported "BYDAY=MO with FREQ=MONTHLY (every such day of the month; give the number, such as 2MO)")
-        , rejects "FREQ=MONTHLY;BYDAY=1MO,2TU" (Unsupported "BYDAY with several days with FREQ=MONTHLY")
-        , rejects "FREQ=MONTHLY;BYMONTHDAY=1,15" (Unsupported "BYMONTHDAY with several days")
-        , rejects "FREQ=MONTHLY;BYMONTHDAY=-2" (Unsupported "BYMONTHDAY=-2")
+        , rejects "FREQ=MONTHLY;BYDAY=5TU" (Unsupported "BYDAY=5TU" OrdinalBeyondFourth)
+        , rejects "FREQ=MONTHLY;BYDAY=-2TU" (Unsupported "BYDAY=-2TU" OrdinalBeyondFourth)
+        , rejects "FREQ=MONTHLY;BYDAY=MO" (Unsupported "BYDAY=MO" (EveryWeekdayOf "FREQ=MONTHLY" "2MO"))
+        , rejects "FREQ=MONTHLY;BYDAY=1MO,2TU" (Unsupported "BYDAY" (SeveralDaysWith "FREQ=MONTHLY"))
+        , rejects "FREQ=MONTHLY;BYMONTHDAY=1,15" (Unsupported "BYMONTHDAY" SeveralDays)
+        , rejects "FREQ=MONTHLY;BYMONTHDAY=-2" (Unsupported "BYMONTHDAY=-2" Plain)
         , rejects "FREQ=MONTHLY;BYMONTHDAY=32" (DayOutOfRange 32)
         , rejects "FREQ=MONTHLY;BYMONTHDAY=0" (DayOutOfRange 0)
-        , rejects "FREQ=MONTHLY;BYMONTHDAY=15;BYDAY=2TU" (Unsupported "BYMONTHDAY together with BYDAY")
-        , rejects "FREQ=MONTHLY;BYMONTH=3;BYMONTHDAY=15" (Unsupported "BYMONTH with FREQ=MONTHLY")
-        , rejects "FREQ=MONTHLY;BYMONTHDAY=15;BYSETPOS=-1" (Unsupported "BYSETPOS=-1 with BYMONTHDAY=15 (only 28 up to the day is read)")
-        , rejects "FREQ=MONTHLY;BYMONTHDAY=29,30;BYSETPOS=-1" (Unsupported "BYSETPOS=-1 with BYMONTHDAY=29,30 (only 28 up to the day is read)")
-        , rejects "FREQ=MONTHLY;BYMONTHDAY=28,29,30,31;BYSETPOS=1" (Unsupported "BYSETPOS=1")
-        , rejects "FREQ=MONTHLY;BYDAY=2TU;BYSETPOS=1" (Unsupported "BYSETPOS=1 with BYDAY")
+        , rejects "FREQ=MONTHLY;BYMONTHDAY=15;BYDAY=2TU" (Unsupported "BYMONTHDAY" (With "BYDAY"))
+        , rejects "FREQ=MONTHLY;BYMONTH=3;BYMONTHDAY=15" (Unsupported "BYMONTH" (With "FREQ=MONTHLY"))
+        , rejects "FREQ=MONTHLY;BYMONTHDAY=15;BYSETPOS=-1" (Unsupported "BYMONTHDAY=15" LastFromDay28)
+        , rejects "FREQ=MONTHLY;BYMONTHDAY=29,30;BYSETPOS=-1" (Unsupported "BYMONTHDAY=29,30" LastFromDay28)
+        , rejects "FREQ=MONTHLY;BYMONTHDAY=28,29,30,31;BYSETPOS=1" (Unsupported "BYSETPOS=1" Plain)
+        , rejects "FREQ=MONTHLY;BYDAY=2TU;BYSETPOS=1" (Unsupported "BYSETPOS=1" (With "BYDAY"))
         , rejects "FREQ=YEARLY;BYMONTH=13;BYMONTHDAY=1" (MonthOutOfRange 13)
-        , rejects "FREQ=YEARLY;BYMONTH=1,2;BYMONTHDAY=1" (Unsupported "BYMONTH with several months")
+        , rejects "FREQ=YEARLY;BYMONTH=1,2;BYMONTHDAY=1" (Unsupported "BYMONTH" SeveralMonths)
         , rejects "FREQ=YEARLY;BYMONTH=4;BYMONTHDAY=31" (NoSuchDate 4 31)
         , rejects "FREQ=DAILY;INTERVAL=2147483648" IntervalTooLarge
         , rejects "FREQ=DAILY;INTERVAL=99999999999999999999" IntervalTooLarge
         , rejects "FREQ=DAILY;COUNT=2147483648" CountTooLarge
         , rejects "FREQ=DAILY;COUNT=99999999999999999999" CountTooLarge
         , rejects "FREQ=MONTHLY;BYMONTHDAY=99999999999999999999" (DayOutOfRange 999999999999)
-        , rejects "FREQ=YEARLY;BYMONTH=4;BYMONTHDAY=28,29,30,31;BYSETPOS=1" (Unsupported "BYSETPOS=1")
+        , rejects "FREQ=YEARLY;BYMONTH=4;BYMONTHDAY=28,29,30,31;BYSETPOS=1" (Unsupported "BYSETPOS=1" Plain)
         , rejects "this is not a rule" (CannotRead "this is not a rule")
-        , rejects "FREQ=DAILY\nCOUNT=3" (Unsupported "several lines (give only the value of the RRULE)")
-        , rejects "DTSTART:20261020T090000Z" (Unsupported "DTSTART (the dates around the rule are not part of the RRULE)")
+        , rejects "FREQ=DAILY\nCOUNT=3" (Unsupported "" SeveralLines)
+        , rejects "DTSTART:20261020T090000Z" (Unsupported "DTSTART" OutsideRule)
         ]
 
 
@@ -656,7 +666,7 @@ bounds =
                     Recurrence.problemText Locale.en value
 
         read input =
-            text (Result.map Recurrence.toRRule (Recurrence.fromRRule input))
+            text (Result.map Recurrence.toRRule (Recurrence.fromRRule anyStart input))
     in
     describe "bounds and interchange"
         [ test "the largest interval and count are accepted and survive the RRULE" <|
@@ -710,14 +720,14 @@ bounds =
             \_ ->
                 Expect.equal
                     (Ok ( "FREQ=WEEKLY;BYDAY=MO,TU,WE,TH,FR", "Every weekday" ))
-                    (Recurrence.fromRRule "FREQ=DAILY;BYDAY=MO,TU,WE,TH,FR"
+                    (Recurrence.fromRRule anyStart "FREQ=DAILY;BYDAY=MO,TU,WE,TH,FR"
                         |> Result.map (\rule -> ( Recurrence.toRRule rule, Recurrence.describe Locale.en rule ))
                         |> Result.mapError (Recurrence.problemText Locale.en)
                     )
         , test "and equals the weekly rule that was built" <|
             \_ ->
                 Expect.equal (build (Recurrence.weekly Mon [ Tue, Wed, Thu, Fri ]) [])
-                    (Recurrence.fromRRule "FREQ=DAILY;BYDAY=FR,MO,TU,WE,TH")
+                    (Recurrence.fromRRule anyStart "FREQ=DAILY;BYDAY=FR,MO,TU,WE,TH")
         , test "the last day of a month, every year" <|
             \_ ->
                 Expect.equal
@@ -730,7 +740,7 @@ bounds =
                     (combine
                         (List.map
                             (\input ->
-                                Recurrence.fromRRule input
+                                Recurrence.fromRRule anyStart input
                                     |> Result.map (\rule -> ( Recurrence.toRRule rule, Recurrence.describe Locale.en rule ))
                                     |> Result.mapError (Recurrence.problemText Locale.en)
                             )
@@ -743,7 +753,7 @@ bounds =
         , test "the last day of February has the dates of the last day of February" <|
             \_ ->
                 Expect.equal (Ok [ "2027-02-28", "2028-02-29", "2029-02-28" ])
-                    (case Recurrence.fromRRule "FREQ=YEARLY;BYMONTH=2;BYMONTHDAY=-1" of
+                    (case Recurrence.fromRRule anyStart "FREQ=YEARLY;BYMONTH=2;BYMONTHDAY=-1" of
                         Ok rule ->
                             Ok (iso (Recurrence.occurrences { start = date 2027 1 1, from = date 2027 1 1, limit = 3 } rule))
 
@@ -919,7 +929,7 @@ words =
                     )
         , test "problems have words in both languages" <|
             \_ ->
-                case Recurrence.fromRRule "FREQ=HOURLY" of
+                case Recurrence.fromRRule anyStart "FREQ=HOURLY" of
                     Err problem ->
                         Expect.equal
                             ( "Not supported in a recurrence rule: FREQ=HOURLY.", "Støttes ikke i en gjentakelsesregel: FREQ=HOURLY." )
@@ -927,6 +937,51 @@ words =
 
                     Ok _ ->
                         Expect.fail "FREQ=HOURLY must not be read"
+        , test "a Norwegian problem text of an RRULE has no English words in it" <|
+            \_ ->
+                [ "FREQ=DAILY;UNTIL=20271231T235959Z"
+                , "FREQ=DAILY;INTERVAL=2;BYDAY=MO"
+                , "FREQ=DAILY;BYDAY=1MO"
+                , "FREQ=WEEKLY;INTERVAL=2;BYDAY=MO;WKST=SU"
+                , "FREQ=MONTHLY;BYDAY=5TU"
+                , "FREQ=MONTHLY;BYDAY=MO"
+                , "FREQ=MONTHLY;BYDAY=1MO,2TU"
+                , "FREQ=MONTHLY;BYMONTHDAY=1,15"
+                , "FREQ=MONTHLY;BYMONTHDAY=15;BYDAY=2TU"
+                , "FREQ=MONTHLY;BYMONTHDAY=15;BYSETPOS=-1"
+                , "FREQ=MONTHLY;BYDAY=2TU;BYSETPOS=1"
+                , "FREQ=YEARLY;BYMONTH=1,2;BYMONTHDAY=1"
+                , "FREQ=DAILY\nCOUNT=3"
+                , "DTSTART:20261020T090000Z"
+                ]
+                    |> List.filterMap
+                        (\given ->
+                            case Recurrence.fromRRule anyStart given of
+                                Err problem ->
+                                    let
+                                        said =
+                                            Recurrence.problemText Locale.nb problem
+                                    in
+                                    if List.any (\english -> String.contains english said) [ " with ", " only ", "give ", " the ", "several", "together", "interval above", "every " ] then
+                                        Just said
+
+                                    else
+                                        Nothing
+
+                                Ok _ ->
+                                    Just (given ++ " was read")
+                        )
+                    |> Expect.equal []
+        , test "the English words name the part and the reason" <|
+            \_ ->
+                Recurrence.fromRRule anyStart "FREQ=MONTHLY;BYDAY=MO"
+                    |> Result.mapError (Recurrence.problemText Locale.en)
+                    |> Expect.equal (Err "Not supported in a recurrence rule: BYDAY=MO with FREQ=MONTHLY (every such day of the month). Give the number, such as 2MO.")
+        , test "fifty thousand skipped dates do not overflow the stack" <|
+            \_ ->
+                Recurrence.rule Recurrence.daily [ Recurrence.except (List.map (\n -> Date.addDays n (date 2026 1 1)) (List.range 0 49999)) ]
+                    |> Result.map (Recurrence.exceptions >> List.length)
+                    |> Expect.equal (Ok 50000)
         ]
 
 
@@ -1099,13 +1154,13 @@ againstTheReference =
                     (\rule _ _ ->
                         Expect.equal
                             (Ok (Recurrence.withExceptions [] rule))
-                            (Recurrence.fromRRule (Recurrence.toRRule rule))
+                            (Recurrence.fromRRule anyStart (Recurrence.toRRule rule))
                     )
         , fuzzWith runs caseFuzzer "a rule without skipped dates survives the RRULE round trip with ==" <|
             \c ->
                 case Reference.build c.start (withoutSkipped c.params) of
                     Ok rule ->
-                        Expect.equal (Ok rule) (Recurrence.fromRRule (Recurrence.toRRule rule))
+                        Expect.equal (Ok rule) (Recurrence.fromRRule anyStart (Recurrence.toRRule rule))
 
                     Err problem ->
                         Expect.fail (Recurrence.problemText Locale.en problem)
@@ -1123,7 +1178,7 @@ againstTheReference =
             \c ->
                 withRule c
                     (\rule from_ _ ->
-                        case Recurrence.fromRRule (Recurrence.toRRule rule) of
+                        case Recurrence.fromRRule anyStart (Recurrence.toRRule rule) of
                             Ok again ->
                                 Expect.equal
                                     (Recurrence.occurrences { start = c.start, from = from_, limit = 20 } (Recurrence.withExceptions [] rule))
@@ -1132,4 +1187,90 @@ againstTheReference =
                             Err problem ->
                                 Expect.fail (Recurrence.problemText Locale.en problem)
                     )
+        ]
+
+
+
+-- PARTS FROM THE START
+
+
+partsFromTheStart : Test
+partsFromTheStart =
+    let
+        readFrom start input =
+            Recurrence.fromRRule { start = start } input
+                |> Result.map Recurrence.toRRule
+                |> Result.mapError (Recurrence.problemText Locale.en)
+    in
+    describe "fromRRule takes the parts a rule leaves out from the start (RFC 5545)"
+        [ test "a weekly rule without BYDAY repeats on the start's weekday" <|
+            \_ -> Expect.equal (Ok "FREQ=WEEKLY;INTERVAL=2;BYDAY=TU") (readFrom (date 2026 10 20) "FREQ=WEEKLY;INTERVAL=2")
+        , test "a monthly rule without a day repeats on the start's day of the month" <|
+            \_ -> Expect.equal (Ok "FREQ=MONTHLY;BYMONTHDAY=20") (readFrom (date 2026 10 20) "FREQ=MONTHLY")
+        , test "FREQ=YEARLY alone is every year on the start's date" <|
+            \_ -> Expect.equal (Ok "FREQ=YEARLY;BYMONTH=10;BYMONTHDAY=20") (readFrom (date 2026 10 20) "RRULE:FREQ=YEARLY")
+        , test "a yearly rule with a month and no day takes the day" <|
+            \_ -> Expect.equal (Ok "FREQ=YEARLY;BYMONTH=3;BYMONTHDAY=20") (readFrom (date 2026 10 20) "FREQ=YEARLY;BYMONTH=3")
+        , test "the parts that are there are kept" <|
+            \_ -> Expect.equal (Ok "FREQ=WEEKLY;BYDAY=MO,TH") (readFrom (date 2026 10 20) "FREQ=WEEKLY;BYDAY=MO,TH")
+        , test "lower case and a COUNT are read too" <|
+            \_ -> Expect.equal (Ok "FREQ=WEEKLY;BYDAY=FR;COUNT=4") (readFrom (date 2026 10 23) "freq=weekly;count=4")
+        , test "a yearly rule with a day and no month is still a problem: it means every month" <|
+            \_ -> Expect.equal True (Result.toMaybe (readFrom (date 2026 10 20) "FREQ=YEARLY;BYMONTHDAY=15") == Nothing)
+        , test "the 31st as the start skips the months without one, as the RFC says" <|
+            \_ ->
+                Recurrence.fromRRule { start = date 2026 1 31 } "FREQ=MONTHLY"
+                    |> Result.map (\rule -> Recurrence.next { start = date 2026 1 31, after = date 2026 1 31 } rule)
+                    |> Expect.equal (Ok (Just (date 2026 3 31)))
+        ]
+
+
+endAccessors : Test
+endAccessors =
+    let
+        made pattern options =
+            Recurrence.rule pattern options |> Result.toMaybe
+
+        lastOf start maybeRule =
+            Maybe.andThen (Recurrence.lastOccurrence { start = start }) maybeRule
+    in
+    describe "the end of a rule, read back"
+        [ test "endsAfter and endsOn give the end the rule was made with" <|
+            \_ ->
+                Expect.equal
+                    ( Just (Just 10), Just Nothing, Just (Just (date 2027 12 31)) )
+                    ( made Recurrence.daily [ Recurrence.ends (Recurrence.after 10) ] |> Maybe.map Recurrence.endsAfter
+                    , made Recurrence.daily [ Recurrence.ends (Recurrence.after 10) ] |> Maybe.map Recurrence.endsOn
+                    , made Recurrence.daily [ Recurrence.ends (Recurrence.until (date 2027 12 31)) ] |> Maybe.map Recurrence.endsOn
+                    )
+        , test "the last of ten Tuesdays" <|
+            \_ ->
+                made (Recurrence.weekly Tue []) [ Recurrence.ends (Recurrence.after 10) ]
+                    |> lastOf (date 2026 10 20)
+                    |> Expect.equal (Just (date 2026 12 22))
+        , test "the last occurrence before an end date that does not fit" <|
+            \_ ->
+                made (Recurrence.weekly Tue []) [ Recurrence.ends (Recurrence.until (date 2026 12 31)) ]
+                    |> lastOf (date 2026 10 20)
+                    |> Expect.equal (Just (date 2026 12 29))
+        , test "a skipped last date is left out" <|
+            \_ ->
+                made (Recurrence.weekly Tue []) [ Recurrence.ends (Recurrence.after 10), Recurrence.except [ date 2026 12 22 ] ]
+                    |> lastOf (date 2026 10 20)
+                    |> Expect.equal (Just (date 2026 12 15))
+        , test "a daily rule of a hundred thousand days ends where it should" <|
+            \_ ->
+                made Recurrence.daily [ Recurrence.ends (Recurrence.after 100000) ]
+                    |> lastOf (date 2026 1 1)
+                    |> Expect.equal (Just (Date.addDays 99999 (date 2026 1 1)))
+        , test "a daily rule to the year 2400 ends on its last day" <|
+            \_ ->
+                made Recurrence.daily [ Recurrence.ends (Recurrence.until (date 2400 6 30)) ]
+                    |> lastOf (date 2026 1 1)
+                    |> Expect.equal (Just (date 2400 6 30))
+        , test "a rule that never ends has no last occurrence" <|
+            \_ ->
+                made Recurrence.daily []
+                    |> lastOf (date 2026 1 1)
+                    |> Expect.equal Nothing
         ]

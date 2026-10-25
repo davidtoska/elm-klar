@@ -6,7 +6,7 @@ module Klar.Recurrence exposing
     , Option, every, ends, except
     , End, never, after, until
     , exceptions, withExceptions
-    , occurrences, between, next, isOccurrence, count, isEndless, maxOccurrences
+    , occurrences, between, next, isOccurrence, count, lastOccurrence, isEndless, endsAfter, endsOn, maxOccurrences
     , describe
     , toRRule, fromRRule
     )
@@ -119,7 +119,7 @@ period, not day by day: a yearly rule across a century is a hundred steps.
 
 # The dates
 
-@docs occurrences, between, next, isOccurrence, count, isEndless, maxOccurrences
+@docs occurrences, between, next, isOccurrence, count, lastOccurrence, isEndless, endsAfter, endsOn, maxOccurrences
 
 
 # In words
@@ -519,7 +519,7 @@ exceptions (Rule spec) =
 rule that `fromRRule` read: the `EXDATE` of an iCalendar event is not part of
 the RRULE, so it comes from elsewhere.
 
-    Recurrence.fromRRule text
+    Recurrence.fromRRule { start = firstDelivery } text
         |> Result.map (Recurrence.withExceptions skippedDates)
 
 -}
@@ -607,6 +607,15 @@ next window (Rule spec) =
 
 {-| Whether the date is an occurrence of the rule counted from `start`. A
 skipped date, a date before the start and a date after the end are not.
+
+For a range of days, such as the month a [Klar.Calendar](Klar-Calendar) shows,
+ask `between` once instead of calling this for every day: a rule that ends
+after a number of times is counted from its start on each call.
+
+    Recurrence.between { start = firstDelivery, from = shown.from, to = shown.to } rule
+        |> .dates
+        |> List.map (\day -> Calendar.dot day Info "Delivery")
+
 -}
 isOccurrence : { start : Date, date : Date } -> Rule -> Bool
 isOccurrence window (Rule spec) =
@@ -653,6 +662,105 @@ count window (Rule spec) =
                 Just found
 
 
+{-| The number of a rule that ends after a number of occurrences (`after 10`
+gives `Just 10`), for a column such as "10 times". `Nothing` for the other ends.
+-}
+endsAfter : Rule -> Maybe Int
+endsAfter (Rule spec) =
+    case spec.end of
+        Spec.After n ->
+            Just n
+
+        _ ->
+            Nothing
+
+
+{-| The last day of a rule that ends on a date (`until`), for a column such as
+"Ends 31 Dec 2027". `Nothing` for the other ends. The day itself is only an
+occurrence when it fits the rule; `lastOccurrence` gives the last date there is.
+-}
+endsOn : Rule -> Maybe Date
+endsOn (Rule spec) =
+    case spec.end of
+        Spec.Until date ->
+            Just date
+
+        _ ->
+            Nothing
+
+
+{-| The date of the last occurrence of a rule that ends, counted from `start`
+and with skipped dates left out, such as "Last delivery 14 October". `Nothing`
+when the rule never ends or has no dates at all.
+
+    Recurrence.lastOccurrence { start = firstDelivery } rule
+
+-}
+lastOccurrence : { start : Date } -> Rule -> Maybe Date
+lastOccurrence window (Rule spec) =
+    let
+        startE =
+            Date.toEpochDay window.start
+
+        -- The last date in a window. A window with more dates than one call
+        -- returns is halved, the later half first, so the end is always seen.
+        lastOf from to =
+            let
+                found =
+                    Engine.collect { start = startE, from = from, to = to, limit = maxOccurrences + 1 } spec
+            in
+            if List.length found > maxOccurrences && from < to then
+                let
+                    middle =
+                        from + (to - from) // 2
+                in
+                case lastOf (middle + 1) to of
+                    Just day ->
+                        Just day
+
+                    Nothing ->
+                        lastOf from middle
+
+            else
+                List.reverse found |> List.head
+
+        -- Looks back from the end in windows that grow tenfold, so a dense
+        -- rule is found in the first window and a sparse one in a few.
+        search to width =
+            let
+                from =
+                    Basics.max startE (to - width + 1)
+            in
+            case lastOf from to of
+                Just day ->
+                    Just day
+
+                Nothing ->
+                    if from <= startE then
+                        Nothing
+
+                    else
+                        search (from - 1) (width * 10)
+    in
+    case spec.end of
+        Spec.Never ->
+            Nothing
+
+        Spec.After n ->
+            if n <= maxOccurrences then
+                Engine.collect { start = startE, from = startE, to = Engine.lastEpochDay, limit = n } spec
+                    |> List.reverse
+                    |> List.head
+                    |> Maybe.map Date.fromEpochDay
+
+            else
+                search Engine.lastEpochDay 400 |> Maybe.map Date.fromEpochDay
+
+        Spec.Until date ->
+            search (Basics.min Engine.lastEpochDay (Date.toEpochDay date)) 400
+                |> Maybe.map Date.fromEpochDay
+
+
 {-| Whether the rule never ends (the end is `never`), however far its dates
 reach.
 
@@ -692,7 +800,7 @@ skipped dates (`EXDATE`), so `exceptions` gives those separately.
 "The 31st, or the last day of a shorter month" is written the way the RFC asks
 for it, `BYMONTHDAY=-1` or `BYMONTHDAY=28,29,30;BYSETPOS=-1`.
 
-`fromRRule (toRRule rule)` is `Ok rule` for every rule without skipped dates.
+`fromRRule { start = start } (toRRule rule)` is `Ok rule` for every rule without skipped dates and any start.
 
 Two things to know before the text goes to a calendar. RFC 5545 counts the
 `DTSTART` of an event as its first instance even when it does not fit the rule
@@ -721,23 +829,28 @@ list of plain weekdays, without an interval) as a weekly rule on those days, and
 `BYMONTH=3;BYMONTHDAY=-1` as the last day of March every year. Both come out in
 their usual form when written again.
 
+The `start` is the first date of the series (the `DTSTART` of the event), and
+the parts a rule leaves out are taken from it, as RFC 5545 says: a weekly rule
+without `BYDAY` repeats on the start's weekday, a monthly rule without
+`BYMONTHDAY` or `BYDAY` on its day of the month, and `FREQ=YEARLY` alone (how
+Google Calendar writes "every year on 20 October") on its date. The rule that
+comes back has those parts, and `toRRule` writes them.
+
 Everything else is a `Problem` that names it and nothing is guessed: `HOURLY`,
 `BYWEEKNO`, a fifth Tuesday, several days of the month, `UNTIL` with a time (the
-problem says to give the last day as a date). A
-rule needs the days in the text, since it has no start date to take them from,
-so a weekly rule without `BYDAY` is a `Problem` too. `WKST` is accepted when it
-cannot change the dates, and refused for a weekly rule every second week or
-less often unless it is Monday, because weeks are counted from Monday here.
+problem says to give the last day as a date). `WKST` is accepted when it cannot
+change the dates, and refused for a weekly rule every second week or less often
+unless it is Monday, because weeks are counted from Monday here.
 
-    Recurrence.fromRRule "FREQ=WEEKLY;INTERVAL=2;BYDAY=MO,TH"
+    Recurrence.fromRRule { start = firstDelivery } "FREQ=WEEKLY;INTERVAL=2;BYDAY=MO,TH"
 
-    Recurrence.fromRRule "FREQ=HOURLY"
+    Recurrence.fromRRule { start = firstDelivery } "FREQ=HOURLY"
         |> Result.mapError (Recurrence.problemText Locale.en)
     --> Err "Not supported in a recurrence rule: FREQ=HOURLY."
 
 -}
-fromRRule : String -> Result Problem Rule
-fromRRule text =
-    RRule.fromText text
+fromRRule : { start : Date } -> String -> Result Problem Rule
+fromRRule series text =
+    RRule.fromText (RRule.withStart series.start text)
         |> Result.map Rule
         |> Result.mapError Problem

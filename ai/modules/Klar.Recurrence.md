@@ -60,7 +60,10 @@ between :
 next : { start : Date.Date, after : Date.Date } -> Rule -> Maybe Date.Date
 isOccurrence : { start : Date.Date, date : Date.Date } -> Rule -> Bool
 count : { start : Date.Date } -> Rule -> Maybe Int
+lastOccurrence : { start : Date.Date } -> Rule -> Maybe Date.Date
 isEndless : Rule -> Bool
+endsAfter : Rule -> Maybe Int
+endsOn : Rule -> Maybe Date.Date
 maxOccurrences : Int
 
 -- In words
@@ -68,7 +71,7 @@ describe : Locale.Locale -> Rule -> String
 
 -- Exchanging rules
 toRRule : Rule -> String
-fromRRule : String -> Result Problem Rule
+fromRRule : { start : Date.Date } -> String -> Result Problem Rule
 ```
 
 ## Documentation
@@ -448,7 +451,7 @@ The same rule with these dates skipped instead of the ones it had. For a
 rule that `fromRRule` read: the `EXDATE` of an iCalendar event is not part of
 the RRULE, so it comes from elsewhere.
 
-    Recurrence.fromRRule text
+    Recurrence.fromRRule { start = firstDelivery } text
         |> Result.map (Recurrence.withExceptions skippedDates)
 
 ## The dates
@@ -503,6 +506,14 @@ isOccurrence : { start : Date.Date, date : Date.Date } -> Rule -> Bool
 Whether the date is an occurrence of the rule counted from `start`. A
 skipped date, a date before the start and a date after the end are not.
 
+For a range of days, such as the month a [Klar.Calendar](Klar.Calendar.md) shows,
+ask `between` once instead of calling this for every day: a rule that ends
+after a number of times is counted from its start on each call.
+
+    Recurrence.between { start = firstDelivery, from = shown.from, to = shown.to } rule
+        |> .dates
+        |> List.map (\day -> Calendar.dot day Info "Delivery")
+
 ### `count`
 
 ```elm
@@ -512,6 +523,18 @@ count : { start : Date.Date } -> Rule -> Maybe Int
 How many occurrences a rule that ends has in all, skipped dates left out.
 `Nothing` when there is no number to give: the rule never ends (`isEndless`
 says so), or it has more than `maxOccurrences` dates.
+
+### `lastOccurrence`
+
+```elm
+lastOccurrence : { start : Date.Date } -> Rule -> Maybe Date.Date
+```
+
+The date of the last occurrence of a rule that ends, counted from `start`
+and with skipped dates left out, such as "Last delivery 14 October". `Nothing`
+when the rule never ends or has no dates at all.
+
+    Recurrence.lastOccurrence { start = firstDelivery } rule
 
 ### `isEndless`
 
@@ -524,6 +547,25 @@ reach.
 
     Recurrence.rule Recurrence.daily [] |> Result.map Recurrence.isEndless
     --> Ok True
+
+### `endsAfter`
+
+```elm
+endsAfter : Rule -> Maybe Int
+```
+
+The number of a rule that ends after a number of occurrences (`after 10`
+gives `Just 10`), for a column such as "10 times". `Nothing` for the other ends.
+
+### `endsOn`
+
+```elm
+endsOn : Rule -> Maybe Date.Date
+```
+
+The last day of a rule that ends on a date (`until`), for a column such as
+"Ends 31 Dec 2027". `Nothing` for the other ends. The day itself is only an
+occurrence when it fits the rule; `lastOccurrence` gives the last date there is.
 
 ### `maxOccurrences`
 
@@ -565,7 +607,7 @@ skipped dates (`EXDATE`), so `exceptions` gives those separately.
 "The 31st, or the last day of a shorter month" is written the way the RFC asks
 for it, `BYMONTHDAY=-1` or `BYMONTHDAY=28,29,30;BYSETPOS=-1`.
 
-`fromRRule (toRRule rule)` is `Ok rule` for every rule without skipped dates.
+`fromRRule { start = start } (toRRule rule)` is `Ok rule` for every rule without skipped dates and any start.
 
 Two things to know before the text goes to a calendar. RFC 5545 counts the
 `DTSTART` of an event as its first instance even when it does not fit the rule
@@ -579,7 +621,7 @@ moment yourself.
 ### `fromRRule`
 
 ```elm
-fromRRule : String -> Result Problem Rule
+fromRRule : { start : Date.Date } -> String -> Result Problem Rule
 ```
 
 Reads the value of an RRULE (with or without `RRULE:` in front, parts in any
@@ -594,16 +636,21 @@ list of plain weekdays, without an interval) as a weekly rule on those days, and
 `BYMONTH=3;BYMONTHDAY=-1` as the last day of March every year. Both come out in
 their usual form when written again.
 
+The `start` is the first date of the series (the `DTSTART` of the event), and
+the parts a rule leaves out are taken from it, as RFC 5545 says: a weekly rule
+without `BYDAY` repeats on the start's weekday, a monthly rule without
+`BYMONTHDAY` or `BYDAY` on its day of the month, and `FREQ=YEARLY` alone (how
+Google Calendar writes "every year on 20 October") on its date. The rule that
+comes back has those parts, and `toRRule` writes them.
+
 Everything else is a `Problem` that names it and nothing is guessed: `HOURLY`,
 `BYWEEKNO`, a fifth Tuesday, several days of the month, `UNTIL` with a time (the
-problem says to give the last day as a date). A
-rule needs the days in the text, since it has no start date to take them from,
-so a weekly rule without `BYDAY` is a `Problem` too. `WKST` is accepted when it
-cannot change the dates, and refused for a weekly rule every second week or
-less often unless it is Monday, because weeks are counted from Monday here.
+problem says to give the last day as a date). `WKST` is accepted when it cannot
+change the dates, and refused for a weekly rule every second week or less often
+unless it is Monday, because weeks are counted from Monday here.
 
-    Recurrence.fromRRule "FREQ=WEEKLY;INTERVAL=2;BYDAY=MO,TH"
+    Recurrence.fromRRule { start = firstDelivery } "FREQ=WEEKLY;INTERVAL=2;BYDAY=MO,TH"
 
-    Recurrence.fromRRule "FREQ=HOURLY"
+    Recurrence.fromRRule { start = firstDelivery } "FREQ=HOURLY"
         |> Result.mapError (Recurrence.problemText Locale.en)
     --> Err "Not supported in a recurrence rule: FREQ=HOURLY."

@@ -1,7 +1,7 @@
 module Klar.RecurrencePicker exposing
     ( view
     , State, init, Msg, update
-    , value, setRule, problem, Problem, problemText
+    , value, setValue, isValid, problem, Problem, problemText
     , start, setStart
     , Attribute, label, labelHidden, hint, error, errorMaybe, required, optionalText
     , today, size, locale, disabled, readOnly
@@ -48,18 +48,21 @@ See also [Klar.DatePicker](Klar-DatePicker) and [Klar.Recurrence](Klar-Recurrenc
         model.repeat
 
     -- read
-    RecurrencePicker.value model.repeat   -- Maybe Rule
+    RecurrencePicker.value model.repeat     -- Maybe Rule
+    RecurrencePicker.isValid model.repeat   -- False while the form is half filled in
 
 The value is a `Maybe Rule`. `Nothing` means the date does not repeat, and also
 that the form is not complete yet (the number of weeks is empty, "after" has no
-number); `problem` tells these apart, and the field shows the reason under
-itself. The state holds the value and there are no out-messages: compare `value`
-before and after `update` to react to a change.
+number); `isValid` tells these apart (`problem` says why), and the field shows
+the reason under itself. Save only when `isValid` is `True`. The state holds the
+value and there are no out-messages: compare `value` before and after `update`
+to react to a change.
 
 The application gives the start date. The options for a monthly rule follow it
-("On day 20", "On the third Tuesday", and "On the last Tuesday" when the start
-is the last one), and so does the weekday that is ticked first. Call `setStart`
-when the date changes. A rule loaded from a server is put in with `setRule`.
+("On day 20", "On the third Tuesday", "On the last Tuesday" when the start is
+the last one, and "On the last day of the month" when the start is the last day
+of a month shorter than 31 days), and so does the weekday that is ticked first. Call `setStart`
+when the date changes. A rule loaded from a server is put in with `setValue`.
 
 **The form.** "Repeat" chooses between no repetition, daily, weekly, monthly and
 yearly. The others show what that needs: "Every [2] weeks", the seven weekdays,
@@ -115,7 +118,7 @@ zone are not part of it; your application adds them to each date.
 
 # The rule
 
-@docs value, setRule, problem, Problem, problemText
+@docs value, setValue, isValid, problem, Problem, problemText
 
 
 # The start date
@@ -202,19 +205,21 @@ type EndKind
 
 
 {-| How a monthly or yearly rule finds its day. The first three follow the start
-date; `Own` is a day that a rule loaded with `setRule` has, which the start does
+date; `Own` is a day that a rule loaded with `setValue` has, which the start does
 not give.
 -}
 type By
     = ByDay
     | ByNth
     | ByLast
+    | ByLastDay
     | Own Anchor
 
 
 type Anchor
     = AnchorDay Int Int
     | AnchorNth Spec.Ordinal Int Int
+    | AnchorLastDay Int
 
 
 intervalLimits : List (NumberInput.Attribute msg)
@@ -265,7 +270,7 @@ start (State s) =
 
 {-| Moves the start date. The choices for a monthly or yearly rule follow it, and
 so does the weekday of a weekly rule while nobody has chosen weekdays. A choice
-the user made stays, and so does a rule that was put in with `setRule`.
+the user made stays, and so does a rule that was put in with `setValue`.
 -}
 setStart : Date -> State -> State
 setStart date (State s) =
@@ -383,6 +388,10 @@ patternOf s =
                 AnchorNth ordinal weekday _ ->
                     Recurrence.monthlyOnWeekday (toOrdinal ordinal) (toWeekday weekday)
 
+                AnchorLastDay _ ->
+                    -- the 31st, or the last day of a shorter month
+                    Recurrence.monthlyOnDay 31
+
         Yearly ->
             case anchorOf s of
                 AnchorDay month day ->
@@ -390,6 +399,10 @@ patternOf s =
 
                 AnchorNth ordinal weekday month ->
                     Recurrence.yearlyOnWeekday (toOrdinal ordinal) (toWeekday weekday) (toMonth month)
+
+                AnchorLastDay month ->
+                    -- 29 February is 28 February in the other years
+                    Recurrence.yearlyOnDate (toMonth month) (Date.daysInMonth 2024 month)
 
         _ ->
             Recurrence.daily
@@ -405,10 +418,18 @@ withMissing s pattern =
             pattern
 
 
-{-| The rule the field holds. `Nothing` means that the date does not repeat, or
-that the form is not complete: ask `problem` to tell which (it is `Nothing` too
-when the date does not repeat). The rule is counted from the start date of the
-field.
+{-| The rule the field holds. `Nothing` means that the date does not repeat, and
+also that the form is not complete yet, so check `isValid` before you save:
+`value` alone cannot tell "does not repeat" from "half filled in". The rule is
+counted from the start date of the field.
+
+    if RecurrencePicker.isValid model.repeat then
+        save (RecurrencePicker.value model.repeat)
+
+    else
+        -- the field already shows why under itself
+        ( model, Cmd.none )
+
 -}
 value : State -> Maybe Rule
 value (State s) =
@@ -420,11 +441,21 @@ value (State s) =
             Nothing
 
 
-{-| Why `value` is `Nothing` although the field repeats: a number that is
-missing or cannot be used, an end date that is not chosen, or an end date that is
-before the start date. `Nothing` when the field is complete, and when it does not
-repeat at all. Use it to stop a form from being saved; the field itself shows the
-message under its fields, and `problemText` gives it in words.
+{-| Whether `value` is what the user means: `True` when the field does not
+repeat or holds a complete rule, `False` while a number is missing or cannot be
+used, the end date is not chosen, or the end date is before the start date (see
+`problem`).
+-}
+isValid : State -> Bool
+isValid state =
+    problem state == Nothing
+
+
+{-| Why the field is not valid: a number that is missing or cannot be used, an
+end date that is not chosen, or an end date that is before the start date.
+`Nothing` when the field is complete, and when it does not repeat at all. The
+field itself shows the message under its fields, and `problemText` gives it in
+words (for a summary of the form's problems).
 -}
 problem : State -> Maybe Problem
 problem (State s) =
@@ -496,11 +527,11 @@ the choice is listed (once, with the choices that follow the start date) and
 start date has no `value` and the problem `EndBeforeStart` until one of them is
 changed.
 
-    RecurrencePicker.setRule (Just rule) model.repeat
+    RecurrencePicker.setValue (Just rule) model.repeat
 
 -}
-setRule : Maybe Rule -> State -> State
-setRule maybeRule (State s) =
+setValue : Maybe Rule -> State -> State
+setValue maybeRule (State s) =
     case maybeRule of
         Nothing ->
             State { s | frequency = Once, exceptions = [] }
@@ -542,14 +573,16 @@ fill spec skipped s =
         Spec.Weekly days ->
             { common | frequency = Weekly, weekdays = days, weekdaysChosen = True }
 
+        -- The month of a monthly day is 0: it follows the start date when the
+        -- frequency becomes yearly, and it is not compared while it is monthly.
         Spec.MonthlyDay day missing ->
-            { common | frequency = Monthly, by = Own (AnchorDay (Date.month s.start) day), missing = missing }
+            { common | frequency = Monthly, by = Own (AnchorDay 0 day), missing = keepMissing (day >= 29) missing s }
 
         Spec.MonthlyWeekday ordinal weekday ->
-            { common | frequency = Monthly, by = Own (AnchorNth ordinal weekday (Date.month s.start)) }
+            { common | frequency = Monthly, by = Own (AnchorNth ordinal weekday 0) }
 
         Spec.YearlyDate month day missing ->
-            { common | frequency = Yearly, by = Own (AnchorDay month day), missing = missing }
+            { common | frequency = Yearly, by = Own (AnchorDay month day), missing = keepMissing (month == 2 && day == 29) missing s }
 
         Spec.YearlyWeekday ordinal weekday month ->
             { common | frequency = Yearly, by = Own (AnchorNth ordinal weekday month) }
@@ -573,8 +606,73 @@ anchorFor startDate by =
             else
                 anchorFor startDate ByNth
 
+        ByLastDay ->
+            if offersLastDay startDate then
+                AnchorLastDay (Date.month startDate)
+
+            else
+                anchorFor startDate ByDay
+
         Own anchor ->
+            followStart startDate anchor
+
+
+{-| A loaded monthly day has no month of its own (0): it takes the month of the
+start date.
+-}
+followStart : Date -> Anchor -> Anchor
+followStart startDate anchor =
+    case anchor of
+        AnchorDay 0 day ->
+            AnchorDay (Date.month startDate) day
+
+        AnchorNth ordinal weekday 0 ->
+            AnchorNth ordinal weekday (Date.month startDate)
+
+        AnchorLastDay 0 ->
+            AnchorLastDay (Date.month startDate)
+
+        _ ->
             anchor
+
+
+{-| Whether two anchors give the same dates for a frequency: a monthly rule does
+not look at the month.
+-}
+sameAnchor : Frequency -> Anchor -> Anchor -> Bool
+sameAnchor frequency a b =
+    case frequency of
+        Monthly ->
+            withoutMonth a == withoutMonth b
+
+        _ ->
+            a == b
+
+
+withoutMonth : Anchor -> Anchor
+withoutMonth anchor =
+    case anchor of
+        AnchorDay _ day ->
+            AnchorDay 0 day
+
+        AnchorNth ordinal weekday _ ->
+            AnchorNth ordinal weekday 0
+
+        AnchorLastDay _ ->
+            AnchorLastDay 0
+
+
+{-| The question about a missing day is only asked for a day that can be
+missing; a loaded rule on another day (made canonical as "skip") keeps the
+default, so the question starts at "use the last day" when it comes up.
+-}
+keepMissing : Bool -> Spec.Missing -> Inner -> Spec.Missing
+keepMissing canBeMissing missing s =
+    if canBeMissing then
+        missing
+
+    else
+        s.missing
 
 
 anchorOf : Inner -> Anchor
@@ -620,6 +718,15 @@ offersLast date =
     endsMonth date && ordinalOfStart date /= Spec.Last
 
 
+{-| Whether "the last day of the month" is a choice of its own: the start date is
+the last day of its month and not the 31st, which `ByDay` already makes the last
+day of a shorter month.
+-}
+offersLastDay : Date -> Bool
+offersLastDay date =
+    Date.day date == Date.daysInMonth (Date.year date) (Date.month date) && Date.day date < 31
+
+
 {-| The choices a monthly or yearly rule offers: the day, the n-th weekday and the
 last weekday when the start gives it. A rule that was loaded has its own choice,
 which stands in the place of the one that means the same, or comes last when the
@@ -636,13 +743,23 @@ choices s =
                     else
                         []
                    )
+                ++ (if offersLastDay s.start then
+                        [ ByLastDay ]
+
+                    else
+                        []
+                   )
     in
     case s.by of
         Own anchor ->
-            if List.any (\by -> anchorFor s.start by == anchor) derived then
+            let
+                same by =
+                    sameAnchor s.frequency (anchorFor s.start by) (followStart s.start anchor)
+            in
+            if List.any same derived then
                 List.map
                     (\by ->
-                        if anchorFor s.start by == anchor then
+                        if same by then
                             Own anchor
 
                         else
@@ -858,7 +975,7 @@ update msg (State s) =
 {-| A setting of the field. Make them with the functions below and pass a list to
 `view`; later attributes win over earlier ones.
 -}
-type Attribute
+type Attribute msg
     = Attribute (Config -> Config)
 
 
@@ -872,7 +989,7 @@ type alias Config =
     }
 
 
-configure : List Attribute -> Config
+configure : List (Attribute msg) -> Config
 configure attributes =
     List.foldl (\(Attribute change) config -> change config)
         { field = Field.empty
@@ -885,7 +1002,7 @@ configure attributes =
         attributes
 
 
-updateField : (Field.Config -> Field.Config) -> Attribute
+updateField : (Field.Config -> Field.Config) -> Attribute msg
 updateField change =
     Attribute (\config -> { config | field = change config.field })
 
@@ -893,7 +1010,7 @@ updateField change =
 {-| The legend of the field: its name, above the choices. Without it the legend
 is the built-in "Repeat", kept for screen readers only.
 -}
-label : String -> Attribute
+label : String -> Attribute msg
 label text =
     updateField (Field.setLabel text)
 
@@ -901,7 +1018,7 @@ label text =
 {-| Keeps the label for screen readers but does not show it, for a field whose
 purpose is clear from what surrounds it. Needs `label`.
 -}
-labelHidden : Attribute
+labelHidden : Attribute msg
 labelHidden =
     updateField Field.setLabelHidden
 
@@ -909,7 +1026,7 @@ labelHidden =
 {-| A line of help under the field. It describes the whole group
 (`aria-describedby`), so screen readers read it when the focus enters.
 -}
-hint : String -> Attribute
+hint : String -> Attribute msg
 hint text =
     updateField (Field.setHint text)
 
@@ -918,14 +1035,14 @@ hint text =
 screen readers (`role="alert"`). While the field has a problem of its own (see
 `problem`) that message is shown instead.
 -}
-error : String -> Attribute
+error : String -> Attribute msg
 error text =
     updateField (Field.setError (Just text))
 
 
 {-| Like `error`, but takes a `Maybe`: `Nothing` means no error.
 -}
-errorMaybe : Maybe String -> Attribute
+errorMaybe : Maybe String -> Attribute msg
 errorMaybe maybe =
     updateField (Field.setError maybe)
 
@@ -933,7 +1050,7 @@ errorMaybe maybe =
 {-| Puts a `*` after the label. It only marks the field and checks nothing: "Does
 not repeat" is a valid answer.
 -}
-required : Attribute
+required : Attribute msg
 required =
     updateField (Field.setRequired True)
 
@@ -941,7 +1058,7 @@ required =
 {-| Text shown after the label of a field that is not `required`, such as
 "(optional)". Default: none.
 -}
-optionalText : String -> Attribute
+optionalText : String -> Attribute msg
 optionalText text =
     updateField (Field.setOptionalText text)
 
@@ -951,7 +1068,7 @@ field of "ends on" marks it, and the next dates start from today when it is
 later than the start date. Without it the list shows the first dates of the
 series.
 -}
-today : Date -> Attribute
+today : Date -> Attribute msg
 today date =
     Attribute (\config -> { config | today = Just date })
 
@@ -959,7 +1076,7 @@ today date =
 {-| The size of the controls: `Small`, `Medium` or `Large` (see
 [Klar.Theme](Klar-Theme)). Default: `Medium`.
 -}
-size : Size -> Attribute
+size : Size -> Attribute msg
 size value_ =
     Attribute (\config -> { config | size = value_ })
 
@@ -967,7 +1084,7 @@ size value_ =
 {-| The language of the built-in text, of the sentence and of the dates (see
 [Klar.Locale](Klar-Locale)). Default: `Locale.default`, which is English.
 -}
-locale : Locale -> Attribute
+locale : Locale -> Attribute msg
 locale value_ =
     Attribute (\config -> { config | locale = value_ })
 
@@ -975,7 +1092,7 @@ locale value_ =
 {-| Disables every control. Takes a `Bool` so that it can come from your model,
 for example while a form is saved. Default: `False`.
 -}
-disabled : Bool -> Attribute
+disabled : Bool -> Attribute msg
 disabled value_ =
     Attribute (\config -> { config | disabled = value_ })
 
@@ -984,7 +1101,7 @@ disabled value_ =
 Thursday"), with no controls and no list of dates, for a page that displays a
 saved rule. Default: `False`.
 -}
-readOnly : Bool -> Attribute
+readOnly : Bool -> Attribute msg
 readOnly value_ =
     Attribute (\config -> { config | readOnly = value_ })
 
@@ -1083,29 +1200,37 @@ everyWords lang frequency number =
 
         pick one other =
             Format.plural lang n { one = one, other = other }
+
+        -- Norwegian counts with an ordinal: hver 2. uke
+        nth unit =
+            if n == 1 then
+                unit
+
+            else
+                ". " ++ unit
     in
     case frequency of
         Daily ->
             Locale.pick lang
-                { nb = { prefix = "Hver", unit = "dag" }
+                { nb = { prefix = "Hver", unit = nth "dag" }
                 , en = { prefix = "Every", unit = pick "day" "days" }
                 }
 
         Weekly ->
             Locale.pick lang
-                { nb = { prefix = "Hver", unit = "uke" }
+                { nb = { prefix = "Hver", unit = nth "uke" }
                 , en = { prefix = "Every", unit = pick "week" "weeks" }
                 }
 
         Monthly ->
             Locale.pick lang
-                { nb = { prefix = "Hver", unit = "måned" }
+                { nb = { prefix = "Hver", unit = nth "måned" }
                 , en = { prefix = "Every", unit = pick "month" "months" }
                 }
 
         _ ->
             Locale.pick lang
-                { nb = { prefix = "Hvert", unit = "år" }
+                { nb = { prefix = "Hvert", unit = nth "år" }
                 , en = { prefix = "Every", unit = pick "year" "years" }
                 }
 
@@ -1146,6 +1271,9 @@ byKey by =
 
         ByLast ->
             "last"
+
+        ByLastDay ->
+            "last-day"
 
         Own _ ->
             "own"
@@ -1233,6 +1361,22 @@ anchorLabel lang frequency anchor =
                         "On the " ++ phrase ++ " of the month"
                 }
 
+        AnchorLastDay month ->
+            Locale.pick lang
+                { nb =
+                    if frequency == Yearly then
+                        "Den siste dagen i " ++ Locale.monthName lang month
+
+                    else
+                        "Den siste dagen i måneden"
+                , en =
+                    if frequency == Yearly then
+                        "On the last day of " ++ Locale.monthName lang month
+
+                    else
+                        "On the last day of the month"
+                }
+
 
 {-| What to ask when the day may be missing: for the 29th to the 31st of a
 month, and for 29 February.
@@ -1308,7 +1452,7 @@ yours.
         model.repeat
 
 -}
-view : (Msg -> msg) -> List Attribute -> State -> Html msg
+view : (Msg -> msg) -> List (Attribute msg) -> State -> Html msg
 view toMsg attributes (State s) =
     let
         config =
@@ -1601,6 +1745,9 @@ shownBy : Inner -> By
 shownBy s =
     if s.by == ByLast && not (offersLast s.start) then
         ByNth
+
+    else if s.by == ByLastDay && not (offersLastDay s.start) then
+        ByDay
 
     else
         s.by

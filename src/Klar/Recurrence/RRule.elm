@@ -1,4 +1,4 @@
-module Klar.Recurrence.RRule exposing (fromText, toText)
+module Klar.Recurrence.RRule exposing (fromText, toText, withStart)
 
 {-| Reading and writing the value of an iCalendar RRULE (RFC 5545, section
 3.3.10) for the rules `Klar.Recurrence` can express.
@@ -30,6 +30,7 @@ import Klar.Recurrence.Spec as Spec
         , Ordinal(..)
         , Pattern(..)
         , Problem(..)
+        , Reason(..)
         , Spec
         )
 
@@ -165,6 +166,86 @@ dayCode weekday =
 -- READING
 
 
+{-| Fills in the parts that RFC 5545 (3.3.10) takes from `DTSTART` when a rule
+leaves them out, so that the rule says its days itself: the weekday of a weekly
+rule, the day of the month of a monthly rule, and the month and day of a yearly
+rule (`FREQ=YEARLY` alone is how many calendars write "every year on this
+day"). A part that is there is never touched, and a yearly rule with a day but
+no month stays as it is (it means every month), for `fromText` to name. A text
+of several lines is left alone too.
+-}
+withStart : Date.Date -> String -> String
+withStart start text =
+    let
+        trimmed =
+            String.trim text
+
+        body =
+            if String.toUpper (String.left 6 trimmed) == "RRULE:" then
+                String.dropLeft 6 trimmed
+
+            else
+                trimmed
+
+        given =
+            String.split ";" body
+                |> List.map String.trim
+                |> List.filter (\part -> part /= "")
+
+        keyOf part =
+            String.split "=" part |> List.head |> Maybe.withDefault part |> String.trim |> String.toUpper
+
+        has name =
+            List.any (\part -> keyOf part == name) given
+
+        freqValue =
+            given
+                |> List.filter (\part -> keyOf part == "FREQ")
+                |> List.head
+                |> Maybe.map (String.split "=" >> List.drop 1 >> String.join "=" >> String.trim >> String.toUpper)
+
+        hasDay =
+            has "BYDAY" || has "BYMONTHDAY"
+
+        day =
+            "BYMONTHDAY=" ++ String.fromInt (Date.day start)
+
+        extra =
+            case freqValue of
+                Just "WEEKLY" ->
+                    if has "BYDAY" then
+                        []
+
+                    else
+                        [ "BYDAY=" ++ dayCode (Date.weekday start) ]
+
+                Just "MONTHLY" ->
+                    if hasDay then
+                        []
+
+                    else
+                        [ day ]
+
+                Just "YEARLY" ->
+                    if hasDay then
+                        []
+
+                    else if has "BYMONTH" then
+                        [ day ]
+
+                    else
+                        [ "BYMONTH=" ++ String.fromInt (Date.month start), day ]
+
+                _ ->
+                    []
+    in
+    if List.isEmpty extra || String.contains "\n" trimmed then
+        text
+
+    else
+        String.join ";" (given ++ extra)
+
+
 {-| Reads the value of an RRULE. See the module documentation for what is
 accepted; everything else is a `Problem`.
 -}
@@ -192,7 +273,7 @@ oneLine text =
             in
             case List.filter (\name -> String.startsWith name (String.toUpper value)) [ "DTSTART", "DTEND", "EXDATE", "RDATE", "EXRULE" ] of
                 name :: _ ->
-                    Err (Unsupported (name ++ " (the dates around the rule are not part of the RRULE)"))
+                    Err (Unsupported name OutsideRule)
 
                 [] ->
                     if value == "" then
@@ -202,7 +283,7 @@ oneLine text =
                         Ok value
 
         _ ->
-            Err (Unsupported "several lines (give only the value of the RRULE)")
+            Err (Unsupported "" SeveralLines)
 
 
 knownParts : List String
@@ -236,7 +317,7 @@ addPart part result =
                             Err (CannotRead part)
 
                         else if not (List.member key knownParts) then
-                            Err (Unsupported key)
+                            Err (Unsupported key Plain)
 
                         else if Dict.member key found then
                             Err (RepeatedPart key)
@@ -300,7 +381,7 @@ frequencyOf found =
 
                 other ->
                     if List.member other [ "SECONDLY", "MINUTELY", "HOURLY" ] then
-                        Err (Unsupported ("FREQ=" ++ other))
+                        Err (Unsupported ("FREQ=" ++ other) Plain)
 
                     else
                         Err (CannotRead ("FREQ=" ++ raw))
@@ -353,7 +434,7 @@ endOf found =
 untilDate : String -> Result Problem End
 untilDate raw =
     if String.length raw > 8 && String.all (\c -> Char.isDigit c || c == 'T' || c == 'Z' || c == 't' || c == 'z') raw then
-        Err (Unsupported ("UNTIL=" ++ raw ++ " (only a date, such as UNTIL=20271231, is read: give the last day as a date)"))
+        Err (Unsupported ("UNTIL=" ++ raw) UntilWithTime)
 
     else if String.length raw == 8 && String.all Char.isDigit raw then
         case
@@ -431,7 +512,7 @@ wkstProblem freq every wkst =
                 Err (CannotRead ("WKST=" ++ raw))
 
             else if day /= "MO" && freq == FWeekly && every > 1 then
-                Err (Unsupported ("WKST=" ++ day ++ " with an interval above 1 (weeks are counted from Monday)"))
+                Err (Unsupported ("WKST=" ++ day) WeekStartWithInterval)
 
             else
                 Ok ()
@@ -441,7 +522,7 @@ noParts : String -> List ( String, Maybe String ) -> Result Problem ()
 noParts context checks =
     case List.filter (\( _, value ) -> value /= Nothing) checks of
         ( key, _ ) :: _ ->
-            Err (Unsupported (key ++ " with " ++ context))
+            Err (Unsupported key (With context))
 
         [] ->
             Ok ()
@@ -461,7 +542,7 @@ dailyPattern every byDay =
 
         Just raw ->
             if every > 1 then
-                Err (Unsupported "BYDAY with FREQ=DAILY and an interval above 1 (every n-th day, but only on those weekdays)")
+                Err (Unsupported "BYDAY" DaysWithDailyInterval)
 
             else
                 weeklyPattern "FREQ=DAILY" (Just raw)
@@ -479,7 +560,7 @@ weeklyPattern context byDay =
                     (\tokens ->
                         case List.filter (\( ordinal, _, _ ) -> ordinal /= Nothing) tokens of
                             ( _, _, text ) :: _ ->
-                                Err (Unsupported ("BYDAY=" ++ text ++ " with " ++ context))
+                                Err (Unsupported ("BYDAY=" ++ text) (With context))
 
                             [] ->
                                 Ok (Weekly (List.map (\( _, weekday, _ ) -> weekday) tokens))
@@ -490,7 +571,7 @@ monthlyPattern : Maybe String -> Maybe String -> Maybe String -> Result Problem 
 monthlyPattern byDay byMonthDay bySetPos =
     case ( byDay, byMonthDay ) of
         ( Just _, Just _ ) ->
-            Err (Unsupported "BYMONTHDAY together with BYDAY")
+            Err (Unsupported "BYMONTHDAY" (With "BYDAY"))
 
         ( Nothing, Nothing ) ->
             Err (MissingPart "BYMONTHDAY or BYDAY")
@@ -516,7 +597,7 @@ yearlyPattern byMonth byDay byMonthDay bySetPos =
                     (\month ->
                         case ( byDay, byMonthDay ) of
                             ( Just _, Just _ ) ->
-                                Err (Unsupported "BYMONTHDAY together with BYDAY")
+                                Err (Unsupported "BYMONTHDAY" (With "BYDAY"))
 
                             ( Nothing, Nothing ) ->
                                 Err (MissingPart "BYMONTHDAY or BYDAY")
@@ -563,7 +644,7 @@ monthOf raw =
 
         Nothing ->
             if String.contains "," raw && List.all (\token -> signed token /= Nothing) (String.split "," raw) then
-                Err (Unsupported "BYMONTH with several months")
+                Err (Unsupported "BYMONTH" SeveralMonths)
 
             else
                 Err (CannotRead ("BYMONTH=" ++ raw))
@@ -590,7 +671,7 @@ monthDayOf bySetPos raw =
                     Ok ( 31, UseLastDay )
 
                 else if day < 0 then
-                    Err (Unsupported ("BYMONTHDAY=" ++ String.fromInt day))
+                    Err (Unsupported ("BYMONTHDAY=" ++ String.fromInt day) Plain)
 
                 else if day < 1 || day > 31 then
                     Err (DayOutOfRange day)
@@ -599,7 +680,7 @@ monthDayOf bySetPos raw =
                     Ok ( day, Skip )
 
             ( _, Nothing ) ->
-                Err (Unsupported "BYMONTHDAY with several days")
+                Err (Unsupported "BYMONTHDAY" SeveralDays)
 
             ( _, Just position ) ->
                 let
@@ -610,13 +691,13 @@ monthDayOf bySetPos raw =
                         List.maximum sorted |> Maybe.withDefault 0
                 in
                 if String.trim position /= "-1" then
-                    Err (Unsupported ("BYSETPOS=" ++ position))
+                    Err (Unsupported ("BYSETPOS=" ++ position) Plain)
 
                 else if last >= 29 && last <= 31 && sorted == List.range 28 last then
                     Ok ( last, UseLastDay )
 
                 else
-                    Err (Unsupported ("BYSETPOS=-1 with BYMONTHDAY=" ++ raw ++ " (only 28 up to the day is read)"))
+                    Err (Unsupported ("BYMONTHDAY=" ++ raw) LastFromDay28)
 
 
 {-| The single `2TU` of a monthly or yearly `BYDAY`.
@@ -625,7 +706,7 @@ nthWeekdayOf : String -> Maybe String -> String -> Result Problem ( Ordinal, Int
 nthWeekdayOf context bySetPos raw =
     case bySetPos of
         Just position ->
-            Err (Unsupported ("BYSETPOS=" ++ position ++ " with BYDAY"))
+            Err (Unsupported ("BYSETPOS=" ++ position) (With "BYDAY"))
 
         Nothing ->
             dayTokens raw
@@ -636,10 +717,10 @@ nthWeekdayOf context bySetPos raw =
                                 Ok ( ordinal, weekday )
 
                             [ ( Nothing, _, text ) ] ->
-                                Err (Unsupported ("BYDAY=" ++ text ++ " with " ++ context ++ " (every such day of the month; give the number, such as 2" ++ String.right 2 text ++ ")"))
+                                Err (Unsupported ("BYDAY=" ++ text) (EveryWeekdayOf context ("2" ++ String.right 2 text)))
 
                             _ ->
-                                Err (Unsupported ("BYDAY with several days with " ++ context))
+                                Err (Unsupported "BYDAY" (SeveralDaysWith context))
                     )
 
 
@@ -696,7 +777,7 @@ dayToken token =
                             Err (CannotRead ("BYDAY=" ++ token))
 
                         else
-                            Err (Unsupported ("BYDAY=" ++ upper ++ " (only the first to the fourth and the last are read)"))
+                            Err (Unsupported ("BYDAY=" ++ upper) OrdinalBeyondFourth)
 
                     Nothing ->
                         Err (CannotRead ("BYDAY=" ++ token))

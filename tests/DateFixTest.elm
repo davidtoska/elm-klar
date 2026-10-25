@@ -898,14 +898,14 @@ expectShows name year html =
     firstHeading html |> Query.has [ Selector.text (monthTitle name year) ]
 
 
-calendarView : List Calendar.Attribute -> Calendar.State -> Html Calendar.Msg
+calendarView : List (Calendar.Attribute Calendar.Msg) -> Calendar.State -> Html Calendar.Msg
 calendarView attributes state =
     Calendar.view identity attributes state
 
 
 {-| Press the button with this accessible name, and give the message to `update`.
 -}
-pressNav : String -> List Calendar.Attribute -> Calendar.State -> Result String Calendar.State
+pressNav : String -> List (Calendar.Attribute Calendar.Msg) -> Calendar.State -> Result String Calendar.State
 pressNav label attributes state =
     calendarView attributes state
         |> Query.fromHtml
@@ -953,7 +953,7 @@ calendarStart =
             \_ ->
                 expectShows "March"
                     2026
-                    (calendarView [ Calendar.min (date 2026 3 10), Calendar.months 2 ] (Calendar.initRange "c"))
+                    (calendarView [ Calendar.min (date 2026 3 10) ] (Calendar.initRange "c" |> Calendar.setMonths 2))
         , test "the first message keeps that month: next goes one month on" <|
             \_ ->
                 let

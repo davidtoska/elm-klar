@@ -5,8 +5,8 @@ fields.
 
 "Today" is `Showcase.Sample.today` on the whole page. Every field keeps its state
 in a `Dict` under the key of its demo (see `demoDates` and the lists after it).
-The calendar that loads its marks month by month asks a pretend server
-(`Process.sleep` and a pure function), so it can show loading and failure.
+The calendar that loads its marks for the visible month asks a pretend server
+(`Process.sleep` and a pure function), so it can show loading, failure and old marks.
 
 -}
 
@@ -14,18 +14,18 @@ import Api.Types exposing (orderIdText, orderStatusLabel)
 import Dict exposing (Dict)
 import Html exposing (Html)
 import Klar.Badge as Badge
+import Klar.Button as Button
 import Klar.Calendar as Calendar
 import Klar.Card as Card
 import Klar.Date as Date exposing (Date)
 import Klar.DatePicker as DatePicker
 import Klar.DateRangePicker as DateRangePicker
 import Klar.DateTimePicker as DateTimePicker
-import Klar.ErrorState as ErrorState
 import Klar.Format as Format
+import Klar.Icon as Icon
 import Klar.Layout as Layout
 import Klar.Locale as Locale exposing (Locale)
-import Klar.Remote as Remote
-import Klar.Spinner as Spinner
+import Klar.Remote as Remote exposing (Remote)
 import Klar.Switch as Switch
 import Klar.Text as Text
 import Klar.Theme exposing (Size(..), Tone(..))
@@ -34,6 +34,7 @@ import Process
 import Showcase.Doc as Doc
 import Showcase.Sample as Sample
 import Task
+import Time
 import View.Labels as Labels
 
 
@@ -48,7 +49,7 @@ type alias Model =
     , norwegian : Calendar.State
     , orders : Calendar.State
     , schedule : Calendar.State
-    , months : Dict Month MonthData
+    , due : Remote (List ( Date, Int ))
     , outage : Bool
     , dates : Dict String DatePicker.State
     , ranges : Dict String DateRangePicker.State
@@ -64,8 +65,9 @@ type Msg
     | NorwegianMsg Calendar.Msg
     | OrdersMsg Calendar.Msg
     | ScheduleMsg Calendar.Msg
-    | MonthArrived Month (Result Remote.Kind (List ( Date, Int )))
-    | MonthRetry Month
+    | DueArrived Window (Result Remote.Kind (List ( Date, Int ))) Time.Posix
+    | DueRetry
+    | DueRefresh
     | OutageToggled Bool
     | DateMsg String DatePicker.Msg
     | RangeMsg String DateRangePicker.Msg
@@ -75,20 +77,20 @@ type Msg
 
 init : ( Model, Cmd Msg )
 init =
-    ( { overview = Calendar.init "cal-overview" |> Calendar.select (Just today)
+    ( { overview = Calendar.init "cal-overview" |> Calendar.setValue (Just today)
       , compact = Calendar.init "cal-small"
-      , period = Calendar.initRange "cal-period"
+      , period = Calendar.initRange "cal-period" |> Calendar.setMonths 2
       , norwegian = Calendar.init "cal-norwegian"
-      , orders = Calendar.init "cal-orders"
+      , orders = Calendar.init "cal-orders" |> Calendar.setMonths 2
       , schedule = Calendar.init "cal-schedule" |> Calendar.showDate today
-      , months = Dict.singleton firstMonth Loading
+      , due = Remote.Loading
       , outage = False
       , dates = registry DatePicker.init demoDates
       , ranges = registry DateRangePicker.init demoRanges
       , times = registry TimePicker.init demoTimes
       , dateTimes = registry DateTimePicker.init demoDateTimes
       }
-    , fetchMonth False firstMonth
+    , fetchDue False (Calendar.visibleRange (Calendar.init "cal-schedule" |> Calendar.showDate today))
     )
 
 
@@ -124,23 +126,37 @@ update msg model =
                 ( schedule, cmd ) =
                     Calendar.update inner model.schedule
 
-                month =
-                    monthShown schedule
+                shown =
+                    Calendar.visibleRange schedule
             in
-            -- the calendar says which month it shows: ask for it the first time it comes into view
-            if month /= monthShown model.schedule && not (Dict.member month model.months) then
-                ( { model | schedule = schedule, months = Dict.insert month Loading model.months }
-                , Cmd.batch [ Cmd.map ScheduleMsg cmd, fetchMonth model.outage month ]
+            -- the calendar says which days it shows: ask for their marks when that changes
+            if shown /= Calendar.visibleRange model.schedule then
+                ( { model | schedule = schedule, due = Remote.Loading }
+                , Cmd.batch [ Cmd.map ScheduleMsg cmd, fetchDue model.outage shown ]
                 )
 
             else
                 ( { model | schedule = schedule }, Cmd.map ScheduleMsg cmd )
 
-        MonthArrived month result ->
-            ( { model | months = Dict.insert month (monthData result) model.months }, Cmd.none )
+        DueArrived window result at ->
+            -- an answer for days that are no longer shown is dropped
+            if window == Calendar.visibleRange model.schedule then
+                ( { model | due = Remote.refreshWith model.due (Result.mapError Remote.problem result) at }, Cmd.none )
 
-        MonthRetry month ->
-            ( { model | months = Dict.insert month Loading model.months }, fetchMonth model.outage month )
+            else
+                ( model, Cmd.none )
+
+        DueRetry ->
+            -- the button goes away while the marks load: the focus goes back to the calendar
+            ( { model | due = Remote.refresh model.due }
+            , Cmd.batch
+                [ fetchDue model.outage (Calendar.visibleRange model.schedule)
+                , Cmd.map ScheduleMsg (Calendar.focus model.schedule)
+                ]
+            )
+
+        DueRefresh ->
+            ( { model | due = Remote.refresh model.due }, fetchDue model.outage (Calendar.visibleRange model.schedule) )
 
         OutageToggled value ->
             ( { model | outage = value }, Cmd.none )
@@ -297,104 +313,58 @@ orderDots =
 
 
 
--- MONTH BY MONTH
+-- MARKS FOR THE VISIBLE MONTH
 
 
-{-| A month as the year and the month number (January is 1).
+{-| The days a calendar shows, as `Calendar.visibleRange` tells them.
 -}
-type alias Month =
-    ( Int, Int )
+type alias Window =
+    { from : Date, to : Date }
 
 
-{-| What the page knows about the orders due in one month.
+{-| The pretend server: how many orders are due on each day between two dates.
 -}
-type MonthData
-    = Loading
-    | Failed Remote.Kind
-    | Loaded (List ( Date, Int ))
-
-
-firstMonth : Month
-firstMonth =
-    ( Date.year today, Date.month today )
-
-
-{-| The first month a calendar shows, which is what `visibleMonth` tells.
--}
-monthShown : Calendar.State -> Month
-monthShown state =
-    let
-        shown =
-            Calendar.visibleMonth state
-    in
-    ( shown.year, shown.month )
-
-
-monthData : Result Remote.Kind (List ( Date, Int )) -> MonthData
-monthData result =
-    case result of
-        Ok days ->
-            Loaded days
-
-        Err kind ->
-            Failed kind
-
-
-{-| The pretend server: how many orders are due on each day of a month.
--}
-ordersDueIn : Month -> List ( Date, Int )
-ordersDueIn ( year, month ) =
+ordersDueBetween : Window -> List ( Date, Int )
+ordersDueBetween window =
     Sample.orders
-        |> List.filter (\order -> Date.year order.due == year && Date.month order.due == month)
+        |> List.filter (\order -> Date.compare order.due window.from /= LT && Date.compare order.due window.to /= GT)
         |> List.foldl
-            (\order counts -> Dict.update (Date.day order.due) (\n -> Just (Maybe.withDefault 0 n + 1)) counts)
+            (\order counts -> Dict.update (Date.toEpochDay order.due) (\n -> Just (Maybe.withDefault 0 n + 1)) counts)
             Dict.empty
         |> Dict.toList
-        |> List.filterMap (\( day, n ) -> Date.fromParts year month day |> Maybe.map (\date -> ( date, n )))
+        |> List.map (\( day, n ) -> ( Date.fromEpochDay day, n ))
 
 
-{-| Asks the pretend server for a month: it takes a second, and fails while the
-outage is on.
+{-| Asks the pretend server for the orders due in a window: it takes a second,
+and fails while the outage is on.
 -}
-fetchMonth : Bool -> Month -> Cmd Msg
-fetchMonth outage month =
+fetchDue : Bool -> Window -> Cmd Msg
+fetchDue outage window =
     Process.sleep 900
-        |> Task.map
-            (\_ ->
-                if outage then
-                    Err Remote.timeout
+        |> Task.andThen (\_ -> Time.now)
+        |> Task.perform
+            (\at ->
+                DueArrived window
+                    (if outage then
+                        Err Remote.timeout
 
-                else
-                    Ok (ordersDueIn month)
+                     else
+                        Ok (ordersDueBetween window)
+                    )
+                    at
             )
-        |> Task.perform (MonthArrived month)
 
 
-{-| One count on each day of the months that have arrived.
+{-| One count on each day that has orders due.
 -}
-monthMarkers : Locale -> Dict Month MonthData -> List Calendar.Marker
-monthMarkers locale months =
-    Dict.foldl
-        (\_ data markers ->
-            case data of
-                Loaded days ->
-                    List.map (\( day, n ) -> Calendar.count day n (ordersDue locale n)) days ++ markers
-
-                _ ->
-                    markers
-        )
-        []
-        months
+dueMarks : Locale -> List ( Date, Int ) -> List Calendar.Marker
+dueMarks locale days =
+    List.map (\( day, n ) -> Calendar.count day n (ordersDue locale n)) days
 
 
 ordersDue : Locale -> Int -> String
 ordersDue locale n =
     Format.int locale n ++ " " ++ Format.plural locale n { one = "order due", other = "orders due" }
-
-
-monthTitle : Locale -> Month -> String
-monthTitle locale ( year, month ) =
-    Locale.monthLong locale month ++ " " ++ String.fromInt year
 
 
 
@@ -751,7 +721,7 @@ calendars locale model =
             (Layout.row [ Layout.gap 8, Layout.alignStart, Layout.wrap ]
                 [ Calendar.view OverviewMsg
                     [ Calendar.locale locale
-                    , Calendar.label "Dock bookings"
+                    , Calendar.ariaLabel "Dock bookings"
                     , Calendar.today today
                     , Calendar.todayButton
                     , Calendar.weekNumbers
@@ -770,7 +740,7 @@ calendars locale model =
             (Layout.stack [ Layout.gap 3 ]
                 [ Calendar.view CompactMsg
                     [ Calendar.locale locale
-                    , Calendar.label "Delivery window"
+                    , Calendar.ariaLabel "Delivery window"
                     , Calendar.today today
                     , Calendar.min (Date.addDays -10 today)
                     , Calendar.max (Date.addDays 40 today)
@@ -789,9 +759,8 @@ calendars locale model =
             (Layout.stack [ Layout.gap 3 ]
                 [ Calendar.view PeriodMsg
                     [ Calendar.locale locale
-                    , Calendar.label "Report period"
+                    , Calendar.ariaLabel "Report period"
                     , Calendar.today today
-                    , Calendar.months 2
                     ]
                     model.period
                 , Text.caption ("Chosen: " ++ describePeriod locale model.period)
@@ -803,7 +772,7 @@ calendars locale model =
             , code = Just calendarNorwegianCode
             }
             (Calendar.view NorwegianMsg
-                [ Calendar.label "Norwegian calendar"
+                [ Calendar.ariaLabel "Norwegian calendar"
                 , Calendar.today today
                 , Calendar.locale Locale.nb
                 , Calendar.weekNumbers
@@ -823,83 +792,68 @@ calendars locale model =
             }
             (Calendar.view OrdersMsg
                 [ Calendar.locale locale
-                , Calendar.label "Orders by due date"
+                , Calendar.ariaLabel "Orders by due date"
                 , Calendar.today today
-                , Calendar.months 2
                 , Calendar.markers orderDots
                 ]
                 model.orders
             )
         , Doc.example
-            { title = "Marks loaded month by month"
-            , description = Just "The calendar tells which month it shows (visibleMonth), and the application asks for the marks of a month the first time it comes into view. Here a pretend server answers in about a second. Turn on the outage and go to another month to see the failure and the retry. DatePicker and DateRangePicker have the same visibleMonth."
+            { title = "Marks from a server"
+            , description = Just "The calendar tells which days it shows (visibleRange), and the application asks for their marks when that changes and gives them as a Remote (remote). While they load the grid is busy and says so under the days; a failure says why with Try again (onRetry); a refresh keeps the marks, dimmed, and a failed refresh keeps them as old data. Here a pretend server answers in about a second. Turn on the outage and go to another month, or press Refresh."
             , code = Just calendarMonthsCode
             }
             (Layout.row [ Layout.gap 8, Layout.alignStart, Layout.wrap ]
                 [ Calendar.view ScheduleMsg
                     [ Calendar.locale locale
-                    , Calendar.label "Orders due, loaded by month"
+                    , Calendar.ariaLabel "Orders due"
                     , Calendar.today today
-                    , Calendar.markers (monthMarkers locale model.months)
+                    , Calendar.remote (Remote.map (dueMarks locale) model.due)
+                    , Calendar.onRetry DueRetry
                     ]
                     model.schedule
                 , Layout.stack [ Layout.gap 4 ]
                     [ Switch.view
                         [ Switch.id "schedule-outage"
                         , Switch.label "Simulate an outage"
-                        , Switch.hint "Months that are asked for while it is on fail. Turn it off and press Try again."
+                        , Switch.hint "Requests sent while it is on fail. Turn it off and press Try again."
                         , Switch.checked model.outage
                         , Switch.onCheck OutageToggled
                         , Switch.locale locale
                         ]
-                    , monthStatus locale model
+                    , Button.view [ Button.small, Button.icon Icon.refresh, Button.onClick DueRefresh ] "Refresh"
+                    , Text.caption (dueSummary locale model)
                     ]
                 ]
             )
         ]
 
 
-{-| What the page knows about the month on show: loading, the number of orders
-due, or the failure with a button to try again.
+{-| What the application knows about the window on show.
 -}
-monthStatus : Locale -> Model -> Html Msg
-monthStatus locale model =
-    let
-        month =
-            monthShown model.schedule
-    in
-    case Dict.get month model.months of
-        Just Loading ->
-            Layout.row [ Layout.gap 2 ]
-                [ Spinner.view []
-                , Text.caption ("Loading the orders due in " ++ monthTitle locale month ++ " ...")
-                ]
-
-        Just (Failed kind) ->
-            ErrorState.view
-                [ ErrorState.compact, ErrorState.locale locale, ErrorState.onRetry (MonthRetry month) ]
-                (Remote.problem kind)
-
-        Just (Loaded days) ->
+dueSummary : Locale -> Model -> String
+dueSummary locale model =
+    case Remote.toMaybe model.due of
+        Just days ->
             let
                 total =
                     List.sum (List.map Tuple.second days)
             in
             if total == 0 then
-                Text.caption ("No orders due in " ++ monthTitle locale month)
+                "No orders due in these days"
 
             else
-                Text.caption (ordersDue locale total ++ " in " ++ monthTitle locale month)
+                ordersDue locale total ++ " in these days"
 
         Nothing ->
-            Text.text ""
+            ""
 
 
 {-| The bookings of the chosen day, next to the calendar.
 -}
 agenda : Locale -> Calendar.State -> Html Msg
 agenda locale state =
-    case Calendar.selected state of
+    case Calendar.value state of
         Nothing ->
             Text.caption "Choose a day to see its bookings."
 
@@ -928,7 +882,7 @@ agenda locale state =
 
 describeCalendar : Locale -> Calendar.State -> String
 describeCalendar locale state =
-    case Calendar.selected state of
+    case Calendar.value state of
         Just day ->
             Format.date locale day
 
@@ -1296,7 +1250,7 @@ placement locale model =
 calendarOverviewCode : String
 calendarOverviewCode =
     """-- model
-{ calendar : Calendar.State }   -- Calendar.init "bookings" |> Calendar.select (Just model.today)
+{ calendar : Calendar.State }   -- Calendar.init "bookings" |> Calendar.setValue (Just model.today)
 
 -- msg
 CalendarMsg Calendar.Msg
@@ -1323,7 +1277,7 @@ Calendar.view CalendarMsg
     model.calendar
 
 -- read
-Calendar.selected model.calendar   -- Maybe Date"""
+Calendar.value model.calendar   -- Maybe Date"""
 
 
 calendarSmallCode : String
@@ -1345,10 +1299,10 @@ isWeekend day =
 calendarPeriodCode : String
 calendarPeriodCode =
     """-- model
-{ period : Calendar.State }   -- Calendar.initRange "period"
+{ period : Calendar.State }   -- Calendar.initRange "period" |> Calendar.setMonths 2
 
 -- view
-Calendar.view PeriodMsg [ Calendar.months 2, Calendar.today model.today ] model.period
+Calendar.view PeriodMsg [ Calendar.today model.today ] model.period
 
 -- read
 Calendar.range model.period    -- Maybe ( Date, Date ): Just after the second click
@@ -1369,9 +1323,9 @@ calendarNorwegianCode =
 
 calendarOrdersCode : String
 calendarOrdersCode =
-    """Calendar.view CalendarMsg
+    """-- model: Calendar.init "orders" |> Calendar.setMonths 2
+Calendar.view CalendarMsg
     [ Calendar.today model.today
-    , Calendar.months 2
     , Calendar.markers (List.map dueDot model.orders)
     ]
     model.calendar
@@ -1385,7 +1339,7 @@ calendarMonthsCode : String
 calendarMonthsCode =
     """-- model
 { calendar : Calendar.State   -- Calendar.init "orders" |> Calendar.showDate model.today
-, months : Dict ( Int, Int ) (Remote (List Calendar.Marker))
+, due : Remote (List Order)   -- the orders due in the visible month
 }
 
 -- update
@@ -1395,26 +1349,37 @@ CalendarMsg inner ->
             Calendar.update inner model.calendar
 
         shown =
-            Calendar.visibleMonth calendar
-
-        month =
-            ( shown.year, shown.month )
+            Calendar.visibleRange calendar
     in
-    if shown /= Calendar.visibleMonth model.calendar && not (Dict.member month model.months) then
-        ( { model | calendar = calendar, months = Dict.insert month Loading model.months }
-        , Cmd.batch [ Cmd.map CalendarMsg cmd, fetchMarks month ]
+    if shown /= Calendar.visibleRange model.calendar then
+        ( { model | calendar = calendar, due = Remote.Loading }
+        , Cmd.batch [ Cmd.map CalendarMsg cmd, fetchDue shown ]
         )
 
     else
         ( { model | calendar = calendar }, Cmd.map CalendarMsg cmd )
 
-MarksArrived month result ->
-    ( { model | months = Dict.insert month (Remote.fromResult result) model.months }, Cmd.none )
+-- the answer, with the window it was asked for and the time it came
+GotDue window result at ->
+    if window == Calendar.visibleRange model.calendar then
+        ( { model | due = Remote.refreshWith model.due result at }, Cmd.none )
+
+    else
+        ( model, Cmd.none )
+
+RetryDue ->
+    ( { model | due = Remote.refresh model.due }
+    , Cmd.batch
+        [ fetchDue (Calendar.visibleRange model.calendar)
+        , Cmd.map CalendarMsg (Calendar.focus model.calendar)
+        ]
+    )
 
 -- view
 Calendar.view CalendarMsg
     [ Calendar.today model.today
-    , Calendar.markers (List.concatMap (Remote.withDefault []) (Dict.values model.months))
+    , Calendar.remote (Remote.map (List.map dueMark) model.due)
+    , Calendar.onRetry RetryDue
     ]
     model.calendar"""
 

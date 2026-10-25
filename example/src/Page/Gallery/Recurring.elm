@@ -78,7 +78,7 @@ a rule it loaded from a server.
 -}
 setExample : Int -> RecurrencePicker.State -> RecurrencePicker.State
 setExample index picker =
-    RecurrencePicker.setRule (ruleAt index) picker
+    RecurrencePicker.setValue (ruleAt index) picker
 
 
 update : Msg -> Model -> ( Model, Cmd Msg )
@@ -246,7 +246,7 @@ fieldSection locale model =
         , Doc.example
             { title = "Skipped dates"
             , description = Just "A loaded rule that skips dates shows them as tags with a button each, and Remove all. The field never adds a skipped date, and it keeps one that no longer fits the rule until it is removed: switch the rule to monthly and the dates stay."
-            , code = Just "RecurrencePicker.setRule (Just rule) model.repeat   -- rule made with Recurrence.except [ ... ]"
+            , code = Just "RecurrencePicker.setValue (Just rule) model.repeat   -- rule made with Recurrence.except [ ... ]"
             }
             (RecurrencePicker.view SkippingMsg
                 [ RecurrencePicker.label "Repeat"
@@ -295,7 +295,7 @@ whatTheApplicationSees picker =
                             "Nothing: the date does not repeat"
     in
     Layout.stack [ Layout.gap 1 ]
-        [ Text.caption "What the application reads (RecurrencePicker.value, problem)"
+        [ Text.caption "What the application reads (RecurrencePicker.value, isValid, problem)"
         , mono rule
         ]
 
@@ -325,7 +325,8 @@ RecurrencePicker.view RepeatMsg
 
 -- read
 RecurrencePicker.value model.repeat     -- Maybe Rule
-RecurrencePicker.problem model.repeat   -- Maybe Problem: why it is Nothing"""
+RecurrencePicker.isValid model.repeat   -- save only when True: Nothing can also mean half filled in
+RecurrencePicker.problem model.repeat   -- Maybe Problem: why it is not valid"""
 
 
 
@@ -356,13 +357,15 @@ wordsSection =
             )
         , Doc.example
             { title = "What is outside the subset"
-            , description = Just "The problem says what is not supported, in both languages. A weekly rule without BYDAY, for example, depends on a start date that the text does not have."
-            , code = Just "Recurrence.fromRRule \"FREQ=HOURLY\"\n    |> Result.mapError (Recurrence.problemText Locale.en)\n--> Err \"Not supported in a recurrence rule: FREQ=HOURLY.\""
+            , description = Just "The problem says what is not supported, in both languages; the part is shown as the RRULE has it. A rule that leaves out its day takes it from the start of the series (here today), as RFC 5545 says: FREQ=WEEKLY and FREQ=YEARLY are read."
+            , code = Just "Recurrence.fromRRule { start = model.today } \"FREQ=HOURLY\"\n    |> Result.mapError (Recurrence.problemText Locale.en)\n--> Err \"Not supported in a recurrence rule: FREQ=HOURLY.\""
             }
             (Layout.stack [ Layout.gap 2 ]
                 (List.map rejected
                     [ "FREQ=HOURLY"
                     , "FREQ=WEEKLY"
+                    , "FREQ=YEARLY"
+                    , "FREQ=MONTHLY;BYDAY=MO"
                     , "FREQ=MONTHLY;BYDAY=5TU"
                     , "FREQ=MONTHLY;BYMONTHDAY=1,15"
                     , "FREQ=DAILY;COUNT=3;UNTIL=20271231"
@@ -390,7 +393,7 @@ wordsRow ( name, maybeRule ) =
 
 rejected : String -> Html msg
 rejected text =
-    case Recurrence.fromRRule text of
+    case Recurrence.fromRRule { start = today } text of
         Ok rule ->
             Layout.stack [ Layout.gap 0 ]
                 [ mono text, Text.muted ("read as: " ++ Recurrence.describe Locale.en rule) ]
@@ -414,7 +417,7 @@ Recurrence.rule (Recurrence.weekly Mon [ Thu ]) [ Recurrence.every 2 ]
     |> Result.map Recurrence.toRRule
 --> Ok "FREQ=WEEKLY;INTERVAL=2;BYDAY=MO,TH"
 
-Recurrence.fromRRule "FREQ=MONTHLY;BYDAY=-1FR;UNTIL=20271231"
+Recurrence.fromRRule { start = firstDelivery } "FREQ=MONTHLY;BYDAY=-1FR;UNTIL=20271231"
     |> Result.map (Recurrence.describe Locale.nb)
 --> Ok "Den siste fredagen i hver måned til 31. desember 2027" """
 

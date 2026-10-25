@@ -2,7 +2,7 @@ module RecurrencePickerTest exposing (suite)
 
 {-| Klar.RecurrencePicker: the value it builds from what the user does (driven
 through the rendered form, with real events), the problems of an incomplete
-form, the weekday that cannot be turned off, `setRule` as the inverse of `value`,
+form, the weekday that cannot be turned off, `setValue` as the inverse of `value`,
 and the accessibility of the markup.
 -}
 
@@ -45,6 +45,7 @@ suite =
         , skippedTests
         , wordsTests
         , previewTests
+        , fixTests
         ]
 
 
@@ -58,7 +59,7 @@ id =
 
 
 type alias Attributes =
-    List RecurrencePicker.Attribute
+    List (RecurrencePicker.Attribute Msg)
 
 
 viewOf : Attributes -> State -> Html Msg
@@ -594,7 +595,7 @@ setRuleTests : Test
 setRuleTests =
     let
         loaded rule start =
-            RecurrencePicker.setRule (Just rule) (RecurrencePicker.init id start)
+            RecurrencePicker.setValue (Just rule) (RecurrencePicker.init id start)
     in
     describe "setRule"
         [ fuzz2 startFuzzer paramsFuzzer "value gives back the rule that was put in, whatever the start date" <|
@@ -624,7 +625,7 @@ setRuleTests =
         , test "Nothing is a field that does not repeat" <|
             \_ ->
                 Expect.equal Nothing
-                    (RecurrencePicker.value (RecurrencePicker.setRule Nothing (run [ frequency "daily" ] fresh |> Result.withDefault fresh)))
+                    (RecurrencePicker.value (RecurrencePicker.setValue Nothing (run [ frequency "daily" ] fresh |> Result.withDefault fresh)))
         , test "a rule whose day the start does not give is shown as it is" <|
             \_ ->
                 case Recurrence.rule (Recurrence.monthlyOnDay 15) [] of
@@ -885,7 +886,7 @@ loadedRuleTests =
         loaded ruleResult start =
             case ruleResult of
                 Ok rule ->
-                    Ok (RecurrencePicker.setRule (Just rule) (RecurrencePicker.init id start))
+                    Ok (RecurrencePicker.setValue (Just rule) (RecurrencePicker.init id start))
 
                 Err problem ->
                     Err (Recurrence.problemText Locale.en problem)
@@ -970,7 +971,7 @@ loadedRuleTests =
             \_ ->
                 case Recurrence.rule (Recurrence.monthlyOnDay 20) [] of
                     Ok rule ->
-                        query [] (RecurrencePicker.setRule (Just rule) fresh)
+                        query [] (RecurrencePicker.setValue (Just rule) fresh)
                             |> Query.find [ Selector.id (id ++ "-by-group") ]
                             |> Expect.all
                                 [ Query.findAll [ Selector.class "klar-radio__label", Selector.text "On day 20 of the month" ] >> Query.count (Expect.equal 1)
@@ -994,7 +995,7 @@ loadedRuleTests =
                         in
                         Expect.equal expected
                             (RecurrencePicker.init id (date 2026 10 20)
-                                |> RecurrencePicker.setRule (Just rule)
+                                |> RecurrencePicker.setValue (Just rule)
                                 |> RecurrencePicker.setStart otherStart
                                 |> RecurrencePicker.value
                             )
@@ -1082,7 +1083,7 @@ choiceTests =
 
                             state =
                                 RecurrencePicker.init id (date 2026 10 20)
-                                    |> RecurrencePicker.setRule (Just rule)
+                                    |> RecurrencePicker.setValue (Just rule)
                                     |> RecurrencePicker.setStart otherStart
                         in
                         if String.contains "FREQ=MONTHLY" text || String.contains "FREQ=YEARLY" text then
@@ -1158,7 +1159,7 @@ endBeforeStartTests =
                     Ok rule ->
                         let
                             state =
-                                RecurrencePicker.setRule (Just rule) fresh
+                                RecurrencePicker.setValue (Just rule) fresh
                         in
                         Expect.equal ( Nothing, Just message )
                             ( RecurrencePicker.value state
@@ -1171,7 +1172,7 @@ endBeforeStartTests =
             \_ ->
                 case Recurrence.rule Recurrence.daily [ Recurrence.ends (Recurrence.until (date 2026 10 20)) ] of
                     Ok rule ->
-                        Expect.equal (Just rule) (RecurrencePicker.value (RecurrencePicker.setRule (Just rule) fresh))
+                        Expect.equal (Just rule) (RecurrencePicker.value (RecurrencePicker.setValue (Just rule) fresh))
 
                     Err problem ->
                         Expect.fail (Recurrence.problemText Locale.en problem)
@@ -1188,7 +1189,7 @@ skippedTests =
         loaded =
             case Recurrence.rule Recurrence.daily [ Recurrence.except [ date 2026 10 21, date 2026 10 22, date 2026 10 25 ] ] of
                 Ok rule ->
-                    RecurrencePicker.setRule (Just rule) fresh
+                    RecurrencePicker.setValue (Just rule) fresh
 
                 Err _ ->
                     fresh
@@ -1264,12 +1265,12 @@ skippedTests =
             \_ ->
                 Expect.all
                     [ \_ -> query [] (runOrFresh [ frequency "daily" ] fresh) |> Query.findAll [ Selector.class "klar-recurrence__skipped" ] |> Query.count (Expect.equal 0)
-                    , \_ -> query [] (RecurrencePicker.setRule Nothing loaded) |> Query.findAll [ Selector.class "klar-recurrence__skipped" ] |> Query.count (Expect.equal 0)
+                    , \_ -> query [] (RecurrencePicker.setValue Nothing loaded) |> Query.findAll [ Selector.class "klar-recurrence__skipped" ] |> Query.count (Expect.equal 0)
                     ]
                     ()
         , test "setRule Nothing clears them" <|
             \_ ->
-                Expect.equal Nothing (skipped (RecurrencePicker.setRule Nothing loaded))
+                Expect.equal Nothing (skipped (RecurrencePicker.setValue Nothing loaded))
         , test "in Norwegian" <|
             \_ ->
                 query [ RecurrencePicker.locale Locale.nb ] loaded
@@ -1373,7 +1374,7 @@ previewTests =
                 -- 29 February, skipped in the years without it, every second year from an odd year
                 case Recurrence.rule (Recurrence.yearlyOnDate Feb 29 |> Recurrence.skippingMissingDays) [ Recurrence.every 2 ] of
                     Ok rule ->
-                        titles (RecurrencePicker.setRule (Just rule) (from 2025 2 1)) []
+                        titles (RecurrencePicker.setValue (Just rule) (from 2025 2 1)) []
                             |> Expect.all
                                 [ Query.has [ Selector.text "No dates match the rule." ]
                                 , Query.findAll [ Selector.tag "time" ] >> Query.count (Expect.equal 0)
@@ -1406,4 +1407,103 @@ previewTests =
                             |> Query.count (Expect.equal 0)
                     ]
                     ()
+        ]
+
+
+
+-- LOADED RULES, VALIDITY, NORWEGIAN WORDS
+
+
+fixTests : Test
+fixTests =
+    let
+        monthlyOn day =
+            Recurrence.rule (Recurrence.monthlyOnDay day) [] |> Result.toMaybe
+
+        loadedOn day startDate =
+            RecurrencePicker.setValue (monthlyOn day) (RecurrencePicker.init id startDate)
+
+        byOptions state =
+            query [] state
+                |> Query.findAll [ Selector.tag "input", Selector.attribute (Attr.name (id ++ "-by")) ]
+    in
+    describe "loaded rules, validity and Norwegian words"
+        [ test "a loaded monthly day is offered once after the start moves to another month" <|
+            \_ ->
+                loadedOn 20 (date 2026 10 20)
+                    |> RecurrencePicker.setStart (date 2026 11 20)
+                    |> byOptions
+                    |> Query.count (Expect.equal 2)
+        , test "and the rule stays as it was loaded" <|
+            \_ ->
+                loadedOn 20 (date 2026 10 20)
+                    |> RecurrencePicker.setStart (date 2026 11 20)
+                    |> RecurrencePicker.value
+                    |> Expect.equal (monthlyOn 20)
+        , test "switched to yearly, a loaded monthly day takes the month of the start" <|
+            \_ ->
+                loadedOn 20 (date 2026 10 20)
+                    |> RecurrencePicker.setStart (date 2026 11 20)
+                    |> run [ frequency "yearly" ]
+                    |> Result.map RecurrencePicker.value
+                    |> Expect.equal (Ok (Recurrence.rule (Recurrence.yearlyOnDate Nov 20) [] |> Result.toMaybe))
+        , test "after loading the 15th, the missing-day question starts at 'use the last day'" <|
+            \_ ->
+                loadedOn 15 (date 2026 10 15)
+                    |> RecurrencePicker.setStart (date 2026 10 31)
+                    |> run [ by "day" ]
+                    |> Result.map
+                        (\state ->
+                            query [] state
+                                |> Query.find [ Selector.tag "input", Selector.attribute (Attr.name (id ++ "-missing")), Selector.attribute (Attr.value "last") ]
+                                |> Query.has [ Selector.attribute (Attr.checked True) ]
+                        )
+                    |> Result.withDefault (Expect.fail "the form did not take the steps")
+        , test "isValid: a field that does not repeat is valid, an empty interval is not" <|
+            \_ ->
+                run [ frequency "daily", typeInto (id ++ "-interval") "" ] fresh
+                    |> Result.map (\state -> ( RecurrencePicker.isValid fresh, RecurrencePicker.isValid state ))
+                    |> Expect.equal (Ok ( True, False ))
+        , test "isValid agrees with problem" <|
+            \_ ->
+                run [ frequency "weekly", ends "on" ] fresh
+                    |> Result.map (\state -> ( RecurrencePicker.isValid state, RecurrencePicker.problem state == Nothing ))
+                    |> Expect.equal (Ok ( False, False ))
+        , test "Norwegian counts with an ordinal: Hver 2. uke" <|
+            \_ ->
+                run [ frequency "weekly", typeInto (id ++ "-interval") "2" ] fresh
+                    |> Result.map (\state -> query [ RecurrencePicker.locale Locale.nb ] state |> Query.has [ Selector.text ". uke" ])
+                    |> Result.withDefault (Expect.fail "the form did not take the steps")
+        , test "a start on the last day of a short month offers the last day of the month" <|
+            \_ ->
+                run [ frequency "monthly", by "last-day" ] (from 2027 4 30)
+                    |> Result.map RecurrencePicker.value
+                    |> Expect.equal (Ok (monthlyOn 31))
+        , test "which reads 'On the last day of the month', and in Norwegian too" <|
+            \_ ->
+                run [ frequency "monthly" ] (from 2027 4 30)
+                    |> Result.map
+                        (\state ->
+                            Expect.all
+                                [ \_ -> query [] state |> Query.has [ Selector.text "On the last day of the month" ]
+                                , \_ -> query [ RecurrencePicker.locale Locale.nb ] state |> Query.has [ Selector.text "Den siste dagen i måneden" ]
+                                ]
+                                ()
+                        )
+                    |> Result.withDefault (Expect.fail "the form did not take the steps")
+        , test "yearly from 28 February it is the last day of February, the 29th in leap years" <|
+            \_ ->
+                run [ frequency "yearly", by "last-day" ] (from 2027 2 28)
+                    |> Result.map RecurrencePicker.value
+                    |> Expect.equal (Ok (Recurrence.rule (Recurrence.yearlyOnDate Feb 29) [] |> Result.toMaybe))
+        , test "a start that is not the last day of its month has no such choice" <|
+            \_ ->
+                run [ frequency "monthly" ] fresh
+                    |> Result.map (\state -> query [] state |> Query.hasNot [ Selector.text "On the last day of the month" ])
+                    |> Result.withDefault (Expect.fail "the form did not take the steps")
+        , test "and the plain unit for one: Hver uke" <|
+            \_ ->
+                run [ frequency "weekly" ] fresh
+                    |> Result.map (\state -> query [ RecurrencePicker.locale Locale.nb ] state |> Query.hasNot [ Selector.text ". uke" ])
+                    |> Result.withDefault (Expect.fail "the form did not take the steps")
         ]

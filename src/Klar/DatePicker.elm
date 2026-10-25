@@ -154,6 +154,7 @@ import Html.Attributes as Attr
 import Html.Events as Events
 import Klar.Button as Button
 import Klar.Calendar as Calendar
+import Klar.Calendar.Core as CalendarCore
 import Klar.Calendar.Parse as Parse exposing (Bounds, Problem, Reading, Rules)
 import Klar.Calendar.Popup as Popup
 import Klar.Calendar.Util as Util
@@ -275,7 +276,7 @@ setValue maybeDate (State s) =
             | date = maybeDate
             , draft = Nothing
             , problem = Nothing
-            , calendar = Calendar.select maybeDate s.calendar
+            , calendar = Calendar.setValue maybeDate s.calendar
         }
 
 
@@ -472,10 +473,10 @@ update msg (State s) =
         CalendarMsg inner ->
             let
                 ( calendar, cmd, event ) =
-                    Calendar.updateWithEvent inner s.calendar
+                    CalendarCore.updateWithEvent inner s.calendar
             in
             case event of
-                Just (Calendar.DayPicked day) ->
+                Just (CalendarCore.DayPicked day) ->
                     pick day { s | calendar = calendar }
 
                 _ ->
@@ -490,7 +491,7 @@ update msg (State s) =
                     | date = Nothing
                     , draft = Nothing
                     , problem = Nothing
-                    , calendar = Calendar.select Nothing s.calendar
+                    , calendar = Calendar.setValue Nothing s.calendar
                 }
             , Internal.focus s.id Noop
             )
@@ -550,7 +551,7 @@ openPopup bounds reading s =
 
         calendar =
             committed.calendar
-                |> Calendar.select committed.date
+                |> Calendar.setValue committed.date
                 |> Calendar.showDate target
     in
     ( State { committed | open = True, calendar = calendar }
@@ -577,7 +578,7 @@ pick day s =
             , draft = Nothing
             , problem = Nothing
             , open = False
-            , calendar = Calendar.select (Just day) s.calendar
+            , calendar = Calendar.setValue (Just day) s.calendar
         }
     , Internal.focus s.id Noop
     )

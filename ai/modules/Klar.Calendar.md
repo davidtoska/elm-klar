@@ -4,59 +4,61 @@ A month calendar for choosing a day or a period, with small marks on days.
 
 Import: `import Klar.Calendar as Calendar` | Group: Date and time
 
-Types: `Msg`, `Event`, `State`, `Marker`, `Attribute`
+Types: `Msg`, `State`, `Marker`, `Attribute`
 
 ## Signatures
 
 ```elm
 -- View
-view : (Msg -> msg) -> List Attribute -> State -> Html msg
+view : (Msg -> msg) -> List (Attribute msg) -> State -> Html msg
 
 -- State
-type State  -- opaque: no constructors are exposed
-type Msg  -- opaque: no constructors are exposed
-type Event = DayPicked Date.Date | RangeStarted Date.Date | RangePicked Date.Date Date.Date
+type alias State = Calendar.Core.State
+type alias Msg = Calendar.Core.Msg
 init : String -> State
 initRange : String -> State
 update : Msg -> State -> ( State, Cmd Msg )
-updateWithEvent : Msg -> State -> ( State, Cmd Msg, Maybe Event )
 
 -- The selection
-selected : State -> Maybe Date.Date
+value : State -> Maybe Date.Date
+setValue : Maybe Date.Date -> State -> State
 range : State -> Maybe ( Date.Date, Date.Date )
+setRange : Maybe ( Date.Date, Date.Date ) -> State -> State
 isChoosing : State -> Bool
 anchor : State -> Maybe Date.Date
-select : Maybe Date.Date -> State -> State
-setRange : Maybe ( Date.Date, Date.Date ) -> State -> State
 clear : State -> State
 
--- The visible month and the focus
+-- The visible months and the focus
+visibleRange : State -> { from : Date.Date, to : Date.Date }
 visibleMonth : State -> { year : Int, month : Int }
 focusedDay : State -> Date.Date
+setMonths : Int -> State -> State
 showDate : Date.Date -> State -> State
 showMonth : Int -> Int -> State -> State
 focus : State -> Cmd Msg
 back : State -> Maybe ( State, Cmd Msg )
 
 -- Limits and today
-type Attribute  -- opaque: no constructors are exposed
-today : Date.Date -> Attribute
-min : Date.Date -> Attribute
-max : Date.Date -> Attribute
-disabledWhen : (Date.Date -> Bool) -> Attribute
-maxRangeDays : Int -> Attribute
+type alias Attribute msg = Calendar.Core.Attribute msg
+today : Date.Date -> Attribute msg
+min : Date.Date -> Attribute msg
+max : Date.Date -> Attribute msg
+disabledWhen : (Date.Date -> Bool) -> Attribute msg
+maxRangeDays : Int -> Attribute msg
 
 -- Look
-weekNumbers : Attribute
-todayButton : Attribute
-months : Int -> Attribute
-size : Theme.Size -> Attribute
-locale : Locale.Locale -> Attribute
-label : String -> Attribute
+weekNumbers : Attribute msg
+todayButton : Attribute msg
+size : Theme.Size -> Attribute msg
+locale : Locale.Locale -> Attribute msg
+ariaLabel : String -> Attribute msg
 
 -- Marks
-type Marker  -- opaque: no constructors are exposed
-markers : List Marker -> Attribute
+type alias Marker = Calendar.Core.Marker
+markers : List Marker -> Attribute msg
+remote : Remote.Remote (List Marker) -> Attribute msg
+onRetry : msg -> Attribute msg
+settings : Settings.Settings -> Attribute msg
 dot : Date.Date -> Theme.Tone -> String -> Marker
 count : Date.Date -> Int -> String -> Marker
 ```
@@ -66,70 +68,93 @@ count : Date.Date -> Int -> String -> Marker
 A month calendar for choosing a day or a period, with small marks on days.
 
 Use when: the calendar should always be visible, such as a delivery schedule or a day chooser beside a list of orders.
-Do not use when: you need a form field with a popup (as `Klar.DatePicker` or `Klar.DateRangePicker`).
-Quick path: `init`, `update`, `view`, `selected`
+Do not use when: you need a form field with a popup (use `Klar.DatePicker` or `Klar.DateRangePicker`).
+Quick path: `init`, `update`, `view`, `value`
 
 This is the grid behind [Klar.DatePicker](Klar.DatePicker.md) and
 [Klar.DateRangePicker](Klar.DateRangePicker.md).
 
     import Klar.Calendar as Calendar
+    import Klar.Remote as Remote exposing (Remote)
     import Klar.Theme exposing (Tone(..))
 
     -- model
-    { schedule : Calendar.State }   -- Calendar.init "schedule"
+    { schedule : Calendar.State     -- Calendar.init "schedule" |> Calendar.showDate today
+    , due : Remote (List Order)     -- the orders due in the visible month
+    }
 
     -- msg
     ScheduleMsg Calendar.Msg
 
-    -- update
+    -- update: load the marks again when the visible month changes
     ScheduleMsg m ->
         let
             ( schedule, cmd ) =
                 Calendar.update m model.schedule
+
+            shown =
+                Calendar.visibleRange schedule
         in
-        ( { model | schedule = schedule }, Cmd.map ScheduleMsg cmd )
+        if shown /= Calendar.visibleRange model.schedule then
+            ( { model | schedule = schedule, due = Remote.refresh model.due }
+            , Cmd.batch [ Cmd.map ScheduleMsg cmd, fetchDue shown.from shown.to ]
+            )
+
+        else
+            ( { model | schedule = schedule }, Cmd.map ScheduleMsg cmd )
 
     -- view
     Calendar.view ScheduleMsg
         [ Calendar.today model.today
         , Calendar.weekNumbers
-        , Calendar.markers
-            [ Calendar.dot deliveredOn Success "Order 1042 delivered"
-            , Calendar.count dueOn 3 "3 invoices due"
-            ]
+        , Calendar.remote (Remote.map (List.map dueMark) model.due)
+        , Calendar.onRetry RetryDue
         ]
         model.schedule
 
-    -- read
-    Calendar.selected model.schedule   -- Maybe Date
+    dueMark : Order -> Calendar.Marker
+    dueMark order =
+        Calendar.dot order.dueOn Warning ("Order " ++ order.number ++ " due")
 
-The state holds the visible month, the keyboard focus and the selection. There
-are no out-messages: read the selection with `selected` (or `range`) and compare
-it before and after `update` to react to a choice. A component that wraps a
-calendar can use `updateWithEvent`, which also reports what the user just
-picked.
+    -- read
+    Calendar.value model.schedule   -- Maybe Date
+
+The state holds the visible months, the keyboard focus and the selection. There
+are no out-messages: read the selection with `value` (or `range`) and compare it
+before and after `update` to react to a choice.
 
 The application supplies "today" with `today`; the library never reads the
 clock. The calendar marks that day and, until the user navigates or something is
-selected, shows its month. Without `today` an untouched calendar shows January
-2000, so give it `today` or call `showDate`. A start outside `min` and `max`
-(today, or January 2000) is moved to the nearest month that has days to choose.
+chosen, shows its month. The state cannot know today before the first message,
+so `visibleRange`, `visibleMonth` and `focusedDay` of an untouched calendar
+report January 2000: start it with `showDate today` when you read them (to load
+the first marks, for example). A start outside `min` and `max` is moved to the
+nearest month that has days to choose. Without `min` and `max` the calendar runs
+from 1 January of year 1 to 31 December 9999.
 
-Marks (`markers`) can be many: only those in the visible months are drawn. An
-application that loads them month by month compares `visibleMonth` before and
-after `update` and fetches when it changes.
+Marks are `dot`s and `count`s. Give a list that is always there with `markers`,
+or marks that come from a backend with `remote`: while they load the grid is
+busy and says "Loading" under the days, a failure says why with a "Try again"
+button (`onRetry`), and marks that are refreshed stay, dimmed. Only the marks of
+the visible months (and the days around them) are drawn, so a long list costs
+little.
 
 Keyboard, with focus on a day: the arrow keys move by day and week, `Home` and
-`End` go to the start and end of the week, `PageUp` and `PageDown` change month,
-`Shift+PageUp` and `Shift+PageDown` change year, and `Enter` or `Space` picks the
-day. The heading opens a month chooser, and the heading of that a year chooser;
-both are navigated with the arrow keys, `Home` and `End`. Only one day is in the
-tab order, so `Tab` does not step through every day of the month.
+`End` go to the start and end of the week (the week starts on the first day of
+the locale), `PageUp` and `PageDown` change month, `Shift+PageUp` and
+`Shift+PageDown` change year, and `Enter` or `Space` picks the day. The heading
+opens a month chooser, and the heading of that a year chooser; both are
+navigated with the arrow keys, `Home` and `End`, and `Escape` goes back one
+step. Only one day is in the tab order, so `Tab` does not step through every day
+of the month.
 
 Every day is a button with a spoken label such as "Tuesday 20 October 2026",
 followed by the text of its marks. Today is marked with `aria-current`, and days
-that cannot be chosen with `aria-disabled`. The built-in text (month and weekday
-names, "Previous month", "Today") comes from `locale`; the default is English.
+that cannot be chosen with `aria-disabled`. A change of the selection is
+announced politely ("Selected: Tuesday 20 October 2026"; on a range calendar
+"Start: … Choose the end date." and then the period). The built-in text (month
+and weekday names, "Previous month", "Today") comes from `locale`; the default
+is English.
 
 A calendar made with `initRange` selects a period with two clicks and shows a
 preview while the mouse (or the keyboard focus) moves over the second day.
@@ -139,7 +164,7 @@ preview while the mouse (or the keyboard focus) moves over the second day.
 ### `view`
 
 ```elm
-view : (Msg -> msg) -> List Attribute -> State -> Html msg
+view : (Msg -> msg) -> List (Attribute msg) -> State -> Html msg
 ```
 
 The calendar. The first argument wraps the calendar's messages in one of
@@ -153,37 +178,21 @@ argument is the state from your model.
 ### `State`
 
 ```elm
-type State  -- opaque: no constructors are exposed
+type alias State = Calendar.Core.State
 ```
 
-The state of one calendar: the visible month, the focused day and the
+The state of one calendar: the visible months, the focused day and the
 selection. Make it with `init` or `initRange`, keep it in your model, and give
 it to `view` and `update`.
 
 ### `Msg`
 
 ```elm
-type Msg  -- opaque: no constructors are exposed
+type alias Msg = Calendar.Core.Msg
 ```
 
 The messages of a calendar. Wrap them in one constructor of your own `Msg`,
 give that constructor to `view`, and pass what comes back to `update`.
-
-### `Event`
-
-```elm
-type Event = DayPicked Date.Date | RangeStarted Date.Date | RangePicked Date.Date Date.Date
-```
-
-What the user just picked, as reported by `updateWithEvent`. This is meant
-for components that wrap a calendar (a date picker closes its popup on
-`DayPicked`); an application normally compares `selected` or `range` before and
-after `update` instead.
-
-  - `DayPicked day`: a day was chosen on a calendar made with `init`.
-  - `RangeStarted day`: the first click on a calendar made with `initRange`.
-  - `RangePicked from to`: the second click. The period is complete, and `from`
-    is not after `to`.
 
 ### `init`
 
@@ -193,9 +202,9 @@ init : String -> State
 
 A calendar that selects one day. The `String` is the DOM id of the
 calendar and the prefix of the ids of its day and navigation buttons; it must be
-unique on the page.
+unique on the page. It shows one month; see `setMonths`.
 
-    Calendar.init "schedule"
+    Calendar.init "schedule" |> Calendar.showDate model.today
 
 ### `initRange`
 
@@ -207,7 +216,7 @@ A calendar that selects a period with two clicks: the first click starts
 the period, the second ends it (whichever of the two days is earlier becomes the
 start). The `String` is the DOM id, as for `init`. Read the result with `range`.
 
-    Calendar.initRange "report-period"
+    Calendar.initRange "report-period" |> Calendar.setMonths 2
 
 ### `update`
 
@@ -226,26 +235,26 @@ focus. Map the command with the constructor of your own `Msg`.
         in
         ( { model | schedule = schedule }, Cmd.map ScheduleMsg cmd )
 
-### `updateWithEvent`
-
-```elm
-updateWithEvent : Msg -> State -> ( State, Cmd Msg, Maybe Event )
-```
-
-Like `update`, and also reports what the user just picked. The `Maybe Event`
-is `Nothing` for every message that is not a pick (navigation, hovering, the
-choosers).
-
 ## The selection
 
-### `selected`
+### `value`
 
 ```elm
-selected : State -> Maybe Date.Date
+value : State -> Maybe Date.Date
 ```
 
 The chosen day of a calendar made with `init`. `Nothing` before the first
-choice, and always `Nothing` for a calendar made with `initRange`.
+choice, and always `Nothing` for a calendar made with `initRange` (read `range`).
+
+### `setValue`
+
+```elm
+setValue : Maybe Date.Date -> State -> State
+```
+
+Chooses a day on a calendar made with `init` and shows its month. `Nothing`
+clears the choice and leaves the visible month alone. The day is not checked
+against the limits, and a range calendar ignores the call: use `setRange`.
 
 ### `range`
 
@@ -256,6 +265,17 @@ range : State -> Maybe ( Date.Date, Date.Date )
 The chosen period of a calendar made with `initRange`, the earlier day
 first and both days included. `Nothing` until the second day is chosen (see
 `isChoosing`), and always `Nothing` for a calendar made with `init`.
+
+### `setRange`
+
+```elm
+setRange : Maybe ( Date.Date, Date.Date ) -> State -> State
+```
+
+Chooses a period on a calendar made with `initRange` and shows the month of
+its first day; the two days may be given in either order. `Nothing` clears the
+period and any half-made choice. The period is not checked against the limits,
+and a calendar made with `init` ignores the call: use `setValue`.
 
 ### `isChoosing`
 
@@ -275,27 +295,6 @@ anchor : State -> Maybe Date.Date
 The first day of a period the user is still choosing, that is the day that
 was clicked first. `Nothing` when no period is half-made.
 
-### `select`
-
-```elm
-select : Maybe Date.Date -> State -> State
-```
-
-Chooses a day on a calendar made with `init` and shows its month. `Nothing`
-clears the choice and leaves the visible month alone. The day is not checked
-against the limits, and a range calendar ignores the call: use `setRange`.
-
-### `setRange`
-
-```elm
-setRange : Maybe ( Date.Date, Date.Date ) -> State -> State
-```
-
-Chooses a period on a calendar made with `initRange` and shows the month of
-its first day; the two days may be given in either order. `Nothing` clears the
-period and any half-made choice. The period is not checked against the limits,
-and a calendar made with `init` ignores the call: use `select`.
-
 ### `clear`
 
 ```elm
@@ -305,7 +304,22 @@ clear : State -> State
 Forgets the choice, a day or a period (also a half-made one). The visible
 month stays where it is.
 
-## The visible month and the focus
+## The visible months and the focus
+
+### `visibleRange`
+
+```elm
+visibleRange : State -> { from : Date.Date, to : Date.Date }
+```
+
+The days of the visible months, from the first day of the first month to the
+last day of the last one: the period to load marks for. Compare it before and
+after `update` and fetch when it changes (see the module example). The days of
+the neighbouring months that a one-month calendar shows around its weeks are
+not in it; their marks are drawn when you have them.
+
+An untouched calendar reports January 2000 although `view` shows the month of
+`today`: start it with `showDate today`.
 
 ### `visibleMonth`
 
@@ -313,12 +327,10 @@ month stays where it is.
 visibleMonth : State -> { year : Int, month : Int }
 ```
 
-The first visible month (January is 1); compare it before and after `update`
-to load marks one month at a time. An untouched calendar reports the placeholder
-`{ year = 2000, month = 1 }` although `view` shows the month of `today` (or the
-nearest month inside `min` and `max`): the value is real once the user has
-navigated, or after `select` or `setRange` with a value, `showDate` or
-`showMonth`.
+The first visible month (January is 1). An untouched calendar reports the
+placeholder `{ year = 2000, month = 1 }`, as for `visibleRange`; to load marks,
+use `visibleRange`, which also covers the second and third month of
+`setMonths`.
 
 ### `focusedDay`
 
@@ -329,6 +341,19 @@ focusedDay : State -> Date.Date
 The day that holds the keyboard focus, the one a key press moves from.
 Until the calendar has been used or told what to show it is the placeholder
 2000-01-01, not today.
+
+### `setMonths`
+
+```elm
+setMonths : Int -> State -> State
+```
+
+How many months sit side by side, from 1 to 3 (other numbers are moved into
+that range). Days of the neighbouring months are only shown when it is 1, and
+the buttons for the previous and next month move by one month. The state holds
+it, so `visibleRange` and the keyboard know every visible month. Default: 1.
+
+    Calendar.initRange "report-period" |> Calendar.setMonths 2
 
 ### `showDate`
 
@@ -361,8 +386,9 @@ focus : State -> Cmd Msg
 
 Moves the browser focus into the calendar: to the focused day, or to the
 current cell of a month or year chooser. Use it when the calendar has just
-appeared, for example when the popup that holds it opens. Map the command with
-the constructor of your own message, as for `update`.
+appeared, or after the "Try again" button of the marks (which goes away while
+they load). Map the command with the constructor of your own message, as for
+`update`.
 
 ### `back`
 
@@ -373,6 +399,7 @@ back : State -> Maybe ( State, Cmd Msg )
 Leaves the month and year choosers one step at a time: from the year
 chooser back to the month chooser, from the month chooser back to the days, and
 the browser focus follows. `Nothing` when the calendar already shows days.
+`Escape` in a chooser does the same.
 
 A component that puts a calendar in a popup uses it for the Escape key: when it
 returns `Nothing`, Escape closes the popup instead.
@@ -382,7 +409,7 @@ returns `Nothing`, Escape closes the popup instead.
 ### `Attribute`
 
 ```elm
-type Attribute  -- opaque: no constructors are exposed
+type alias Attribute msg = Calendar.Core.Attribute msg
 ```
 
 A setting of a calendar. Make them with the functions below and pass a list
@@ -391,7 +418,7 @@ to `view`; later attributes win over earlier ones.
 ### `today`
 
 ```elm
-today : Date.Date -> Attribute
+today : Date.Date -> Attribute msg
 ```
 
 Today, supplied by the application (the library never reads the clock; get
@@ -403,27 +430,27 @@ inside them. Needed for `todayButton`.
 ### `min`
 
 ```elm
-min : Date.Date -> Attribute
+min : Date.Date -> Attribute msg
 ```
 
 The earliest day that can be chosen. Earlier days are disabled, keyboard
 movement stops at the limit, and the button for the previous month is disabled
-once no day of that month can be chosen. Default: no limit.
+once no day of that month can be chosen. Default: 1 January of year 1.
 
 ### `max`
 
 ```elm
-max : Date.Date -> Attribute
+max : Date.Date -> Attribute msg
 ```
 
 The latest day that can be chosen. Later days are disabled, keyboard
 movement stops at the limit, and the button for the next month is disabled once
-no day of that month can be chosen. Default: no limit.
+no day of that month can be chosen. Default: 31 December 9999.
 
 ### `disabledWhen`
 
 ```elm
-disabledWhen : (Date.Date -> Bool) -> Attribute
+disabledWhen : (Date.Date -> Bool) -> Attribute msg
 ```
 
 Days the user cannot choose, such as weekends or days a warehouse is
@@ -435,7 +462,7 @@ arrow keys can still move onto them. Default: no day is disabled.
 ### `maxRangeDays`
 
 ```elm
-maxRangeDays : Int -> Attribute
+maxRangeDays : Int -> Attribute msg
 ```
 
 The longest period a range calendar accepts, in days, counting both end
@@ -447,16 +474,17 @@ disabled. It has no effect on a calendar made with `init`. Default: no limit.
 ### `weekNumbers`
 
 ```elm
-weekNumbers : Attribute
+weekNumbers : Attribute msg
 ```
 
 Shows a column with the ISO 8601 week number of every row (the week with
-the year's first Thursday is week 1). Weeks start on Monday. Default: off.
+the year's first Thursday is week 1; a row has the number of its Thursday).
+Default: off.
 
 ### `todayButton`
 
 ```elm
-todayButton : Attribute
+todayButton : Attribute msg
 ```
 
 Shows a "Today" button below the days that takes the calendar back to the
@@ -464,20 +492,10 @@ month of today and puts the focus on today; it does not choose the day. It needs
 `today`, and is disabled when today is outside `min` and `max` or excluded by
 `disabledWhen`. Default: no button.
 
-### `months`
-
-```elm
-months : Int -> Attribute
-```
-
-How many months sit side by side, from 1 to 3 (other numbers are cut to that
-range); days of the neighbouring months are only shown when it is 1. The buttons
-for the previous and next month move by one month. Default: 1.
-
 ### `size`
 
 ```elm
-size : Theme.Size -> Attribute
+size : Theme.Size -> Attribute msg
 ```
 
 The size of the calendar, a `Size` from [Klar.Theme](Klar.Theme.md).
@@ -486,41 +504,91 @@ Default: `Medium`.
 ### `locale`
 
 ```elm
-locale : Locale.Locale -> Attribute
+locale : Locale.Locale -> Attribute msg
 ```
 
-The language of the built-in text: month and weekday names, button labels
-and the spoken label of every day. Weeks start on Monday in both languages. The
-default is `Locale.default`, which is English; see [Klar.Locale](Klar.Locale.md).
+The language of the built-in text: month and weekday names, button labels,
+the spoken label of every day and the announcements. The columns, `Home` and
+`End` follow its first day of the week (`Locale.firstDayOfWeek`; Monday in both
+languages). Saturday and Sunday are drawn as the weekend. The default is
+`Locale.default`, which is English; see [Klar.Locale](Klar.Locale.md).
 
-### `label`
+### `ariaLabel`
 
 ```elm
-label : String -> Attribute
+ariaLabel : String -> Attribute msg
 ```
 
 The accessible name of the calendar, read by screen readers when the focus
-enters it. Default: "Calendar".
+enters it; nothing is drawn. Default: "Calendar".
 
 ## Marks
 
 ### `Marker`
 
 ```elm
-type Marker  -- opaque: no constructors are exposed
+type alias Marker = Calendar.Core.Marker
 ```
 
 A mark on a day, made with `dot` or `count` and given to the calendar with
-`markers`.
+`markers` or `remote`.
 
 ### `markers`
 
 ```elm
-markers : List Marker -> Attribute
+markers : List Marker -> Attribute msg
 ```
 
-The marks to draw on days; see `dot` and `count`. The list may be long:
-only the marks in the visible months are drawn. Default: none.
+Marks that are always there, such as holidays, or the dates of a
+[Klar.Recurrence](Klar.Recurrence.md) rule; see `dot` and `count`. For marks from
+a backend use `remote` instead (the last of the two wins). The list may be long:
+only the marks of the visible months are drawn. Default: none.
+
+    Calendar.markers
+        (Recurrence.between { start = firstDelivery, from = shown.from, to = shown.to } rule
+            |> .dates
+            |> List.map (\day -> Calendar.dot day Info "Delivery")
+        )
+
+### `remote`
+
+```elm
+remote : Remote.Remote (List Marker) -> Attribute msg
+```
+
+Marks from a backend, as a `Remote` (see [Klar.Remote](Klar.Remote.md)); use it
+instead of `markers`. The days can be chosen in every state. While the marks are
+`NotAsked` or `Loading` the grid is busy (`aria-busy`) and the line under the
+days says "Loading". `Failed` says why there, with a "Try again" button when
+`onRetry` is set and trying again could help. Marks that are `Kept` stay: dimmed
+while they are refreshed, and with "Old data from 14:05" and a retry when the
+last refresh failed. `Loaded []` is a calendar without marks.
+
+    Calendar.remote (Remote.map (List.map dueMark) model.due)
+
+### `onRetry`
+
+```elm
+onRetry : msg -> Attribute msg
+```
+
+The message of the "Try again" button shown when the marks of `remote`
+failed. The button goes away while the marks load again, so give the focus back
+with `focus` in the same `update` branch:
+
+    RetryDue ->
+        ( { model | due = Remote.Loading }
+        , Cmd.batch [ fetchDue shown.from shown.to, Cmd.map ScheduleMsg (Calendar.focus model.schedule) ]
+        )
+
+### `settings`
+
+```elm
+settings : Settings.Settings -> Attribute msg
+```
+
+The settings of the application (see [Klar.Settings](Klar.Settings.md)), for the
+time zone of "Old data from 14:05". Default: `Settings.default`.
 
 ### `dot`
 
