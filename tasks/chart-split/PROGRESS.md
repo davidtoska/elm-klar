@@ -67,3 +67,7 @@
 - Next: Texts.
 
 - Texts: format, full check, byte-identical docs and identical chart/sparkline roots passed.
+- Commit 7697e48: Texts complete.
+- Next: Masks.
+
+- Masks: format, full check, byte-identical docs and identical chart/sparkline roots passed.
