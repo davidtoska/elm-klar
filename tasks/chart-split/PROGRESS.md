@@ -59,3 +59,7 @@
 - Next: Data.
 
 - Data: format, full check, byte-identical docs and identical chart/sparkline roots passed.
+- Commit 5772425: Data complete.
+- Next: Config.
+
+- Config: format, full check, byte-identical docs and identical chart/sparkline roots passed.

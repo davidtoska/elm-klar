@@ -144,6 +144,7 @@ import Array exposing (Array)
 import Html exposing (Html)
 import Html.Attributes as Attr
 import Html.Events as Events
+import Klar.Chart.Config as Config
 import Klar.Chart.Core as Core
 import Klar.Chart.Data as Data
 import Klar.Chart.Types as Types
@@ -286,7 +287,7 @@ branch. The id must be unique on the page.
 -}
 id : String -> Attribute msg
 id arg1 =
-    fromCoreAttribute (Core.id arg1)
+    fromCoreAttribute (Config.id arg1)
 
 
 {-| A visible heading above the chart. It is also the accessible name of the
@@ -296,7 +297,7 @@ heading: give it an `ariaLabel` instead.
 -}
 title : String -> Attribute msg
 title arg1 =
-    fromCoreAttribute (Core.title arg1)
+    fromCoreAttribute (Config.title arg1)
 
 
 {-| A line of explanation under the title, for example the period or the source
@@ -304,7 +305,7 @@ of the numbers. A meter and a sparkline do not show it.
 -}
 description : String -> Attribute msg
 description arg1 =
-    fromCoreAttribute (Core.description arg1)
+    fromCoreAttribute (Config.description arg1)
 
 
 {-| The accessible name of the chart, for screen readers. Use it when there is no
@@ -315,7 +316,7 @@ days".
 -}
 ariaLabel : String -> Attribute msg
 ariaLabel arg1 =
-    fromCoreAttribute (Core.ariaLabel arg1)
+    fromCoreAttribute (Config.ariaLabel arg1)
 
 
 {-| The names of the categories of a line or bar chart, one per value, in the
@@ -328,7 +329,7 @@ beyond the longest series add empty categories.
 -}
 categories : List String -> Attribute msg
 categories arg1 =
-    fromCoreAttribute (Core.categories arg1)
+    fromCoreAttribute (Config.categories arg1)
 
 
 {-| The categories of a line or bar chart when they are days, one per value, in
@@ -342,7 +343,7 @@ whole date. `categories` and `dates` replace each other.
 -}
 dates : List Date -> Attribute msg
 dates arg1 =
-    fromCoreAttribute (Core.dates arg1)
+    fromCoreAttribute (Config.dates arg1)
 
 
 {-| The height of the plot in pixels, kept between 16 and 1200. The defaults are
@@ -352,7 +353,7 @@ shape (see `width`).
 -}
 height : Int -> Attribute msg
 height arg1 =
-    fromCoreAttribute (Core.height arg1)
+    fromCoreAttribute (Config.height arg1)
 
 
 {-| The width in pixels of a sparkline, donut or gauge, kept between 24 and 1200.
@@ -362,7 +363,7 @@ and meters always fill their container.
 -}
 width : Int -> Attribute msg
 width arg1 =
-    fromCoreAttribute (Core.width arg1)
+    fromCoreAttribute (Config.width arg1)
 
 
 {-| Fills the area under the line, for every series of a line chart and for a
@@ -371,7 +372,7 @@ of a line chart with `area` includes zero.
 -}
 area : Attribute msg
 area =
-    fromCoreAttribute Core.area
+    fromCoreAttribute Config.area
 
 
 {-| Shows the markers of a line chart only while the pointer (or the keyboard
@@ -381,7 +382,7 @@ are shown on hover only. The markers of a `dashed` series are always on hover on
 -}
 pointsOnHover : Attribute msg
 pointsOnHover =
-    fromCoreAttribute Core.pointsOnHover
+    fromCoreAttribute Config.pointsOnHover
 
 
 {-| Stacks the series of a bar chart on top of each other instead of side by side.
@@ -390,7 +391,7 @@ and the data table get the total of each category.
 -}
 stacked : Attribute msg
 stacked =
-    fromCoreAttribute Core.stacked
+    fromCoreAttribute Config.stacked
 
 
 {-| Horizontal bars: good for long category names and many categories. The
@@ -398,7 +399,7 @@ height of the chart follows the number of categories, unless you set `height`.
 -}
 horizontal : Attribute msg
 horizontal =
-    fromCoreAttribute Core.horizontal
+    fromCoreAttribute Config.horizontal
 
 
 {-| Prints the value at the end of each bar (the total, for stacked bars). It is
@@ -407,7 +408,7 @@ a horizontal one.
 -}
 valueLabels : Attribute msg
 valueLabels =
-    fromCoreAttribute Core.valueLabels
+    fromCoreAttribute Config.valueLabels
 
 
 {-| Shows the legend of a line or bar chart even for a single series. By default a
@@ -416,7 +417,7 @@ line or bar chart shows it for two or more series, and a donut always shows it.
 -}
 legend : Attribute msg
 legend =
-    fromCoreAttribute Core.legend
+    fromCoreAttribute Config.legend
 
 
 {-| Leaves out the legend of a line, bar or donut chart, for a chart whose series
@@ -428,7 +429,7 @@ keyboard focus.
 -}
 hideLegend : Attribute msg
 hideLegend =
-    fromCoreAttribute Core.hideLegend
+    fromCoreAttribute Config.hideLegend
 
 
 {-| Fixes the lower end of the value axis (the horizontal axis of a horizontal bar
@@ -438,7 +439,7 @@ follows the data.
 -}
 yMin : Float -> Attribute msg
 yMin arg1 =
-    fromCoreAttribute (Core.yMin arg1)
+    fromCoreAttribute (Config.yMin arg1)
 
 
 {-| Fixes the upper end of the value axis (the horizontal axis of a horizontal bar
@@ -447,7 +448,7 @@ make an axis is ignored and the axis follows the data.
 -}
 yMax : Float -> Attribute msg
 yMax arg1 =
-    fromCoreAttribute (Core.yMax arg1)
+    fromCoreAttribute (Config.yMax arg1)
 
 
 {-| Starts the value axis of a line chart at zero (or ends it there, for values
@@ -457,7 +458,7 @@ length.
 -}
 includeZero : Attribute msg
 includeZero =
-    fromCoreAttribute Core.includeZero
+    fromCoreAttribute Config.includeZero
 
 
 {-| How a value is written on the axis, in the tooltips, the value labels and the
@@ -472,7 +473,7 @@ decimals as the number needs, and shortens large axis values ("2.5M").
 -}
 valueFormat : (Float -> String) -> Attribute msg
 valueFormat arg1 =
-    fromCoreAttribute (Core.valueFormat arg1)
+    fromCoreAttribute (Config.valueFormat arg1)
 
 
 {-| A unit written after the value, separated by a non-breaking space: "USD".
@@ -482,7 +483,7 @@ is set.
 -}
 unit : String -> Attribute msg
 unit arg1 =
-    fromCoreAttribute (Core.unit arg1)
+    fromCoreAttribute (Config.unit arg1)
 
 
 {-| The settings of the application (`Klar.Settings`): the time zone of the time in
@@ -493,7 +494,7 @@ unit arg1 =
 -}
 settings : Settings -> Attribute msg
 settings arg1 =
-    fromCoreAttribute (Core.settings arg1)
+    fromCoreAttribute (Config.settings arg1)
 
 
 {-| The language of the built-in text ("No data to show", "Line chart",
@@ -502,7 +503,7 @@ settings arg1 =
 -}
 locale : Locale -> Attribute msg
 locale arg1 =
-    fromCoreAttribute (Core.locale arg1)
+    fromCoreAttribute (Config.locale arg1)
 
 
 {-| Colors the chart by meaning instead of by palette: the first series of a line
@@ -511,7 +512,7 @@ gauge or meter that has no `thresholds`. The default is `Primary` (blue).
 -}
 tone : Tone -> Attribute msg
 tone arg1 =
-    fromCoreAttribute (Core.tone arg1)
+    fromCoreAttribute (Config.tone arg1)
 
 
 {-| The message sent by the "Try again" button of a chart from a `Remote`
@@ -522,7 +523,7 @@ for a message and has none.
 -}
 onRetry : msg -> Attribute msg
 onRetry arg1 =
-    fromCoreAttribute (Core.onRetry arg1)
+    fromCoreAttribute (Config.onRetry arg1)
 
 
 {-| Makes every category of a line or bar chart, and every slice of a donut, a
@@ -543,7 +544,7 @@ than eight slices sends nothing. Without `onSelect` the chart is a picture.
 -}
 onSelect : (Int -> msg) -> Attribute msg
 onSelect arg1 =
-    fromCoreAttribute (Core.onSelect arg1)
+    fromCoreAttribute (Config.onSelect arg1)
 
 
 {-| The text of the empty state, shown when there is nothing to draw: no series,
@@ -553,7 +554,7 @@ value, so they never show it.
 -}
 emptyText : String -> Attribute msg
 emptyText arg1 =
-    fromCoreAttribute (Core.emptyText arg1)
+    fromCoreAttribute (Config.emptyText arg1)
 
 
 {-| The big text in the middle of a donut or gauge. The default is the total of a
@@ -562,7 +563,7 @@ scale.
 -}
 centerLabel : String -> Attribute msg
 centerLabel arg1 =
-    fromCoreAttribute (Core.centerLabel arg1)
+    fromCoreAttribute (Config.centerLabel arg1)
 
 
 {-| A small text under the center value of a donut or gauge: "orders". On a gauge
@@ -570,7 +571,7 @@ it is also part of the accessible name (which says "Gauge" without it).
 -}
 centerCaption : String -> Attribute msg
 centerCaption arg1 =
-    fromCoreAttribute (Core.centerCaption arg1)
+    fromCoreAttribute (Config.centerCaption arg1)
 
 
 {-| The scale of a gauge or meter: its lowest and its highest value. The default
@@ -581,7 +582,7 @@ is 0 to 100. If the first number is the larger, the two are swapped.
 -}
 range : Float -> Float -> Attribute msg
 range arg1 arg2 =
-    fromCoreAttribute (Core.range arg1 arg2)
+    fromCoreAttribute (Config.range arg1 arg2)
 
 
 {-| Zones of a gauge or meter: the upper limit of each zone and its meaning. The
@@ -599,7 +600,7 @@ chart.
 -}
 thresholds : List ( Float, Tone ) -> Attribute msg
 thresholds arg1 =
-    fromCoreAttribute (Core.thresholds arg1)
+    fromCoreAttribute (Config.thresholds arg1)
 
 
 {-| At most this many category labels on the axis of a line or bar chart. The
@@ -610,7 +611,7 @@ least 14 pixels. The value is kept between 2 and 60.
 -}
 maxLabels : Int -> Attribute msg
 maxLabels arg1 =
-    fromCoreAttribute (Core.maxLabels arg1)
+    fromCoreAttribute (Config.maxLabels arg1)
 
 
 {-| A line chart with one or more series: a trend over categories, usually time.
