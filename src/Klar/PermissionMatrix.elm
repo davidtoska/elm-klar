@@ -1143,6 +1143,9 @@ type alias RoleInfo role =
     , label : String
     , locked : Maybe String
     , index : Int
+
+    -- the id of the reason of a locked role, once per render ("" when the role is not locked)
+    , reasonId : String
     }
 
 
@@ -1240,11 +1243,22 @@ prepare toMsg config state freshness (Matrix data) =
             keptRoles
                 |> List.indexedMap
                     (\index (Role r) ->
+                        let
+                            key =
+                                data.roleKey r.value
+                        in
                         { value = r.value
-                        , key = data.roleKey r.value
+                        , key = key
                         , label = r.label
                         , locked = Maybe.map (\reason -> Maybe.withDefault t.lockedDefault (Internal.nonEmpty reason)) r.locked
                         , index = index
+                        , reasonId =
+                            case r.locked of
+                                Just _ ->
+                                    reasonIdOf state.id key
+
+                                Nothing ->
+                                    ""
                         }
                     )
 
@@ -1894,7 +1908,7 @@ viewNotes env =
                 (Html.ul [ Internal.cls [ "klar-permissions__locked-list" ], Attr.attribute "role" "list" ]
                     (List.map
                         (\( r, reason ) ->
-                            Html.li [ Attr.id (reasonId env r.key) ]
+                            Html.li [ Attr.id r.reasonId ]
                                 [ Icon.sized Icon.ExtraSmall Icon.lock
                                 , Html.text (t.lockedNote r.label reason)
                                 ]
@@ -1915,9 +1929,9 @@ isPermissionRow row =
             False
 
 
-reasonId : Env role permission msg -> String -> String
-reasonId env roleKey =
-    env.state.id ++ "/reason/" ++ Internal.percentEncode roleKey
+reasonIdOf : String -> String -> String
+reasonIdOf id roleKey =
+    id ++ "/reason/" ++ Internal.percentEncode roleKey
 
 
 
@@ -2109,7 +2123,7 @@ viewRoleHeader env r =
 
          -- the name of the column is the role: the checkbox in it has a name of its own
          , Internal.attrIf hasCheckbox (Attr.attribute "aria-label" r.label)
-         , Internal.attrMaybe (\_ -> Attr.attribute "aria-describedby" (reasonId env r.key)) r.locked
+         , Internal.attrMaybe (\_ -> Attr.attribute "aria-describedby" r.reasonId) r.locked
          ]
             ++ (case checkbox of
                     Just _ ->
@@ -2326,13 +2340,7 @@ viewCell env rowNumber info r =
         (r.label ++ ", " ++ info.label)
         flags
         (Maybe.withDefault "" facts.source)
-        (case r.locked of
-            Just _ ->
-                reasonId env r.key
-
-            Nothing ->
-                ""
-        )
+        r.reasonId
 
 
 flagGranted : Int
