@@ -24,6 +24,7 @@ disabledStep : Step -> Step
 type Attribute msg  -- opaque: no constructors are exposed
 current : Int -> Attribute msg
 onSelect : (Int -> msg) -> Attribute msg
+nonLinear : Attribute msg
 vertical : Attribute msg
 small : Attribute msg
 ariaLabel : String -> Attribute msg
@@ -63,8 +64,10 @@ another step.
 Steps are numbered from 0. The step with the index given to `current` is the
 current one, the steps before it are complete and the ones after it are upcoming.
 Mark exceptions on the step itself: `failed` (validation did not pass) and
-`disabledStep` (not available yet). With `onSelect` every step that is not
-disabled becomes a button, so disable the steps that must not be visited yet.
+`disabledStep` (not available yet). With `onSelect` the steps up to the current one
+become buttons, so the user can go back but not skip ahead past a step that is not done;
+add `nonLinear` when any step may be opened (your `update` then decides what a jump
+ahead does).
 
 The steps are an ordered list. The current step has `aria-current="step"`, and a
 step that is complete, failed or disabled is also announced in words ("completed",
@@ -88,8 +91,9 @@ view : List (Attribute msg) -> List Step -> Html msg
 
 The steps, connected by thin lines, as an ordered list. In a horizontal row a
 label that does not fit is cut with an ellipsis, and a row with very many steps
-scrolls sideways (the row can take the keyboard focus, so that it can be scrolled
-with the arrow keys); a vertical list wraps long labels and descriptions instead.
+scrolls sideways (without `onSelect` the row can take the keyboard focus, so that it
+can be scrolled with the arrow keys; with it, the step buttons scroll into view as they
+get focus); a vertical list wraps long labels and descriptions instead.
 
 ### `progress`
 
@@ -186,12 +190,24 @@ end makes the last step the current one.
 onSelect : (Int -> msg) -> Attribute msg
 ```
 
-Turns the steps into buttons that send their index (counting from 0) when
-they are clicked or activated with the keyboard. The current step is a button
-too. Steps marked with `disabledStep` stay disabled; without `onSelect` no step
-is clickable.
+Turns the steps up to the current one into buttons that send their index
+(counting from 0) when they are clicked or activated with the keyboard: the user can
+go back to a step that is done. The steps after the current one are not buttons unless
+`nonLinear` is given. Steps marked with `disabledStep` stay disabled; without
+`onSelect` no step is clickable.
 
     Stepper.onSelect GoToStep
+
+### `nonLinear`
+
+```elm
+nonLinear : Attribute msg
+```
+
+With `onSelect`, every step that is not disabled is a button, also the ones after
+the current step, for a wizard whose steps can be filled in any order (or one whose
+`update` checks the steps on the way, like the steps of [Klar.Form](Klar.Form.md)). The
+default lets the user go back only.
 
 ### `vertical`
 

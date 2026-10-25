@@ -1139,7 +1139,9 @@ css =
 }
 
 .klar-pagination__select-control:disabled,
-.klar-pagination__jump-input:disabled {
+.klar-pagination__select-control[aria-disabled="true"],
+.klar-pagination__jump-input:disabled,
+.klar-pagination__jump-input[aria-disabled="true"] {
   background: var(--klar-gray-50);
   color: var(--klar-text-disabled);
   cursor: not-allowed;
@@ -1217,7 +1219,13 @@ css =
   cursor: default;
 }
 
-.klar-pagination__page:disabled {
+/* Windows high contrast: the current page is a tint and a border color; outline it. */
+@media (forced-colors: active) {
+  .klar-pagination__page--current { outline: 2px solid Highlight; outline-offset: -2px; }
+}
+
+.klar-pagination__page:disabled,
+.klar-pagination__page[aria-disabled="true"] {
   opacity: 0.5;
   cursor: not-allowed;
 }

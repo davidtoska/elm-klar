@@ -32,10 +32,36 @@ import Showcase.Doc as Doc
 -- MODEL
 
 
+{-| The views of an order, the keys of the tab strips: a misspelled tab is a compile
+error, and the page matches the active one with a `case`.
+-}
+type Section
+    = Overview
+    | Activity
+    | Documents
+    | History
+    | Files
+    | Admin
+    | Notes
+
+
+type Folder
+    = Inbox
+    | Sent
+    | Drafts
+    | Archive
+
+
+type Choice
+    = First
+    | Second
+    | Third
+
+
 type alias Model =
     { -- page header
       headerMenu : Menu.State
-    , headerTabs : Tabs.State
+    , headerTabs : Tabs.State Section
     , lastAction : Maybe String
 
     -- breadcrumbs
@@ -43,26 +69,28 @@ type alias Model =
     , crumbsDeep : Breadcrumbs.State
 
     -- tabs
-    , lineTabs : Tabs.State
-    , boxedTabs : Tabs.State
-    , iconTabs : Tabs.State
-    , manualTabs : Tabs.State
-    , overflowTabs : Tabs.State
+    , lineTabs : Tabs.State Section
+    , boxedTabs : Tabs.State Section
+    , iconTabs : Tabs.State Folder
+    , manualTabs : Tabs.State Choice
+    , overflowTabs : Tabs.State Int
+    , verticalTabs : Tabs.State Section
     }
 
 
 init : Model
 init =
     { headerMenu = Menu.init "nav-header-menu"
-    , headerTabs = Tabs.init "nav-header-tabs" "overview"
+    , headerTabs = Tabs.init "nav-header-tabs" Overview
     , lastAction = Nothing
     , crumbs = Breadcrumbs.init "nav-crumbs"
     , crumbsDeep = Breadcrumbs.init "nav-crumbs-deep"
-    , lineTabs = Tabs.init "nav-line-tabs" "overview"
-    , boxedTabs = Tabs.init "nav-boxed-tabs" "history"
-    , iconTabs = Tabs.init "nav-icon-tabs" "inbox"
-    , manualTabs = Tabs.init "nav-manual-tabs" "a"
-    , overflowTabs = Tabs.init "nav-overflow-tabs" "t1"
+    , lineTabs = Tabs.init "nav-line-tabs" Overview
+    , boxedTabs = Tabs.init "nav-boxed-tabs" History
+    , iconTabs = Tabs.init "nav-icon-tabs" Inbox
+    , manualTabs = Tabs.init "nav-manual-tabs" First
+    , overflowTabs = Tabs.init "nav-overflow-tabs" 1
+    , verticalTabs = Tabs.init "nav-vertical-tabs" Overview
     }
 
 
@@ -72,14 +100,15 @@ init =
 
 type Msg
     = HeaderMenuMsg Menu.Msg
-    | HeaderTabsMsg Tabs.Msg
+    | HeaderTabsMsg (Tabs.Msg Section)
     | CrumbsMsg Breadcrumbs.Msg
     | CrumbsDeepMsg Breadcrumbs.Msg
-    | LineTabsMsg Tabs.Msg
-    | BoxedTabsMsg Tabs.Msg
-    | IconTabsMsg Tabs.Msg
-    | ManualTabsMsg Tabs.Msg
-    | OverflowTabsMsg Tabs.Msg
+    | LineTabsMsg (Tabs.Msg Section)
+    | BoxedTabsMsg (Tabs.Msg Section)
+    | IconTabsMsg (Tabs.Msg Folder)
+    | ManualTabsMsg (Tabs.Msg Choice)
+    | OverflowTabsMsg (Tabs.Msg Int)
+    | VerticalTabsMsg (Tabs.Msg Section)
     | Action String
 
 
@@ -122,6 +151,10 @@ update msg model =
             Tabs.update inner model.overflowTabs
                 |> Tuple.mapBoth (\state -> { model | overflowTabs = state }) (Cmd.map OverflowTabsMsg)
 
+        VerticalTabsMsg inner ->
+            Tabs.update inner model.verticalTabs
+                |> Tuple.mapBoth (\state -> { model | verticalTabs = state }) (Cmd.map VerticalTabsMsg)
+
         Action name ->
             ( { model | lastAction = Just name }, Cmd.none )
 
@@ -142,10 +175,10 @@ pageHeaderSection locale model =
             (PageHeader.view
                 [ PageHeader.headingLevel 3
                 , PageHeader.breadcrumbs
-                    (Breadcrumbs.static
+                    (Breadcrumbs.viewStatic
                         [ Breadcrumbs.items
-                            [ Breadcrumbs.link "Home" (Demo.href "") |> Breadcrumbs.withIcon Icon.home
-                            , Breadcrumbs.link "Orders" (Demo.href "orders")
+                            [ Breadcrumbs.link { label = "Home", href = Demo.href "" } |> Breadcrumbs.withIcon Icon.home
+                            , Breadcrumbs.link { label = "Orders", href = Demo.href "orders" }
                             , Breadcrumbs.text "Order 10482"
                             ]
                         , Breadcrumbs.locale locale
@@ -180,11 +213,11 @@ pageHeaderSection locale model =
                 , PageHeader.tabs
                     (Tabs.view HeaderTabsMsg
                         [ Tabs.ariaLabel "Order"
-                        , Tabs.withoutPanels
+                        , Tabs.locale locale
                         , Tabs.tabs
-                            [ Tabs.tab "overview" "Overview"
-                            , Tabs.tab "activity" "Activity" |> Tabs.withCount 48
-                            , Tabs.tab "documents" "Documents" |> Tabs.withCount 3
+                            [ Tabs.tab Overview "Overview"
+                            , Tabs.tab Activity "Activity" |> Tabs.withCount 48
+                            , Tabs.tab Documents "Documents" |> Tabs.withCount 3
                             ]
                         ]
                         model.headerTabs
@@ -243,8 +276,8 @@ pageHeaderCode =
         ]
     , PageHeader.tabs
         (Tabs.view TabsMsg
-            [ Tabs.withoutPanels
-            , Tabs.tabs [ Tabs.tab "overview" "Overview", Tabs.tab "activity" "Activity" |> Tabs.withCount 48 ]
+            [ Tabs.ariaLabel "Order"
+            , Tabs.tabs [ Tabs.tab Overview "Overview", Tabs.tab Activity "Activity" |> Tabs.withCount 48 ]
             ]
             model.tabs
         )
@@ -271,13 +304,13 @@ pageHeaderSimpleCode =
 
 {-| Six levels: home, four places and the page itself.
 -}
-crumbTrail : List Breadcrumbs.Crumb
+crumbTrail : List (Breadcrumbs.Crumb Msg)
 crumbTrail =
-    [ Breadcrumbs.link "Home" (Demo.href "") |> Breadcrumbs.withIcon Icon.home
-    , Breadcrumbs.link "Europe" (Demo.href "europe")
-    , Breadcrumbs.link "Netherlands" (Demo.href "netherlands")
-    , Breadcrumbs.link "Rotterdam" (Demo.href "rotterdam")
-    , Breadcrumbs.link "Warehouse 3" (Demo.href "warehouse-3")
+    [ Breadcrumbs.link { label = "Home", href = Demo.href "" } |> Breadcrumbs.withIcon Icon.home
+    , Breadcrumbs.link { label = "Europe", href = Demo.href "europe" }
+    , Breadcrumbs.link { label = "Netherlands", href = Demo.href "netherlands" }
+    , Breadcrumbs.link { label = "Rotterdam", href = Demo.href "rotterdam" }
+    , Breadcrumbs.link { label = "Warehouse 3", href = Demo.href "warehouse-3" }
     , Breadcrumbs.text "Aisle 3B"
     ]
 
@@ -285,16 +318,16 @@ crumbTrail =
 breadcrumbsSection : Locale -> Model -> Html Msg
 breadcrumbsSection locale model =
     Doc.section "Breadcrumbs"
-        "The path to the current page, with a chevron between the levels. The last level is the current page (aria-current) and is not a link. When the trail is longer than maxItems, the levels in the middle fold into a \"more\" button that opens a list of links (Escape closes it, Arrow Up and Down move between the links). Long names are cut with an ellipsis and show the whole name as a tooltip."
+        "The path to the current page, with a chevron between the levels. The last level is the current page (aria-current) and is not a link. When the trail has at least two levels more than maxItems, the levels in the middle fold into a \"more\" button that opens a list of them (Escape closes it and returns to the button, Arrow Up and Down move between the links, Tab moves on); one level more is shown whole, since a button for one level saves no room. Long names are cut with an ellipsis and show the whole name as a tooltip."
         [ Doc.example
             { title = "Short trail without state"
-            , description = Just "A trail that never grows long needs no state: use static."
+            , description = Just "A trail with a fixed depth of two or three levels needs no state: viewStatic."
             , code = Just breadcrumbsStaticCode
             }
-            (Breadcrumbs.static
+            (Breadcrumbs.viewStatic
                 [ Breadcrumbs.items
-                    [ Breadcrumbs.link "Home" (Demo.href "") |> Breadcrumbs.withIcon Icon.home
-                    , Breadcrumbs.link "Orders" (Demo.href "orders")
+                    [ Breadcrumbs.link { label = "Home", href = Demo.href "" } |> Breadcrumbs.withIcon Icon.home
+                    , Breadcrumbs.link { label = "Orders", href = Demo.href "orders" }
                     , Breadcrumbs.text "Order 10482"
                     ]
                 , Breadcrumbs.locale locale
@@ -313,10 +346,10 @@ breadcrumbsSection locale model =
                     [ Breadcrumbs.items crumbTrail, Breadcrumbs.maxItems 3, Breadcrumbs.locale locale ]
                     model.crumbsDeep
                 , Layout.container [ Layout.maxWidth 420, Layout.alignStart ]
-                    [ Breadcrumbs.static
+                    [ Breadcrumbs.viewStatic
                         [ Breadcrumbs.items
-                            [ Breadcrumbs.link "Home" (Demo.href "")
-                            , Breadcrumbs.link "A very long name of an intermediate level that has to be cut down" (Demo.href "long")
+                            [ Breadcrumbs.link { label = "Home", href = Demo.href "" }
+                            , Breadcrumbs.link { label = "A very long name of an intermediate level that has to be cut down", href = Demo.href "long" }
                             , Breadcrumbs.text "And an equally long title of the page itself that does not fit either"
                             ]
                         , Breadcrumbs.locale locale
@@ -324,15 +357,30 @@ breadcrumbsSection locale model =
                     ]
                 ]
             )
+        , Doc.example
+            { title = "A drill-down without addresses"
+            , description = Just (Demo.actionText model.lastAction ++ ". Crumbs made with Breadcrumbs.button send a message instead of following a link: the levels of a report that is opened step by step inside one page.")
+            , code = Just "Breadcrumbs.viewStatic\n    [ Breadcrumbs.items\n        [ Breadcrumbs.button \"All years\" (DrillUpTo AllYears)\n        , Breadcrumbs.button \"2026\" (DrillUpTo (Year 2026))\n        , Breadcrumbs.text \"March\"\n        ]\n    ]"
+            }
+            (Breadcrumbs.viewStatic
+                [ Breadcrumbs.ariaLabel "Report levels"
+                , Breadcrumbs.items
+                    [ Breadcrumbs.button "All years" (Action "Show all years")
+                    , Breadcrumbs.button "2026" (Action "Show 2026")
+                    , Breadcrumbs.text "March"
+                    ]
+                , Breadcrumbs.locale locale
+                ]
+            )
         ]
 
 
 breadcrumbsStaticCode : String
 breadcrumbsStaticCode =
-    """Breadcrumbs.static
+    """Breadcrumbs.viewStatic
     [ Breadcrumbs.items
-        [ Breadcrumbs.link "Home" "#/"
-        , Breadcrumbs.link "Orders" "#/orders"
+        [ Breadcrumbs.link { label = "Home", href = "#/" }
+        , Breadcrumbs.link { label = "Orders", href = "#/orders" }
         , Breadcrumbs.text "Order 10482"
         ]
     ]"""
@@ -345,76 +393,84 @@ breadcrumbsStaticCode =
 tabsSection : Locale -> Model -> Html Msg
 tabsSection locale model =
     Doc.section "Tabs"
-        "Tabs switch between views of the same thing. The component has a state of its own (the active tab and the focus), so the application reads Tabs.active and compares before and after an update. A panel is only built while its tab is active. Keyboard: Arrow Left and Right move to the previous and next tab and select it, wrapping around at the ends (Home and End jump to the first and last). Only the active tab is in the Tab order, so Tab goes straight from the tab list into the panel. With manual the arrows only move focus, and Enter or Space selects."
+        "Tabs switch between views of the same thing. The tabs are values of your own type, and the component has a state of its own (the active tab), so the application reads Tabs.active and compares before and after an update. The strip draws the panel of the active tab itself (withPanel), so the two always agree, and a panel is only built while its tab is active. Keyboard: Arrow Left and Right (Up and Down when vertical) move to the previous and next tab and select it, wrapping around at the ends (Home and End jump to the first and last). Only the active tab is in the Tab order, so Tab goes straight from the tab list into the panel. With manual the arrows only move focus, and Enter or Space selects."
         [ Doc.example
             { title = "Line with panels"
             , description = Just "The default look. A panel is only built for the active tab. The last tab is disabled and explains why in a tooltip."
             , code = Just tabsCode
             }
-            (Layout.stack [ Layout.gap 0 ]
-                [ Tabs.view LineTabsMsg
-                    [ Tabs.ariaLabel "Order sections"
-                    , Tabs.tabs
-                        [ Tabs.tab "overview" "Overview"
-                        , Tabs.tab "history" "History" |> Tabs.withCount 12
-                        , Tabs.tab "files" "Files" |> Tabs.withIcon Icon.paperclip
-                        , Tabs.tab "admin" "Administration"
-                            |> Tabs.disabledTab
-                            |> Tabs.withTitle "Requires administrator access"
-                        ]
-                    ]
-                    model.lineTabs
-                , Tabs.panels model.lineTabs
-                    [ ( "overview"
-                      , \_ ->
-                            DescriptionList.view [ DescriptionList.columns 2, DescriptionList.locale locale ]
-                                [ DescriptionList.text "Customer" "Northwind Traders"
-                                , DescriptionList.text "Order number" "10482"
-                                ]
-                      )
-                    , ( "history", \_ -> Text.paragraph "The history would be here: 12 events in the last 90 days." )
-                    , ( "files", \_ -> Text.paragraph "The files would be here." )
+            (Tabs.view LineTabsMsg
+                [ Tabs.ariaLabel "Order sections"
+                , Tabs.locale locale
+                , Tabs.tabs
+                    [ Tabs.tab Overview "Overview"
+                        |> Tabs.withPanel
+                            (\_ ->
+                                DescriptionList.view [ DescriptionList.columns 2, DescriptionList.locale locale ]
+                                    [ DescriptionList.text "Customer" "Northwind Traders"
+                                    , DescriptionList.text "Order number" "10482"
+                                    ]
+                            )
+                    , Tabs.tab History "History"
+                        |> Tabs.withCount 12
+                        |> Tabs.withPanel (\_ -> Text.paragraph "The history would be here: 12 events in the last 90 days.")
+                    , Tabs.tab Files "Files"
+                        |> Tabs.withIcon Icon.paperclip
+                        |> Tabs.withPanel (\_ -> Text.paragraph "The files would be here.")
+                    , Tabs.tab Admin "Administration"
+                        |> Tabs.disabledTab
+                        |> Tabs.withTitle "Requires administrator access"
                     ]
                 ]
+                model.lineTabs
             )
         , Doc.example
             { title = "Boxed tabs"
-            , description = Just "The tabs are joined to the panel below them. Counts are shown as they are, without shortening."
+            , description = Just "The tabs are joined to the panel below them. Counts are shown whole, grouped the way the language writes numbers."
             , code = Just "Tabs.view TabsMsg [ Tabs.boxed, Tabs.tabs tabs ] model.tabs"
             }
-            (Layout.stack [ Layout.gap 0 ]
-                [ Tabs.view BoxedTabsMsg
-                    [ Tabs.boxed
-                    , Tabs.ariaLabel "Order details"
-                    , Tabs.tabs
-                        [ Tabs.tab "overview" "Overview"
-                        , Tabs.tab "history" "History" |> Tabs.withCount 12
-                        , Tabs.tab "notes" "Notes" |> Tabs.withCount 120
-                        ]
-                    ]
-                    model.boxedTabs
-                , Tabs.panels model.boxedTabs
-                    [ ( "overview", \_ -> Text.paragraph "Overview in a boxed panel." )
-                    , ( "history", \_ -> Text.paragraph "History in a boxed panel." )
-                    , ( "notes", \_ -> Text.paragraph "Notes in a boxed panel." )
+            (Tabs.view BoxedTabsMsg
+                [ Tabs.boxed
+                , Tabs.ariaLabel "Order details"
+                , Tabs.locale locale
+                , Tabs.tabs
+                    [ Tabs.tab Overview "Overview" |> Tabs.withPanel (\_ -> Text.paragraph "Overview in a boxed panel.")
+                    , Tabs.tab History "History" |> Tabs.withCount 12 |> Tabs.withPanel (\_ -> Text.paragraph "History in a boxed panel.")
+                    , Tabs.tab Notes "Notes" |> Tabs.withCount 12040 |> Tabs.withPanel (\_ -> Text.paragraph "Notes in a boxed panel.")
                     ]
                 ]
+                model.boxedTabs
+            )
+        , Doc.example
+            { title = "Vertical tabs"
+            , description = Just "The tabs stacked beside their panel, for settings pages and detail panes. Arrow Up and Down move between them, and the list says aria-orientation vertical."
+            , code = Just "Tabs.view TabsMsg [ Tabs.vertical, Tabs.tabs tabs ] model.tabs"
+            }
+            (Tabs.view VerticalTabsMsg
+                [ Tabs.vertical
+                , Tabs.ariaLabel "Order settings"
+                , Tabs.tabs
+                    [ Tabs.tab Overview "General" |> Tabs.withPanel (\_ -> Text.paragraph "The name, the customer and the warehouse of the order.")
+                    , Tabs.tab Documents "Documents" |> Tabs.withPanel (\_ -> Text.paragraph "Invoices, delivery notes and customs papers.")
+                    , Tabs.tab Notes "Notifications" |> Tabs.withPanel (\_ -> Text.paragraph "Who hears about changes to the order.")
+                    ]
+                ]
+                model.verticalTabs
             )
         , Doc.example
             { title = "Icons, counts and small tabs"
             , description = Just "Small tabs that share the width equally (fill), without panels: they choose something else, so they do not point at a panel that is not there."
-            , code = Just "Tabs.tab \"inbox\" \"Inbox\" |> Tabs.withIcon Icon.inbox |> Tabs.withCount 7"
+            , code = Just "Tabs.tab Inbox \"Inbox\" |> Tabs.withIcon Icon.inbox |> Tabs.withCount 7"
             }
             (Tabs.view IconTabsMsg
                 [ Tabs.small
                 , Tabs.fill
                 , Tabs.ariaLabel "Messages"
-                , Tabs.withoutPanels
                 , Tabs.tabs
-                    [ Tabs.tab "inbox" "Inbox" |> Tabs.withIcon Icon.inbox |> Tabs.withCount 7
-                    , Tabs.tab "sent" "Sent" |> Tabs.withIcon Icon.send
-                    , Tabs.tab "drafts" "Drafts" |> Tabs.withIcon Icon.edit |> Tabs.withCount 2
-                    , Tabs.tab "archive" "Archive" |> Tabs.withIcon Icon.archive |> Tabs.disabledTab
+                    [ Tabs.tab Inbox "Inbox" |> Tabs.withIcon Icon.inbox |> Tabs.withCount 7
+                    , Tabs.tab Sent "Sent" |> Tabs.withIcon Icon.send
+                    , Tabs.tab Drafts "Drafts" |> Tabs.withIcon Icon.edit |> Tabs.withCount 2
+                    , Tabs.tab Archive "Archive" |> Tabs.withIcon Icon.archive |> Tabs.disabledTab
                     ]
                 ]
                 model.iconTabs
@@ -424,23 +480,16 @@ tabsSection locale model =
             , description = Just "Arrow Right and Left only move focus. Enter or Space selects the tab. Good when switching is expensive."
             , code = Just "Tabs.view TabsMsg [ Tabs.manual, Tabs.tabs tabs ] model.tabs"
             }
-            (Layout.stack [ Layout.gap 0 ]
-                [ Tabs.view ManualTabsMsg
-                    [ Tabs.manual
-                    , Tabs.ariaLabel "Manual activation"
-                    , Tabs.tabs
-                        [ Tabs.tab "a" "First"
-                        , Tabs.tab "b" "Second"
-                        , Tabs.tab "c" "Third"
-                        ]
-                    ]
-                    model.manualTabs
-                , Tabs.panels model.manualTabs
-                    [ ( "a", \_ -> Text.paragraph "Selected: first." )
-                    , ( "b", \_ -> Text.paragraph "Selected: second." )
-                    , ( "c", \_ -> Text.paragraph "Selected: third." )
+            (Tabs.view ManualTabsMsg
+                [ Tabs.manual
+                , Tabs.ariaLabel "Manual activation"
+                , Tabs.tabs
+                    [ Tabs.tab First "First" |> Tabs.withPanel (\_ -> Text.paragraph "Selected: first.")
+                    , Tabs.tab Second "Second" |> Tabs.withPanel (\_ -> Text.paragraph "Selected: second.")
+                    , Tabs.tab Third "Third" |> Tabs.withPanel (\_ -> Text.paragraph "Selected: third.")
                     ]
                 ]
+                model.manualTabs
             )
         , Doc.example
             { title = "Many tabs in a narrow space"
@@ -450,10 +499,9 @@ tabsSection locale model =
             (Layout.container [ Layout.maxWidth 460, Layout.alignStart ]
                 [ Tabs.view OverflowTabsMsg
                     [ Tabs.ariaLabel "Many tabs"
-                    , Tabs.withoutPanels
                     , Tabs.tabs
                         (List.map
-                            (\n -> Tabs.tab ("t" ++ String.fromInt n) ("Tab number " ++ String.fromInt n))
+                            (\n -> Tabs.tab n ("Tab number " ++ String.fromInt n))
                             (List.range 1 10)
                         )
                     ]
@@ -466,36 +514,29 @@ tabsSection locale model =
 
 tabsProps : List { name : String, type_ : String, description : String }
 tabsProps =
-    [ { name = "tab", type_ = "String -> String -> Tab", description = "Key and text. The key identifies the tab and its panel." }
-    , { name = "withIcon, withCount, withTitle", type_ = "Tab -> Tab", description = "An icon, a count and a tooltip (useful for saying why a tab is disabled)." }
-    , { name = "disabledTab", type_ = "Tab -> Tab", description = "Visible but cannot be selected. The arrow keys skip it." }
-    , { name = "tabs, ariaLabel", type_ = "List Tab, String", description = "The tabs, and the name of the tab list for screen readers." }
-    , { name = "boxed, small, fill", type_ = "Attribute", description = "Boxed tabs, lower tabs, and tabs that share the width equally." }
-    , { name = "manual", type_ = "Attribute", description = "The arrow keys only move focus. Enter or Space selects." }
-    , { name = "withoutPanels", type_ = "Attribute", description = "The tabs choose something other than a panel below them (a route, a filter). They then do not point with aria-controls at a panel that is not there." }
-    , { name = "init, active, setActive", type_ = "String -> String -> State, State -> String, String -> State -> State", description = "A unique id and the first active tab; read and set the active tab from the application." }
-    , { name = "panel, panels", type_ = "State -> String -> (() -> Html msg) -> Html msg", description = "The content of a tab. The function is only called while the tab is active." }
+    [ { name = "tab", type_ = "key -> String -> Tab key msg", description = "A value of your own type and the text. The key identifies the tab, compared with ==." }
+    , { name = "withPanel", type_ = "(() -> Html msg) -> Tab key msg -> Tab key msg", description = "The content under the strip while the tab is active. The function is only called then. Without panels the strip claims none (route tabs)." }
+    , { name = "withIcon, withCount, withTitle", type_ = "Tab key msg -> Tab key msg", description = "An icon, a count (grouped by the locale) and a tooltip (useful for saying why a tab is disabled)." }
+    , { name = "disabledTab", type_ = "Tab key msg -> Tab key msg", description = "Visible but cannot be selected. The arrow keys skip it." }
+    , { name = "tabs, ariaLabel, locale", type_ = "List (Tab key msg), String, Locale", description = "The tabs, the name of the tab list for screen readers, and the language of the counts." }
+    , { name = "boxed, small, fill, vertical", type_ = "Attribute key msg", description = "Boxed tabs, lower tabs, tabs that share the width equally, and tabs stacked beside their panel." }
+    , { name = "manual", type_ = "Attribute key msg", description = "The arrow keys only move focus. Enter or Space selects." }
+    , { name = "init, active, setActive", type_ = "String -> key -> State key, State key -> key, key -> State key -> State key", description = "A unique id and the first active tab; read and set the active tab from the application." }
     ]
 
 
 tabsCode : String
 tabsCode =
-    """-- model:  tabs : Tabs.State          (Tabs.init "order-tabs" "overview")
+    """-- model:  tabs : Tabs.State Section     (Tabs.init "order-tabs" Overview)
 -- update: TabsMsg m -> let ( tabs, cmd ) = Tabs.update m model.tabs in ...
 
-Html.div []
-    [ Tabs.view TabsMsg
-        [ Tabs.ariaLabel "Order sections"
-        , Tabs.tabs
-            [ Tabs.tab "overview" "Overview"
-            , Tabs.tab "history" "History" |> Tabs.withCount 12
-            , Tabs.tab "files" "Files" |> Tabs.withIcon Icon.paperclip
-            , Tabs.tab "billing" "Billing" |> Tabs.disabledTab
-            ]
+Tabs.view TabsMsg
+    [ Tabs.ariaLabel "Order sections"
+    , Tabs.tabs
+        [ Tabs.tab Overview "Overview" |> Tabs.withPanel (\\_ -> overviewView model)
+        , Tabs.tab History "History" |> Tabs.withCount 12 |> Tabs.withPanel (\\_ -> historyView model)
+        , Tabs.tab Files "Files" |> Tabs.withIcon Icon.paperclip |> Tabs.withPanel (\\_ -> filesView model)
+        , Tabs.tab Billing "Billing" |> Tabs.disabledTab
         ]
-        model.tabs
-    , Tabs.panels model.tabs
-        [ ( "overview", \\_ -> overviewView model )
-        , ( "history", \\_ -> historyView model )
-        ]
-    ]"""
+    ]
+    model.tabs"""

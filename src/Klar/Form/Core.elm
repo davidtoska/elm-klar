@@ -4016,6 +4016,9 @@ stepper (View view) attributes =
             (attributes
                 ++ [ Stepper.current view.current
                    , Stepper.onSelect (\index -> view.toMsg (GoStep index))
+
+                   -- going forward checks the steps on the way (see `GoStep`)
+                   , Stepper.nonLinear
                    , Stepper.locale view.locale
                    ]
             )

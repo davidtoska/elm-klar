@@ -338,7 +338,7 @@ type Msg
     | Checked Bool
     | Dismissed
     | Entered
-    | TabsMsg Tabs.Msg
+    | TabsMsg (Tabs.Msg OrderTab)
     | Page Int
     | PageSize Int
 
@@ -1072,34 +1072,34 @@ alertTests =
 -- TABS
 
 
+type OrderTab
+    = OverviewTab
+    | HistoryTab
+    | FilesTab
+    | BillingTab
+    | NoSuchTab
+
+
 tabsTests : Test
 tabsTests =
     let
         tabs =
-            [ Tabs.tab "overview" "Overview"
-            , Tabs.tab "history" "History" |> Tabs.withCount 12
-            , Tabs.tab "files" "Files" |> Tabs.withIcon Icon.paperclip
-            , Tabs.tab "billing" "Billing" |> Tabs.disabledTab |> Tabs.withTitle "Available once the order is confirmed"
+            [ Tabs.tab OverviewTab "Overview" |> Tabs.withPanel (\_ -> Html.text "The overview")
+            , Tabs.tab HistoryTab "History" |> Tabs.withCount 12 |> Tabs.withPanel (\_ -> Html.text "The history")
+            , Tabs.tab FilesTab "Files" |> Tabs.withIcon Icon.paperclip
+            , Tabs.tab BillingTab "Billing" |> Tabs.disabledTab |> Tabs.withTitle "Available once the order is confirmed"
             ]
 
-        -- as the documentation tells you to: resolve the state once, so that the strip and
-        -- the panels follow the same key even when it is no tab or a disabled one
+        -- the strip and the panel of the active tab, from one call
         page attributes state =
-            let
-                resolved =
-                    Tabs.resolve tabs state
-            in
-            Html.div []
-                [ Tabs.view TabsMsg (Tabs.ariaLabel "Order sections" :: Tabs.tabs tabs :: attributes) resolved
-                , Tabs.panel resolved "overview" (\_ -> Html.text "The overview")
-                , Tabs.panel resolved "history" (\_ -> Html.text "The history")
-                ]
+            Tabs.view TabsMsg (Tabs.ariaLabel "Order sections" :: Tabs.tabs tabs :: attributes) state
 
         start =
-            Tabs.init "order-tabs" "overview"
+            Tabs.init "order-tabs" OverviewTab
 
-        tab key =
-            [ Selector.id ("order-tabs-tab-" ++ key) ]
+        -- the DOM ids follow the place of the tab in the strip
+        tab index =
+            [ Selector.id ("order-tabs-tab-" ++ String.fromInt index) ]
 
         after message state =
             case message of
@@ -1109,11 +1109,11 @@ tabsTests =
                 _ ->
                     state
 
-        pressed attributes state key name =
-            after (page attributes state |> sends (tab key) (keyEvent name)) state
+        pressed attributes state index name =
+            after (page attributes state |> sends (tab index) (keyEvent name)) state
 
-        clicked key =
-            after (page [] start |> sends (tab key) Event.click) start
+        clicked index =
+            after (page [] start |> sends (tab index) Event.click) start
     in
     describe "Tabs"
         [ test "a strip of tabs with a name" <|
@@ -1124,87 +1124,117 @@ tabsTests =
             \_ ->
                 page [] start
                     |> Expect.all
-                        [ inside (tab "overview") [ attr "aria-selected" "true" ]
-                        , inside (tab "history") [ attr "aria-selected" "false" ]
-                        , inside (tab "files") [ attr "aria-selected" "false" ]
-                        , inside (tab "billing") [ attr "aria-selected" "false" ]
+                        [ inside (tab 0) [ attr "aria-selected" "true" ]
+                        , inside (tab 1) [ attr "aria-selected" "false" ]
+                        , inside (tab 2) [ attr "aria-selected" "false" ]
+                        , inside (tab 3) [ attr "aria-selected" "false" ]
                         ]
         , test "the active tab names its panel, and the panel is there and is named by the tab" <|
             \_ ->
                 page [] start
                     |> Expect.all
-                        [ inside (tab "overview") [ attr "aria-controls" "order-tabs-panel-overview" ]
-                        , inside [ Selector.id "order-tabs-panel-overview" ] [ attr "role" "tabpanel", attr "aria-labelledby" "order-tabs-tab-overview", Selector.text "The overview" ]
+                        [ inside (tab 0) [ attr "aria-controls" "order-tabs-panel-0" ]
+                        , inside [ Selector.id "order-tabs-panel-0" ] [ attr "role" "tabpanel", attr "aria-labelledby" "order-tabs-tab-0", Selector.text "The overview" ]
                         ]
         , test "the other tabs do not name a panel, because their panels are not there" <|
-            \_ -> none [ Selector.id "order-tabs-tab-history", attr "aria-controls" "order-tabs-panel-history" ] (page [] start)
+            \_ -> none [ Selector.id "order-tabs-tab-1", attr "aria-controls" "order-tabs-panel-1" ] (page [] start)
         , test "only the panel of the active tab is drawn" <|
             \_ -> none [ Selector.text "The history" ] (page [] start)
         , test "the panel can be focused, so that Tab goes from the tab into it" <|
-            \_ -> inside [ Selector.id "order-tabs-panel-overview" ] [ Selector.attribute (Attr.tabindex 0) ] (page [] start)
+            \_ -> inside [ Selector.id "order-tabs-panel-0" ] [ Selector.attribute (Attr.tabindex 0) ] (page [] start)
         , test "only the active tab is in the tab order" <|
             \_ ->
                 page [] start
                     |> Expect.all
-                        [ inside (tab "overview") [ Selector.attribute (Attr.tabindex 0) ]
-                        , inside (tab "history") [ Selector.attribute (Attr.tabindex -1) ]
-                        , inside (tab "files") [ Selector.attribute (Attr.tabindex -1) ]
+                        [ inside (tab 0) [ Selector.attribute (Attr.tabindex 0) ]
+                        , inside (tab 1) [ Selector.attribute (Attr.tabindex -1) ]
+                        , inside (tab 2) [ Selector.attribute (Attr.tabindex -1) ]
                         ]
         , test "a disabled tab is disabled, and has its title" <|
-            \_ -> inside (tab "billing") [ Selector.disabled True, Selector.attribute (Attr.title "Available once the order is confirmed") ] (page [] start)
+            \_ -> inside (tab 3) [ Selector.disabled True, Selector.attribute (Attr.title "Available once the order is confirmed") ] (page [] start)
         , test "a count" <|
-            \_ -> inside (tab "history") [ Selector.containing [ Selector.class "klar-tabs__count", Selector.text "12" ] ] (page [] start)
+            \_ -> inside (tab 1) [ Selector.containing [ Selector.class "klar-tabs__count", Selector.text "12" ] ] (page [] start)
+        , test "a count is grouped the way the language writes numbers" <|
+            \_ ->
+                Tabs.view TabsMsg [ Tabs.locale Locale.nb, Tabs.tabs [ Tabs.tab OverviewTab "Notes" |> Tabs.withCount 12345 ] ] start
+                    |> inside (tab 0) [ Selector.containing [ Selector.class "klar-tabs__count", Selector.text "12\u{00A0}345" ] ]
         , test "an icon" <|
-            \_ -> inside (tab "files") [ Selector.containing [ Selector.class "klar-icon--paperclip" ] ] (page [] start)
+            \_ -> inside (tab 2) [ Selector.containing [ Selector.class "klar-icon--paperclip" ] ] (page [] start)
         , test "tabs are buttons that do not submit a form" <|
-            \_ -> inside (tab "overview") [ Selector.tag "button", Selector.attribute (Attr.type_ "button") ] (page [] start)
+            \_ -> inside (tab 0) [ Selector.tag "button", Selector.attribute (Attr.type_ "button") ] (page [] start)
         , test "everything that is named exists" <|
             \_ -> expectWellWired (page [] start)
         , test "everything that is named exists after another tab was chosen" <|
-            \_ -> expectWellWired (page [] (Tabs.setActive "history" start))
+            \_ -> expectWellWired (page [] (Tabs.setActive HistoryTab start))
         , test "the panel follows the state" <|
-            \_ -> inside [ Selector.id "order-tabs-panel-history" ] [ Selector.text "The history", attr "aria-labelledby" "order-tabs-tab-history" ] (page [] (Tabs.setActive "history" start))
-        , test "withoutPanels leaves out aria-controls, which would name a panel that is not in the page" <|
-            \_ -> none [ Selector.attribute (Attr.attribute "aria-controls" "order-tabs-panel-overview") ] (Tabs.view TabsMsg [ Tabs.tabs tabs, Tabs.withoutPanels ] start)
-        , test "a strip without panels names nothing that is not there" <|
-            \_ -> expectWellWired (Tabs.view TabsMsg [ Tabs.tabs tabs, Tabs.withoutPanels ] start)
+            \_ -> inside [ Selector.id "order-tabs-panel-1" ] [ Selector.text "The history", attr "aria-labelledby" "order-tabs-tab-1" ] (page [] (Tabs.setActive HistoryTab start))
+        , test "a tab without a panel claims none" <|
+            \_ -> none [ Selector.attribute (Attr.attribute "aria-controls" "order-tabs-panel-2") ] (page [] (Tabs.setActive FilesTab start))
+        , test "a strip without panels leaves out aria-controls and the panel" <|
+            \_ ->
+                Tabs.view TabsMsg [ Tabs.tabs [ Tabs.tab OverviewTab "Overview", Tabs.tab HistoryTab "History" ] ] start
+                    |> Expect.all
+                        [ none [ Selector.attribute (Attr.attribute "aria-controls" "order-tabs-panel-0") ]
+                        , none [ attr "role" "tabpanel" ]
+                        , expectWellWired
+                        ]
         , test "boxed, small and fill are classes" <|
-            \_ -> rootHas [ Selector.classes [ "klar-tabs--boxed", "klar-tabs--sm", "klar-tabs--fill" ] ] (Tabs.view TabsMsg [ Tabs.tabs tabs, Tabs.boxed, Tabs.small, Tabs.fill ] start)
+            \_ -> inside [ Selector.class "klar-tabs" ] [ Selector.classes [ "klar-tabs--boxed", "klar-tabs--sm", "klar-tabs--fill" ] ] (page [ Tabs.boxed, Tabs.small, Tabs.fill ] start)
+        , test "a vertical strip says so" <|
+            \_ -> inside [ attr "role" "tablist" ] [ attr "aria-orientation" "vertical" ] (page [ Tabs.vertical ] start)
         , describe "clicking and keys"
             [ test "a click chooses a tab" <|
-                \_ -> Expect.equal "history" (Tabs.active (clicked "history"))
+                \_ -> Expect.equal HistoryTab (Tabs.active (clicked 1))
             , test "a disabled tab sends nothing" <|
-                \_ -> sendsNothing (page [] start |> sends (tab "billing") Event.click)
+                \_ -> sendsNothing (page [] start |> sends (tab 3) Event.click)
             , test "ArrowRight moves to the next tab and chooses it" <|
-                \_ -> Expect.equal "history" (Tabs.active (pressed [] start "overview" "ArrowRight"))
+                \_ -> Expect.equal HistoryTab (Tabs.active (pressed [] start 0 "ArrowRight"))
             , test "ArrowLeft wraps around to the last tab that can be chosen: the disabled one is skipped" <|
-                \_ -> Expect.equal "files" (Tabs.active (pressed [] start "overview" "ArrowLeft"))
+                \_ -> Expect.equal FilesTab (Tabs.active (pressed [] start 0 "ArrowLeft"))
             , test "ArrowRight from the last enabled tab wraps to the first" <|
-                \_ -> Expect.equal "overview" (Tabs.active (pressed [] (Tabs.setActive "files" start) "files" "ArrowRight"))
+                \_ -> Expect.equal OverviewTab (Tabs.active (pressed [] (Tabs.setActive FilesTab start) 2 "ArrowRight"))
             , test "Home goes to the first tab" <|
-                \_ -> Expect.equal "overview" (Tabs.active (pressed [] (Tabs.setActive "history" start) "history" "Home"))
+                \_ -> Expect.equal OverviewTab (Tabs.active (pressed [] (Tabs.setActive HistoryTab start) 1 "Home"))
             , test "End goes to the last tab that can be chosen" <|
-                \_ -> Expect.equal "files" (Tabs.active (pressed [] start "overview" "End"))
+                \_ -> Expect.equal FilesTab (Tabs.active (pressed [] start 0 "End"))
+            , test "a vertical strip moves with ArrowDown" <|
+                \_ -> Expect.equal HistoryTab (Tabs.active (pressed [ Tabs.vertical ] start 0 "ArrowDown"))
+            , test "a vertical strip does not move with ArrowRight" <|
+                \_ -> sendsNothing (page [ Tabs.vertical ] start |> sends (tab 0) (keyEvent "ArrowRight"))
             , test "with manual activation the arrow keys only move the focus" <|
-                \_ -> Expect.equal "overview" (Tabs.active (pressed [ Tabs.manual ] start "overview" "ArrowRight"))
-            , test "and the tab with the focus is then the one in the tab order" <|
+                \_ -> Expect.equal OverviewTab (Tabs.active (pressed [ Tabs.manual ] start 0 "ArrowRight"))
+            , test "with manual activation the selected tab stays the one in the tab order" <|
                 \_ ->
-                    page [ Tabs.manual ] (pressed [ Tabs.manual ] start "overview" "ArrowRight")
+                    page [ Tabs.manual ] (pressed [ Tabs.manual ] start 0 "ArrowRight")
                         |> Expect.all
-                            [ inside (tab "history") [ Selector.attribute (Attr.tabindex 0), attr "aria-selected" "false" ]
-                            , inside (tab "overview") [ Selector.attribute (Attr.tabindex -1), attr "aria-selected" "true" ]
+                            [ inside (tab 0) [ Selector.attribute (Attr.tabindex 0), attr "aria-selected" "true" ]
+                            , inside (tab 1) [ Selector.attribute (Attr.tabindex -1), attr "aria-selected" "false" ]
                             ]
             , test "another key sends nothing" <|
-                \_ -> sendsNothing (page [] start |> sends (tab "overview") (keyEvent "x"))
+                \_ -> sendsNothing (page [] start |> sends (tab 0) (keyEvent "x"))
             ]
-        , -- When the key given to `init` or `setActive` is not the key of an enabled tab, `view`
-          -- selects the first enabled tab instead, but `panel` only knows the state. `resolve`
-          -- makes both follow the same key, and `page` above uses it.
-          test "a state whose key is no tab still names only panels that exist" <|
-            \_ -> expectWellWired (page [] (Tabs.init "order-tabs" "no-such-tab"))
+        , -- When the key given to `init` or `setActive` is not the key of an enabled tab, the
+          -- strip selects the first enabled tab and shows its panel.
+          test "a state whose key is no tab shows the first enabled tab and its panel" <|
+            \_ ->
+                page [] (Tabs.init "order-tabs" NoSuchTab)
+                    |> Expect.all
+                        [ inside (tab 0) [ attr "aria-selected" "true" ]
+                        , inside [ Selector.id "order-tabs-panel-0" ] [ Selector.text "The overview" ]
+                        , expectWellWired
+                        ]
         , -- The same for a tab that is disabled (a route that points at a disabled tab).
           test "a state whose key is a disabled tab still names only panels that exist" <|
-            \_ -> expectWellWired (page [] (Tabs.init "order-tabs" "billing"))
+            \_ -> expectWellWired (page [] (Tabs.init "order-tabs" BillingTab))
+        , test "the strip and the panel keep their place when another tab is chosen" <|
+            \_ ->
+                page [] (Tabs.setActive HistoryTab start)
+                    |> Query.fromHtml
+                    |> Expect.all
+                        [ Query.has [ Selector.class "klar-tabs-layout" ]
+                        , Query.children [] >> Query.count (Expect.equal 2)
+                        , Query.children [] >> Query.index 1 >> Query.has [ Selector.class "klar-tabs__panel" ]
+                        ]
         ]
 
 
@@ -1231,7 +1261,7 @@ paginationTests =
         [ test "is a navigation landmark with a name and the id" <|
             \_ -> rootHas [ Selector.tag "nav", attr "aria-label" "Pagination", Selector.id "orders-pages" ] (pages [] middle)
         , test "the name can be replaced" <|
-            \_ -> rootHas [ attr "aria-label" "Order pages" ] (pages [ Pagination.label "Order pages" ] middle)
+            \_ -> rootHas [ attr "aria-label" "Order pages" ] (pages [ Pagination.ariaLabel "Order pages" ] middle)
         , test "the range is shown" <|
             \_ -> inside [ Selector.class "klar-pagination__summary" ] [ Selector.text "126–150 of 3,000" ] (pages [] middle)
         , test "in Norwegian" <|
@@ -1340,16 +1370,33 @@ paginationTests =
                         , none [ Selector.tag "select" ]
                         , none (control "Last page")
                         ]
-        , test "disabled disables every control" <|
+        , test "disabled marks every control, and none of them loses the keyboard focus" <|
             \_ ->
                 pages [ Pagination.disabled True, Pagination.jumpToPage ] middle
                     |> Expect.all
-                        [ inside (control "Next page") [ Selector.disabled True ]
-                        , inside (pageButton 7) [ Selector.disabled True ]
-                        , inside [ Selector.tag "select" ] [ Selector.disabled True ]
-                        , inside [ Selector.id "orders-pages-jump" ] [ Selector.disabled True ]
+                        [ inside (control "Next page") [ attr "aria-disabled" "true" ]
+                        , inside (pageButton 7) [ attr "aria-disabled" "true" ]
+                        , inside [ Selector.tag "select" ] [ attr "aria-disabled" "true" ]
+                        , inside [ Selector.id "orders-pages-jump" ] [ attr "aria-disabled" "true", Selector.attribute (Attr.readonly True) ]
+                        , none [ Selector.tag "button", Selector.disabled True ]
+                        , \html -> html |> Query.fromHtml |> Query.find [ Selector.id "orders-pages-jump" ] |> Query.hasNot [ Selector.disabled True ]
                         , rootHas [ Selector.class "klar-pagination--disabled" ]
                         ]
+        , test "while disabled the buttons send nothing" <|
+            \_ ->
+                Expect.all
+                    [ \html -> sendsNothing (html |> sends (control "Next page") Event.click)
+                    , \html -> sendsNothing (html |> sends (pageButton 7) Event.click)
+                    ]
+                    (pages [ Pagination.disabled True ] middle)
+        , test "while disabled the size select offers only the size it shows" <|
+            \_ ->
+                pages [ Pagination.disabled True ] middle
+                    |> inside [ Selector.tag "option", Selector.attribute (Attr.value "50") ] [ Selector.disabled True ]
+        , test "the page buttons have ids made of the id, for Klar.focus" <|
+            \_ -> inside (pageButton 7) [ Selector.id "orders-pages-page-7" ] (pages [] middle)
+        , test "the range is a polite live region" <|
+            \_ -> inside [ Selector.class "klar-pagination__summary" ] [ attr "aria-live" "polite", attr "aria-atomic" "true" ] (pages [] middle)
         , test "summary replaces the range" <|
             \_ -> inside [ Selector.class "klar-pagination__summary" ] [ Selector.text "Loading ..." ] (pages [ Pagination.summary [ Html.text "Loading ..." ] ] middle)
         , test "an empty summary shows nothing" <|

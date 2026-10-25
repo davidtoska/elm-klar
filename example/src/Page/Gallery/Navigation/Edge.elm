@@ -86,8 +86,9 @@ section locale model =
             List.map
                 (\level ->
                     Breadcrumbs.link
-                        ("Level " ++ String.fromInt level ++ " of the organization")
-                        (Demo.href ("level/" ++ String.fromInt level))
+                        { label = "Level " ++ String.fromInt level ++ " of the organization"
+                        , href = Demo.href ("level/" ++ String.fromInt level)
+                        }
                 )
                 (List.range 1 24)
                 ++ [ Breadcrumbs.text "Current location" ]

@@ -24,7 +24,7 @@ summary : List (Html msg) -> Attribute msg
 rangeText : (Int -> Int -> Int -> String) -> Attribute msg
 disabled : Bool -> Attribute msg
 id : String -> Attribute msg
-label : String -> Attribute msg
+ariaLabel : String -> Attribute msg
 locale : Locale.Locale -> Attribute msg
 
 -- Page math
@@ -79,7 +79,9 @@ Keyboard and accessibility: every control is a native button, select or input.
 In "Go to page", type a number and press Enter. The component is a `nav`
 landmark; the current page has `aria-current="page"`, and the buttons that are
 not available at the first or last page stay in the tab order, so the keyboard
-focus is not lost when the user reaches that page. The built-in texts ("Rows per
+focus is not lost when the user reaches that page. A page button keeps the focus
+when the row of numbers moves under it, and the range ("26–50 of 3,000") is a polite
+live region, so a screen reader hears where the list stands after paging. The built-in texts ("Rows per
 page", "Next page" ...) follow `locale` and are English by default (see
 [Klar.Locale](Klar.Locale.md)).
 
@@ -212,8 +214,10 @@ Format the numbers with [Klar.Format](Klar.Format.md).
 disabled : Bool -> Attribute msg
 ```
 
-While `True` every control is disabled, for example while a page is loading.
-The default is `False`.
+While `True` no control does anything, for example while a page is loading. The
+default is `False`. The controls are marked `aria-disabled` and dimmed, but they stay in
+the tab order and keep the keyboard focus: the Next button that the user just pressed
+is still focused when the page has loaded.
 
 ### `id`
 
@@ -228,15 +232,15 @@ its own id.
 
     Pagination.id "order-pages"
 
-### `label`
+### `ariaLabel`
 
 ```elm
-label : String -> Attribute msg
+ariaLabel : String -> Attribute msg
 ```
 
-The accessible name of the navigation landmark. The default is "Pagination"
-(in the language of `locale`). Name it more closely when a page has several
-paginations, such as "Orders pages".
+The accessible name of the navigation landmark, heard by screen readers only. The
+default is "Pagination" (in the language of `locale`). Name it more closely when a page
+has several paginations, such as "Orders pages".
 
 ### `locale`
 

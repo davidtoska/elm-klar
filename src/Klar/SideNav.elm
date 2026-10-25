@@ -75,8 +75,9 @@ its icon while it has the mouse or the keyboard focus. With
 on narrow screens the sidebar is a drawer and always shows labels.
 
 Keyboard: Tab moves between links as usual. Arrow Up and Down also move to the
-previous and next visible entry, Home and End to the first and last. Disabled
-links are skipped. The menu is a `nav` landmark, named by `ariaLabel`
+previous and next visible entry, Home and End to the first and last. Arrow Right opens
+a closed group and then moves to its first entry; Arrow Left closes an open group, and
+on an entry inside a group moves to the group. Disabled links are skipped. The menu is a `nav` landmark, named by `ariaLabel`
 ("Main menu" by default).
 
 
@@ -116,10 +117,12 @@ its own text.
 
 -}
 
+import Dict exposing (Dict)
 import Html exposing (Html)
 import Html.Attributes as Attr
 import Html.Events as Events
 import Json.Decode as Decode
+import Klar.Format as Format
 import Klar.Icon as Icon exposing (Icon)
 import Klar.Ids as Ids exposing (Ids)
 import Klar.Internal as Internal
@@ -250,7 +253,7 @@ withIcon icon entry =
 
 {-| A number pill after the label of a link or a group, such as the number of open
 orders; any other entry is left unchanged. It reads "99+" above 99, and the exact
-number is in the tooltip. In the collapsed menu it becomes a small dot.
+number is in the tooltip, grouped the way the language of `locale` writes numbers. In the collapsed menu it becomes a small dot.
 -}
 withCount : Int -> Entry key msg -> Entry key msg
 withCount n entry =
@@ -383,7 +386,7 @@ onSelect toMsg =
 
 
 {-| The language of the built-in text, which is the default name of the `nav`
-landmark. Default `Locale.en`.
+landmark, and of the numbers of `withCount`. Default `Locale.en`.
 -}
 locale : Locale -> Attribute key msg
 locale value =
@@ -618,7 +621,37 @@ type alias Context key msg =
     , config : Config key msg
     , id : String
     , expanded : List String
-    , focusables : List String
+    , order : Order
+
+    -- the DOM id of the button of the group around these entries
+    , parent : Maybe String
+    }
+
+
+{-| The entries the arrow keys reach, in visual order, with each one's neighbours worked
+out once for the whole menu.
+-}
+type alias Order =
+    { neighbours : Dict String { previous : Maybe String, next : Maybe String }
+    , first : Maybe String
+    , last : Maybe String
+    }
+
+
+orderOf : List String -> Order
+orderOf ids =
+    let
+        previousIds =
+            Nothing :: List.map Just ids
+
+        nextIds =
+            List.map Just (List.drop 1 ids) ++ [ Nothing ]
+    in
+    { neighbours =
+        List.map3 (\domId previous next -> ( domId, { previous = previous, next = next } )) ids previousIds nextIds
+            |> Dict.fromList
+    , first = List.head ids
+    , last = List.head (List.reverse ids)
     }
 
 
@@ -637,7 +670,8 @@ view toMsg attributes (State state) =
             , config = config
             , id = state.id
             , expanded = state.expanded
-            , focusables = focusableIds config state.id state.expanded config.entries
+            , order = orderOf (focusableIds state.id state.expanded config.entries)
+            , parent = Nothing
             }
     in
     Html.nav
@@ -656,10 +690,13 @@ view toMsg attributes (State state) =
         [ viewList context 0 "" config.entries ]
 
 
-{-| The DOM ids of everything the arrow keys can reach, in visual order.
+{-| The DOM ids of everything the arrow keys can reach, in visual order: the children of
+an open group come right after it. The order does not depend on `collapsed`: the sidebar
+of an `AppShell` is collapsed only while the shell is wide, and its drawer shows the
+full menu with the same flag.
 -}
-focusableIds : Config key msg -> String -> List String -> List (Entry key msg) -> List String
-focusableIds config id expanded menu =
+focusableIds : String -> List String -> List (Entry key msg) -> List String
+focusableIds id expanded menu =
     List.concatMap
         (\entry ->
             case entry of
@@ -672,15 +709,15 @@ focusableIds config id expanded menu =
 
                 GroupEntry data ->
                     groupId id data.key
-                        :: (if List.member data.key expanded && not config.collapsed then
-                                focusableIds config id expanded data.children
+                        :: (if List.member data.key expanded then
+                                focusableIds id expanded data.children
 
                             else
                                 []
                            )
 
                 SectionEntry _ children ->
-                    focusableIds config id expanded children
+                    focusableIds id expanded children
 
                 RuleEntry ->
                     []
@@ -779,7 +816,7 @@ viewLink context depth data =
         content =
             [ Internal.viewMaybe (\icon -> Html.span [ Internal.cls [ "klar-side-nav__icon" ] ] [ Icon.view icon ]) data.icon
             , Html.span [ Internal.cls [ "klar-side-nav__label" ] ] [ Html.text data.label ]
-            , viewAside data.count data.badge
+            , viewAside context.config.locale data.count data.badge
             ]
     in
     Html.li [ Internal.cls [ "klar-side-nav__item" ] ]
@@ -788,7 +825,7 @@ viewLink context depth data =
                 [ Internal.cls classes
                 , Attr.attribute "role" "link"
                 , Attr.attribute "aria-disabled" "true"
-                , Attr.title data.label
+                , Internal.attrIf context.config.collapsed (Attr.title data.label)
                 , depthStyle depth
                 ]
                 content
@@ -798,18 +835,20 @@ viewLink context depth data =
                 [ Internal.cls classes
                 , Attr.href data.href
                 , Attr.id domId
-                , Attr.title data.label
+
+                -- the label is hidden in the collapsed menu: the tooltip names the icon
+                , Internal.attrIf context.config.collapsed (Attr.title data.label)
                 , Internal.attrIf isCurrent (Attr.attribute "aria-current" "page")
                 , Internal.attrMaybe (\toMsg -> onPlainClick (toMsg data.value)) context.config.onSelect
-                , arrowKeys context domId
+                , arrowKeys context domId []
                 , depthStyle depth
                 ]
                 content
         ]
 
 
-viewAside : Maybe Int -> Maybe (Html msg) -> Html msg
-viewAside count badge =
+viewAside : Locale -> Maybe Int -> Maybe (Html msg) -> Html msg
+viewAside locale_ count badge =
     case ( count, badge ) of
         ( Nothing, Nothing ) ->
             Html.text ""
@@ -820,14 +859,14 @@ viewAside count badge =
                     (\n ->
                         Html.span
                             [ Internal.cls [ "klar-side-nav__count", "klar-tabular" ]
-                            , Attr.title (String.fromInt n)
+                            , Attr.title (Format.int locale_ n)
                             ]
                             [ Html.text
                                 (if n > 99 then
                                     "99+"
 
                                  else
-                                    String.fromInt n
+                                    Format.int locale_ n
                                 )
                             ]
                     )
@@ -855,13 +894,30 @@ viewGroup context depth path data =
         showChildren =
             isOpen || context.config.collapsed
 
-        -- In the flyout the arrow keys move between the children of this group.
+        -- The children of an open group are in the order of the whole menu. In the
+        -- flyout of a closed group the arrow keys move between its children.
         childContext =
-            if context.config.collapsed then
-                { context | focusables = focusableIds context.config context.id context.expanded data.children }
+            if context.config.collapsed && not isOpen then
+                { context | order = orderOf (focusableIds context.id context.expanded data.children), parent = Just domId }
 
             else
-                context
+                { context | parent = Just domId }
+
+        firstChild =
+            focusableIds context.id context.expanded data.children |> List.head
+
+        -- Right opens a closed group, or goes to its first child; Left closes an
+        -- open group, or goes to the group around it.
+        sideways =
+            if isOpen then
+                List.filterMap identity
+                    [ firstChild |> Maybe.map (\target -> ( "ArrowRight", context.toMsg (Focus target) ))
+                    , Just ( "ArrowLeft", context.toMsg (ToggleGroup data.key) )
+                    ]
+
+            else
+                ( "ArrowRight", context.toMsg (ToggleGroup data.key) )
+                    :: (context.parent |> Maybe.map (\target -> [ ( "ArrowLeft", context.toMsg (Focus target) ) ]) |> Maybe.withDefault [])
     in
     Html.li
         [ Internal.cls
@@ -893,7 +949,7 @@ viewGroup context depth path data =
                 ]
             , Attr.id domId
             , Attr.type_ "button"
-            , Attr.title data.label
+            , Internal.attrIf context.config.collapsed (Attr.title data.label)
             , Attr.attribute "aria-expanded"
                 (if isOpen then
                     "true"
@@ -903,12 +959,12 @@ viewGroup context depth path data =
                 )
             , Internal.attrIf showChildren (Attr.attribute "aria-controls" listId)
             , Events.onClick (context.toMsg (ToggleGroup data.key))
-            , arrowKeys context domId
+            , arrowKeys context domId sideways
             , depthStyle depth
             ]
             [ Internal.viewMaybe (\icon -> Html.span [ Internal.cls [ "klar-side-nav__icon" ] ] [ Icon.view icon ]) data.icon
             , Html.span [ Internal.cls [ "klar-side-nav__label" ] ] [ Html.text data.label ]
-            , viewAside data.count data.badge
+            , viewAside context.config.locale data.count data.badge
             , Html.span [ Internal.cls [ "klar-side-nav__chevron" ] ] [ Icon.sized Icon.Small Icon.chevronRight ]
             ]
         , if showChildren then
@@ -926,41 +982,34 @@ viewGroup context depth path data =
         ]
 
 
-arrowKeys : Context key msg -> String -> Html.Attribute msg
-arrowKeys context domId =
+{-| Up and Down to the previous and next entry, Home and End to the first and last, and
+the `sideways` keys of a group. Left on a link goes to the group around it.
+-}
+arrowKeys : Context key msg -> String -> List ( String, msg ) -> Html.Attribute msg
+arrowKeys context domId sideways =
     let
-        ids =
-            context.focusables
-
-        position =
-            ids
-                |> List.indexedMap Tuple.pair
-                |> List.filter (\( _, other ) -> other == domId)
-                |> List.head
-                |> Maybe.map Tuple.first
-
-        at index =
-            ids |> List.drop index |> List.head
+        place =
+            Dict.get domId context.order.neighbours
 
         focus target =
             context.toMsg (Focus target)
+
+        toParent =
+            if List.isEmpty sideways then
+                context.parent |> Maybe.map (\target -> ( "ArrowLeft", focus target ))
+
+            else
+                Nothing
     in
     Internal.onKeys
         (List.filterMap identity
-            [ position |> Maybe.andThen (\i -> at (i + 1)) |> Maybe.map (\target -> ( "ArrowDown", focus target ))
-            , position
-                |> Maybe.andThen
-                    (\i ->
-                        if i > 0 then
-                            at (i - 1)
-
-                        else
-                            Nothing
-                    )
-                |> Maybe.map (\target -> ( "ArrowUp", focus target ))
-            , List.head ids |> Maybe.map (\target -> ( "Home", focus target ))
-            , List.head (List.reverse ids) |> Maybe.map (\target -> ( "End", focus target ))
+            [ place |> Maybe.andThen .next |> Maybe.map (\target -> ( "ArrowDown", focus target ))
+            , place |> Maybe.andThen .previous |> Maybe.map (\target -> ( "ArrowUp", focus target ))
+            , context.order.first |> Maybe.map (\target -> ( "Home", focus target ))
+            , context.order.last |> Maybe.map (\target -> ( "End", focus target ))
+            , toParent
             ]
+            ++ sideways
         )
 
 

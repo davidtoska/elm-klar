@@ -38,6 +38,15 @@ import Showcase.Doc as Doc
 -- MODEL
 
 
+{-| The views of a page in the demo, the keys of its tab strip.
+-}
+type View
+    = OverviewView
+    | HistoryView
+    | FilesView
+    | AdminView
+
+
 type alias Model =
     { -- the application frame
       collapsed : Bool
@@ -49,7 +58,7 @@ type alias Model =
     , nav : SideNav.State String
     , userMenu : Menu.State
     , actionsMenu : Menu.State
-    , tabs : Tabs.State
+    , tabs : Tabs.State View
     , crumbs : Breadcrumbs.State
     , lastAction : Maybe String
 
@@ -71,7 +80,7 @@ init =
     , nav = SideNav.init "nav-demo-links" |> SideNav.reveal "orders" Demo.menu
     , userMenu = Menu.init "nav-demo-user"
     , actionsMenu = Menu.init "nav-demo-actions"
-    , tabs = Tabs.init "nav-demo-tabs" "overview"
+    , tabs = Tabs.init "nav-demo-tabs" OverviewView
     , crumbs = Breadcrumbs.init "nav-demo-crumbs"
     , lastAction = Nothing
     , navExpanded = SideNav.init "nav-expanded" |> SideNav.reveal "reports-monthly" Demo.menu
@@ -98,7 +107,7 @@ type Msg
     | NavMsg SideNav.Msg
     | UserMenuMsg Menu.Msg
     | ActionsMenuMsg Menu.Msg
-    | TabsMsg Tabs.Msg
+    | TabsMsg (Tabs.Msg View)
     | CrumbsMsg Breadcrumbs.Msg
     | ExpandedMsg SideNav.Msg
     | CollapsedMsg SideNav.Msg
@@ -157,7 +166,7 @@ update msg model =
             ( model, AppShell.focusContent shellId NoOp )
 
         PageSelected key ->
-            ( { model | page = key, drawerOpen = False, tabs = Tabs.setActive "overview" model.tabs }
+            ( { model | page = key, drawerOpen = False, tabs = Tabs.setActive OverviewView model.tabs }
             , Cmd.batch
                 [ AppShell.resetScroll shellId NoOp
 
@@ -378,10 +387,10 @@ shell locale model =
 
 {-| The breadcrumbs of a page: home, the levels above it, the page itself.
 -}
-trail : Demo.Page -> List Breadcrumbs.Crumb
+trail : Demo.Page -> List (Breadcrumbs.Crumb Msg)
 trail page =
-    (Breadcrumbs.link "Home" (Demo.href "") |> Breadcrumbs.withIcon Icon.home)
-        :: List.map (\parent -> Breadcrumbs.link parent (Demo.href (String.toLower parent))) page.parents
+    (Breadcrumbs.link { label = "Home", href = Demo.href "" } |> Breadcrumbs.withIcon Icon.home)
+        :: List.map (\parent -> Breadcrumbs.link { label = parent, href = Demo.href (String.toLower parent) }) page.parents
         ++ [ Breadcrumbs.text page.title ]
 
 
@@ -414,10 +423,10 @@ shellPage locale model page =
             , PageHeader.tabs
                 (Tabs.view TabsMsg
                     [ Tabs.tabs
-                        [ Tabs.tab "overview" "Overview"
-                        , Tabs.tab "history" "History" |> Tabs.withCount 12
-                        , Tabs.tab "files" "Files"
-                        , Tabs.tab "admin" "Administration"
+                        [ Tabs.tab OverviewView "Overview"
+                        , Tabs.tab HistoryView "History" |> Tabs.withCount 12
+                        , Tabs.tab FilesView "Files"
+                        , Tabs.tab AdminView "Administration"
                             |> Tabs.disabledTab
                             |> Tabs.withTitle "Requires administrator access"
                         ]
@@ -427,11 +436,19 @@ shellPage locale model page =
                 )
             ]
         , Layout.stack [ Layout.gap 4 ]
-            [ Tabs.panels model.tabs
-                [ ( "overview", \_ -> overviewPanel locale page )
-                , ( "history", \_ -> filler "History" )
-                , ( "files", \_ -> filler "Files" )
-                ]
+            [ -- The strip is in the header, the view of the active tab is the page.
+              case Tabs.active model.tabs of
+                OverviewView ->
+                    overviewPanel locale page
+
+                HistoryView ->
+                    filler "History"
+
+                FilesView ->
+                    filler "Files"
+
+                AdminView ->
+                    filler "Administration"
             ]
         ]
 

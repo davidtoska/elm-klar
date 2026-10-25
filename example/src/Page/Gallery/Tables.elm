@@ -2514,7 +2514,7 @@ paginationSection locale pagers =
             (Layout.stack [ Layout.gap 3 ]
                 [ Pagination.view
                     [ Pagination.id "pager-full"
-                    , Pagination.label "Order pages"
+                    , Pagination.ariaLabel "Order pages"
                     , Pagination.onPage FullPage
                     , Pagination.onPageSize FullPageSize
                     , Pagination.jumpToPage
@@ -2531,7 +2531,7 @@ paginationSection locale pagers =
             }
             (Pagination.view
                 [ Pagination.id "pager-compact"
-                , Pagination.label "Compact order pages"
+                , Pagination.ariaLabel "Compact order pages"
                 , Pagination.compact
                 , Pagination.onPage CompactPage
                 , Pagination.locale locale
@@ -2546,14 +2546,14 @@ paginationSection locale pagers =
             (Layout.stack [ Layout.gap 4 ]
                 [ Pagination.view
                     [ Pagination.id "pager-few"
-                    , Pagination.label "Few order pages"
+                    , Pagination.ariaLabel "Few order pages"
                     , Pagination.onPage FewPage
                     , Pagination.locale locale
                     ]
                     { page = pagers.few, pageSize = 10, total = 42 }
                 , Pagination.view
                     [ Pagination.id "pager-many"
-                    , Pagination.label "Many order pages"
+                    , Pagination.ariaLabel "Many order pages"
                     , Pagination.onPage ManyPage
                     , Pagination.siblings 2
                     , Pagination.jumpToPage
@@ -2570,7 +2570,7 @@ paginationSection locale pagers =
             (Layout.stack [ Layout.gap 4 ]
                 [ Pagination.view
                     [ Pagination.id "pager-empty"
-                    , Pagination.label "Empty order pages"
+                    , Pagination.ariaLabel "Empty order pages"
                     , Pagination.onPage (\_ -> NoOp)
                     , Pagination.onPageSize (\_ -> NoOp)
                     , Pagination.locale locale
@@ -2578,7 +2578,7 @@ paginationSection locale pagers =
                     { page = 1, pageSize = 25, total = 0 }
                 , Pagination.view
                     [ Pagination.id "pager-disabled"
-                    , Pagination.label "Disabled order pages"
+                    , Pagination.ariaLabel "Disabled order pages"
                     , Pagination.disabled True
                     , Pagination.summary [ Text.text "Loading orders ..." ]
                     , Pagination.onPage (\_ -> NoOp)
@@ -2612,7 +2612,7 @@ fullPagerCode : String
 fullPagerCode =
     """Pagination.view
     [ Pagination.id "order-pages"
-    , Pagination.label "Order pages"
+    , Pagination.ariaLabel "Order pages"
     , Pagination.onPage PageChanged
     , Pagination.onPageSize PageSizeChanged
     , Pagination.jumpToPage

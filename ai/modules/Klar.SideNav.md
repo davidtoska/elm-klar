@@ -117,8 +117,9 @@ its icon while it has the mouse or the keyboard focus. With
 on narrow screens the sidebar is a drawer and always shows labels.
 
 Keyboard: Tab moves between links as usual. Arrow Up and Down also move to the
-previous and next visible entry, Home and End to the first and last. Disabled
-links are skipped. The menu is a `nav` landmark, named by `ariaLabel`
+previous and next visible entry, Home and End to the first and last. Arrow Right opens
+a closed group and then moves to its first entry; Arrow Left closes an open group, and
+on an entry inside a group moves to the group. Disabled links are skipped. The menu is a `nav` landmark, named by `ariaLabel`
 ("Main menu" by default).
 
 ## View
@@ -223,7 +224,7 @@ withCount : Int -> Entry key msg -> Entry key msg
 
 A number pill after the label of a link or a group, such as the number of open
 orders; any other entry is left unchanged. It reads "99+" above 99, and the exact
-number is in the tooltip. In the collapsed menu it becomes a small dot.
+number is in the tooltip, grouped the way the language of `locale` writes numbers. In the collapsed menu it becomes a small dot.
 
 ### `withBadge`
 
@@ -319,7 +320,7 @@ locale : Locale.Locale -> Attribute key msg
 ```
 
 The language of the built-in text, which is the default name of the `nav`
-landmark. Default `Locale.en`.
+landmark, and of the numbers of `withCount`. Default `Locale.en`.
 
 ## State
 

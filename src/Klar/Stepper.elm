@@ -1,7 +1,7 @@
 module Klar.Stepper exposing
     ( view, progress
     , Step, step, withDescription, failed, disabledStep
-    , Attribute, current, onSelect, vertical, small, ariaLabel, locale
+    , Attribute, current, onSelect, nonLinear, vertical, small, ariaLabel, locale
     )
 
 {-| The steps of a wizard or a checkout flow, laid out horizontally or vertically.
@@ -35,8 +35,10 @@ another step.
 Steps are numbered from 0. The step with the index given to `current` is the
 current one, the steps before it are complete and the ones after it are upcoming.
 Mark exceptions on the step itself: `failed` (validation did not pass) and
-`disabledStep` (not available yet). With `onSelect` every step that is not
-disabled becomes a button, so disable the steps that must not be visited yet.
+`disabledStep` (not available yet). With `onSelect` the steps up to the current one
+become buttons, so the user can go back but not skip ahead past a step that is not done;
+add `nonLinear` when any step may be opened (your `update` then decides what a jump
+ahead does).
 
 The steps are an ordered list. The current step has `aria-current="step"`, and a
 step that is complete, failed or disabled is also announced in words ("completed",
@@ -63,7 +65,7 @@ The built-in text follows `locale` (English by default).
 
 # Attributes
 
-@docs Attribute, current, onSelect, vertical, small, ariaLabel, locale
+@docs Attribute, current, onSelect, nonLinear, vertical, small, ariaLabel, locale
 
 -}
 
@@ -147,6 +149,7 @@ type alias Config msg =
     , vertical : Bool
     , small : Bool
     , onSelect : Maybe (Int -> msg)
+    , nonLinear : Bool
     , ariaLabel : Maybe String
     , locale : Locale
     }
@@ -159,6 +162,7 @@ configure attributes =
         , vertical = False
         , small = False
         , onSelect = Nothing
+        , nonLinear = False
         , ariaLabel = Nothing
         , locale = Locale.default
         }
@@ -190,10 +194,11 @@ small =
     Attribute (\config -> { config | small = True })
 
 
-{-| Turns the steps into buttons that send their index (counting from 0) when
-they are clicked or activated with the keyboard. The current step is a button
-too. Steps marked with `disabledStep` stay disabled; without `onSelect` no step
-is clickable.
+{-| Turns the steps up to the current one into buttons that send their index
+(counting from 0) when they are clicked or activated with the keyboard: the user can
+go back to a step that is done. The steps after the current one are not buttons unless
+`nonLinear` is given. Steps marked with `disabledStep` stay disabled; without
+`onSelect` no step is clickable.
 
     Stepper.onSelect GoToStep
 
@@ -201,6 +206,16 @@ is clickable.
 onSelect : (Int -> msg) -> Attribute msg
 onSelect toMsg =
     Attribute (\config -> { config | onSelect = Just toMsg })
+
+
+{-| With `onSelect`, every step that is not disabled is a button, also the ones after
+the current step, for a wizard whose steps can be filled in any order (or one whose
+`update` checks the steps on the way, like the steps of [Klar.Form](Klar-Form)). The
+default lets the user go back only.
+-}
+nonLinear : Attribute msg
+nonLinear =
+    Attribute (\config -> { config | nonLinear = True })
 
 
 {-| The accessible name of the list of steps. Default "Progress" (in the language
@@ -271,8 +286,9 @@ statusSuffix status =
 
 {-| The steps, connected by thin lines, as an ordered list. In a horizontal row a
 label that does not fit is cut with an ellipsis, and a row with very many steps
-scrolls sideways (the row can take the keyboard focus, so that it can be scrolled
-with the arrow keys); a vertical list wraps long labels and descriptions instead.
+scrolls sideways (without `onSelect` the row can take the keyboard focus, so that it
+can be scrolled with the arrow keys; with it, the step buttons scroll into view as they
+get focus); a vertical list wraps long labels and descriptions instead.
 -}
 view : List (Attribute msg) -> List Step -> Html msg
 view attributes steps =
@@ -303,9 +319,14 @@ view attributes steps =
         , Attr.attribute "aria-label"
             (Maybe.withDefault (Locale.pick config.locale { nb = "Fremdrift", en = "Progress" }) config.ariaLabel)
 
-        -- a row with very many steps scrolls sideways: it takes the focus, so that the
-        -- arrow keys can scroll it
-        , Internal.attrIf (not config.vertical) (Attr.tabindex 0)
+        -- a row with very many steps scrolls sideways: without buttons in it, it takes
+        -- the focus, so that the arrow keys can scroll it
+        , case config.onSelect of
+            Nothing ->
+                Internal.attrIf (not config.vertical) (Attr.tabindex 0)
+
+            Just _ ->
+                Internal.noAttr
         ]
         (List.indexedMap (viewStep inList total) steps)
 
@@ -375,19 +396,34 @@ viewStep config total index ((Step data) as theStep) =
         headClasses =
             Internal.cls [ "klar-stepper__head" ]
 
+        -- linear by default: back to a step that is done, not ahead past one that is not
+        reachable =
+            config.nonLinear || index <= config.current
+
+        selectWith =
+            if reachable then
+                config.onSelect
+
+            else
+                Nothing
+
+        isButton =
+            case selectWith of
+                Just _ ->
+                    True
+
+                Nothing ->
+                    False
+
         head =
-            case config.onSelect of
+            case selectWith of
                 Just toMsg ->
                     clickable toMsg index isCurrent headClasses data.label marker text (status == Disabled)
 
                 Nothing ->
-                    Html.div
-                        [ headClasses
-                        , Attr.title data.label
-                        , Internal.attrIf isCurrent (Attr.attribute "aria-current" "step")
-                        , Internal.attrIf (status == Disabled) (Attr.attribute "aria-disabled" "true")
-                        ]
-                        [ marker, text ]
+                    -- a plain element carries no state: `aria-current` is on the item,
+                    -- and "unavailable" is in the hidden status text
+                    Html.div [ headClasses, Attr.title data.label ] [ marker, text ]
     in
     Html.li
         [ Internal.cls
@@ -404,6 +440,7 @@ viewStep config total index ((Step data) as theStep) =
               else
                 ""
             ]
+        , Internal.attrIf (isCurrent && not isButton) (Attr.attribute "aria-current" "step")
         ]
         [ head
         , Internal.viewIf (not isLast) (Html.span [ Internal.cls [ "klar-stepper__line" ], Attr.attribute "aria-hidden" "true" ] [])

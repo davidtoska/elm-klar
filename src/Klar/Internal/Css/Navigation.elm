@@ -393,6 +393,13 @@ css =
   }
 }
 
+/* Windows high contrast drops shadows and tints: the open drawer keeps an edge, and
+   the menu button that holds it open is outlined. */
+@media (forced-colors: active) {
+  .klar-app-shell--drawer-open .klar-app-shell__sidebar { border-inline-end: 1px solid CanvasText; }
+  .klar-app-shell--drawer-open .klar-app-shell__toggle--narrow { outline: 2px solid Highlight; outline-offset: -2px; }
+}
+
 /* ---- Side navigation ------------------------------------------------------- */
 
 .klar-side-nav {
@@ -677,7 +684,7 @@ css =
   & .klar-side-nav__children .klar-side-nav__link--nested { padding-left: 8px; }
 }
 
-@supports (anchor-name: --klar-a) and (position-anchor: --klar-a) {
+@supports (anchor-name: --klar-a) and (position-anchor: --klar-a) and (anchor-scope: --klar-a) {
   .klar-side-nav--collapsed:not(.klar-app-shell__sidebar *) .klar-side-nav__children {
     position: fixed;
     position-anchor: --klar-anchor;
@@ -785,7 +792,7 @@ css =
     & .klar-side-nav__children .klar-side-nav__link--nested { padding-left: 8px; }
   }
 
-  @supports (anchor-name: --klar-a) and (position-anchor: --klar-a) {
+  @supports (anchor-name: --klar-a) and (position-anchor: --klar-a) and (anchor-scope: --klar-a) {
     .klar-app-shell__sidebar .klar-side-nav--collapsed .klar-side-nav__children {
       position: fixed;
       position-anchor: --klar-anchor;
@@ -795,6 +802,15 @@ css =
       position-try-fallbacks: flip-block;
     }
   }
+}
+
+/* Windows high contrast: the tint and the accent bar of the current link are gone,
+   so it gets an outline, and the bar is painted in the system color. */
+@media (forced-colors: active) {
+  .klar-side-nav__link--current { outline: 2px solid Highlight; outline-offset: -2px; }
+  .klar-side-nav__link--current::before { forced-color-adjust: none; background: Highlight; }
+  .klar-side-nav__group--active:not(.klar-side-nav__group--open) > .klar-side-nav__link--group { outline: 1px dashed Highlight; outline-offset: -2px; }
+  .klar-side-nav__link--disabled { color: GrayText; }
 }
 
 /* ---- Page header ----------------------------------------------------------- */
@@ -1023,6 +1039,25 @@ css =
 
 .klar-breadcrumbs__hidden-item--text { color: var(--klar-text-secondary); }
 
+/* a crumb made with Breadcrumbs.button looks like a link */
+.klar-breadcrumbs__link--button,
+.klar-breadcrumbs__hidden-item--button {
+  border: 0;
+  background: none;
+  font: inherit;
+  text-align: start;
+  cursor: pointer;
+}
+
+.klar-breadcrumbs__hidden-item--button { width: 100%; }
+
+/* Windows high contrast: the level in the list that has focus is shown by a tint
+   only; give it an outline. */
+@media (forced-colors: active) {
+  .klar-breadcrumbs__hidden-item:hover,
+  .klar-breadcrumbs__hidden-item:focus-visible { outline: 2px solid Highlight; outline-offset: -2px; }
+}
+
 /* ---- Tabs ------------------------------------------------------------------ */
 
 .klar-tabs { min-width: 0; }
@@ -1146,6 +1181,56 @@ css =
 }
 
 .klar-tabs__panel:focus-visible { outline-offset: 2px; }
+
+/* the strip and the panel of the active tab, drawn by one Tabs.view */
+.klar-tabs-layout { min-width: 0; }
+
+/* vertical: the tabs stacked at the start, the panel beside them */
+.klar-tabs-layout--vertical {
+  display: grid;
+  grid-template-columns: max-content minmax(0, 1fr);
+  align-items: start;
+}
+
+.klar-tabs--vertical .klar-tabs__scroller { overflow: visible; }
+
+.klar-tabs--vertical .klar-tabs__list {
+  flex-direction: column;
+  align-items: stretch;
+  width: auto;
+  min-width: 0;
+}
+
+.klar-tabs--vertical.klar-tabs--line .klar-tabs__list { box-shadow: inset -1px 0 0 var(--klar-border); }
+
+.klar-tabs--vertical.klar-tabs--line .klar-tabs__tab {
+  justify-content: flex-start;
+  border-bottom: 0;
+  border-inline-end: 2px solid transparent;
+}
+
+.klar-tabs--vertical.klar-tabs--line .klar-tabs__tab:not(.klar-tabs__tab--disabled):hover { border-inline-end-color: var(--klar-gray-300); }
+
+.klar-tabs--vertical.klar-tabs--line .klar-tabs__tab--active,
+.klar-tabs--vertical.klar-tabs--line .klar-tabs__tab--active:hover { border-inline-end-color: var(--klar-primary); }
+
+.klar-tabs--vertical.klar-tabs--line ~ .klar-tabs__panel {
+  padding-top: 0;
+  padding-inline-start: var(--klar-space-5);
+}
+
+/* Windows high contrast: the line of the active tab in the system color, an outline
+   for a boxed one (its tint and shadow are gone), gray text for a disabled one. */
+@media (forced-colors: active) {
+  .klar-tabs--line .klar-tabs__tab--active,
+  .klar-tabs--line .klar-tabs__tab--active:hover { border-bottom-color: Highlight; }
+
+  .klar-tabs--vertical.klar-tabs--line .klar-tabs__tab--active,
+  .klar-tabs--vertical.klar-tabs--line .klar-tabs__tab--active:hover { border-inline-end-color: Highlight; }
+
+  .klar-tabs--boxed .klar-tabs__tab--active { outline: 2px solid Highlight; outline-offset: -2px; }
+  .klar-tabs__tab--disabled { color: GrayText; }
+}
 
 /* ---- Accordion ------------------------------------------------------------- */
 
@@ -1614,4 +1699,20 @@ button.klar-stepper__head:disabled { cursor: not-allowed; }
 }
 
 .klar-stepper-progress__label { color: var(--klar-text-secondary); }
+
+/* Windows high contrast: the fill of a complete step and the ring of the current one
+   are gone; paint them in system colors. */
+@media (forced-colors: active) {
+  .klar-stepper__step--current .klar-stepper__marker { border: 3px solid Highlight; }
+
+  .klar-stepper__step--complete .klar-stepper__marker {
+    forced-color-adjust: none;
+    background: CanvasText;
+    border-color: CanvasText;
+    color: Canvas;
+  }
+
+  .klar-stepper__step--passed .klar-stepper__line { forced-color-adjust: none; background: CanvasText; }
+  .klar-stepper__step--disabled .klar-stepper__label { color: GrayText; }
+}
 """

@@ -1,8 +1,8 @@
 module Klar.Tabs exposing
-    ( view, panel, panels
-    , State, init, active, setActive, resolve, Msg, update
-    , Tab, tab, withIcon, withCount, withTitle, disabledTab
-    , Attribute, tabs, ariaLabel, boxed, small, fill, manual, withoutPanels
+    ( view
+    , State, init, active, setActive, Msg, update
+    , Tab, tab, withPanel, withIcon, withCount, withTitle, disabledTab
+    , Attribute, tabs, ariaLabel, boxed, small, fill, vertical, manual, locale
     )
 
 {-| Tabs that switch between views of the same thing: the overview of an order,
@@ -10,18 +10,26 @@ its history and its files.
 
 Use when: the user switches between views of the same thing, such as the overview, history and files of an order.
 Do not use when: sections should open and close in place (use `Klar.Accordion`) or the user moves through ordered steps (use `Klar.Stepper`).
-Quick path: `init`, `update`, `view`, `panel`, `active`, `setActive`
+Quick path: `init`, `update`, `view`, `tab`, `withPanel`, `active`
 
-The component is stateful: it owns which tab is active and which tab has
-keyboard focus. The application reads the active tab with `active` and compares
-it before and after an update to react, for instance to change the URL. To set
-the tab from outside, when the route changes, use `setActive`.
+The tabs are values of your own type, so a misspelled tab is a compile error and the
+active one is matched with a `case`. The component is stateful: it owns which tab is
+active. The application reads it with `active` and compares it before and after an
+update to react, for instance to change the URL. To set the tab from outside, when the
+route changes, use `setActive`.
 
     import Klar.Icon as Icon
     import Klar.Tabs as Tabs
 
-    -- model: tabs : Tabs.State
-    -- init:  Tabs.init "order-tabs" "overview"
+    type Section
+        = Overview
+        | History
+        | Files
+        | Billing
+
+    -- model: tabs : Tabs.State Section
+    -- init:  Tabs.init "order-tabs" Overview
+    -- Msg:   TabsMsg (Tabs.Msg Section)
 
     -- update
     TabsMsg m ->
@@ -32,214 +40,244 @@ the tab from outside, when the route changes, use `setActive`.
         ( { model | tabs = tabs }, Cmd.map TabsMsg cmd )
 
     -- view
-    Html.div []
-        [ Tabs.view TabsMsg
-            [ Tabs.ariaLabel "Order sections"
-            , Tabs.tabs
-                [ Tabs.tab "overview" "Overview"
-                , Tabs.tab "history" "History" |> Tabs.withCount 12
-                , Tabs.tab "files" "Files" |> Tabs.withIcon Icon.paperclip
-                , Tabs.tab "billing" "Billing" |> Tabs.disabledTab
-                ]
+    Tabs.view TabsMsg
+        [ Tabs.ariaLabel "Order sections"
+        , Tabs.tabs
+            [ Tabs.tab Overview "Overview"
+                |> Tabs.withPanel (\_ -> overviewView model)
+            , Tabs.tab History "History"
+                |> Tabs.withCount 12
+                |> Tabs.withPanel (\_ -> historyView model)
+            , Tabs.tab Files "Files"
+                |> Tabs.withIcon Icon.paperclip
+                |> Tabs.withPanel (\_ -> filesView model)
+            , Tabs.tab Billing "Billing" |> Tabs.disabledTab
             ]
-            model.tabs
-        , Tabs.panel model.tabs "overview" (\_ -> overviewView model)
-        , Tabs.panel model.tabs "history" (\_ -> historyView model)
         ]
+        model.tabs
 
-`panel` renders its content only while its tab is active (the function is not
-even called for the others), so heavy tab content costs nothing until it is
-opened. Tabs that choose a route, a filter or the contents of a table somewhere
-else have no panels: add `withoutPanels` so that they do not point at panels
-that are not in the page. [Klar.PageHeader](Klar-PageHeader) takes such a strip.
+`view` draws the strip and, under it, the panel of the active tab: the strip and the
+panel always agree, also when the active tab is disabled or not in the list (then the
+first enabled tab is shown as active, and its panel). Only the panel of the active tab
+is built (the function is not even called for the others), so heavy tab content costs
+nothing until it is opened.
 
-The active key should belong to an enabled tab. When it may not, because it comes
-from the URL or because a tab becomes disabled while it is active, the strip shows
-the first enabled tab as selected, but `panel` and `panels` only see the state.
-Pass the state through `resolve` once and give the result to `view`, `panel` and
-`panels`: all three then agree on the same tab.
+Tabs that choose a route, a filter or the contents of a table somewhere else have no
+panels: leave out `withPanel`, and the strip claims no panel. That is the strip for
+[Klar.PageHeader](Klar-PageHeader): the page below is the view of the route (or a `case`
+on `active`).
 
-Keyboard: Left and Right arrow move to the previous and next tab and select it,
-wrapping around at the ends (Home and End jump to the first and last). With
-`manual` the arrows only move focus and Enter or Space selects, which is better
-when switching is expensive. Only one tab is in the Tab order (roving tabindex),
-the active one or, with `manual`, the one that last had focus, so Tab goes from
-the tab list straight into the panel. Disabled tabs are skipped.
+Keyboard: Left and Right arrow (Up and Down with `vertical`) move to the previous and
+next tab and select it, wrapping around at the ends; Home and End jump to the first and
+last. With `manual` the arrows only move focus and Enter or Space selects, which is
+better when switching is expensive. Only the active tab is in the Tab order (roving
+tabindex), so Tab goes from the tab list straight into the panel. Disabled tabs are
+skipped.
 
-The strip is a `tablist` of `tab` buttons and each panel a `tabpanel` named by
-its tab. Name the strip with `ariaLabel`. A strip wider than its container
-scrolls sideways.
+The strip is a `tablist` of `tab` buttons and the panel a `tabpanel` named by its tab.
+Name the strip with `ariaLabel`. A strip wider than its container scrolls sideways.
 
 
-# Views
+# View
 
-@docs view, panel, panels
+@docs view
 
 
 # State
 
-@docs State, init, active, setActive, resolve, Msg, update
+@docs State, init, active, setActive, Msg, update
 
 
 # Tabs
 
-@docs Tab, tab, withIcon, withCount, withTitle, disabledTab
+@docs Tab, tab, withPanel, withIcon, withCount, withTitle, disabledTab
 
 
 # Attributes
 
-@docs Attribute, tabs, ariaLabel, boxed, small, fill, manual, withoutPanels
+@docs Attribute, tabs, ariaLabel, boxed, small, fill, vertical, manual, locale
 
 -}
 
 import Html exposing (Html)
 import Html.Attributes as Attr
 import Html.Events as Events
+import Klar.Format as Format
 import Klar.Icon as Icon exposing (Icon)
 import Klar.Internal as Internal
+import Klar.Locale as Locale exposing (Locale)
 
 
 
 -- TABS
 
 
-{-| One tab of the strip. Make it with `tab` and refine it with `withIcon`,
-`withCount`, `withTitle` and `disabledTab`.
+{-| One tab of the strip, with a key of your own type. Make it with `tab` and refine it
+with `withPanel`, `withIcon`, `withCount`, `withTitle` and `disabledTab`. The `msg` is
+the message type of the content of its panel.
 -}
-type Tab
-    = Tab
-        { key : String
-        , label : String
-        , icon : Maybe Icon
-        , count : Maybe Int
-        , disabled : Bool
-        , title : Maybe String
-        }
+type Tab key msg
+    = Tab (TabData key msg)
 
 
-{-| A tab: the key first, then the label. The key identifies the tab in the
-state (`active`, `setActive`) and names its panel (`panel`), so it must be
-unique within the strip. The label is the text of the tab.
+type alias TabData key msg =
+    { key : key
+    , label : String
+    , icon : Maybe Icon
+    , count : Maybe Int
+    , disabled : Bool
+    , title : Maybe String
+    , panel : Maybe (() -> Html msg)
+    }
 
-    Tabs.tab "history" "History"
+
+{-| A tab: its key (a value of your own type, unique within the strip and compared with
+`==`), then the label, the text of the tab.
+
+    Tabs.tab History "History"
 
 -}
-tab : String -> String -> Tab
+tab : key -> String -> Tab key msg
 tab key label =
-    Tab { key = key, label = label, icon = Nothing, count = Nothing, disabled = False, title = Nothing }
+    Tab { key = key, label = label, icon = Nothing, count = Nothing, disabled = False, title = Nothing, panel = Nothing }
+
+
+{-| The content shown under the strip while this tab is active, as a function that is
+only called then. A strip whose tabs have no panel claims none (`aria-controls` is left
+out), for tabs that choose a route or a filter.
+
+    Tabs.tab History "History"
+        |> Tabs.withPanel (\_ -> historyView model)
+
+-}
+withPanel : (() -> Html msg) -> Tab key msg -> Tab key msg
+withPanel content (Tab data) =
+    Tab { data | panel = Just content }
 
 
 {-| An icon before the label. It is decorative: the label still names the tab.
 -}
-withIcon : Icon -> Tab -> Tab
-withIcon icon (Tab config) =
-    Tab { config | icon = Just icon }
+withIcon : Icon -> Tab key msg -> Tab key msg
+withIcon icon (Tab data) =
+    Tab { data | icon = Just icon }
 
 
-{-| A small number after the label, such as the number of items behind the tab.
-It is shown as it is, without shortening large numbers.
+{-| A small number after the label, such as the number of items behind the tab. It is
+shown whole, grouped the way the language of `locale` writes numbers ("12 345" in
+Norwegian).
 -}
-withCount : Int -> Tab -> Tab
-withCount n (Tab config) =
-    Tab { config | count = Just n }
+withCount : Int -> Tab key msg -> Tab key msg
+withCount n (Tab data) =
+    Tab { data | count = Just n }
 
 
 {-| Visible but not selectable: the tab is a disabled button and the arrow keys
 skip it. Combine with `withTitle` to say why.
 -}
-disabledTab : Tab -> Tab
-disabledTab (Tab config) =
-    Tab { config | disabled = True }
+disabledTab : Tab key msg -> Tab key msg
+disabledTab (Tab data) =
+    Tab { data | disabled = True }
 
 
 {-| A native tooltip (the `title` attribute) for the tab, for example to explain
 why it is disabled.
 
-    Tabs.tab "billing" "Billing"
+    Tabs.tab Billing "Billing"
         |> Tabs.disabledTab
         |> Tabs.withTitle "Available once the order is confirmed"
 
 -}
-withTitle : String -> Tab -> Tab
-withTitle text (Tab config) =
-    Tab { config | title = Just text }
+withTitle : String -> Tab key msg -> Tab key msg
+withTitle text (Tab data) =
+    Tab { data | title = Just text }
 
 
 
 -- ATTRIBUTES
 
 
-{-| A setting of the tab strip. Make them with the functions below and pass a
-list to `view`; later attributes win over earlier ones. The strip's messages are
-the separate `Msg`, so the type has no `msg` parameter.
+{-| A setting of the tab strip. Make them with the functions below and pass a list to
+`view`; later attributes win over earlier ones. `key` is the type of your tabs and `msg`
+your message type, of the content of the panels.
 -}
-type Attribute
-    = Attribute (Config -> Config)
+type Attribute key msg
+    = Attribute (Config key msg -> Config key msg)
 
 
-type alias Config =
-    { tabs : List Tab
+type alias Config key msg =
+    { tabs : List (Tab key msg)
     , boxed : Bool
     , small : Bool
     , fill : Bool
+    , vertical : Bool
     , manual : Bool
     , ariaLabel : Maybe String
-    , controlsPanels : Bool
+    , locale : Locale
     }
 
 
-configure : List Attribute -> Config
+configure : List (Attribute key msg) -> Config key msg
 configure attributes =
     List.foldl (\(Attribute change) config -> change config)
         { tabs = []
         , boxed = False
         , small = False
         , fill = False
+        , vertical = False
         , manual = False
         , ariaLabel = Nothing
-        , controlsPanels = True
+        , locale = Locale.default
         }
         attributes
 
 
-{-| The tabs, in order. At least one of them should be enabled, and the key of
-the active tab (see `init` and `setActive`) should belong to an enabled tab;
-`resolve` makes sure of it.
+{-| The tabs, in order. At least one of them should be enabled; when the active key
+belongs to no enabled tab, the first enabled one is shown as active.
 -}
-tabs : List Tab -> Attribute
+tabs : List (Tab key msg) -> Attribute key msg
 tabs value =
     Attribute (\config -> { config | tabs = value })
 
 
 {-| Draws the tabs as boxes joined to the panel below, which gets a border of its
 own. The default is a plain line under the strip with the active tab underlined.
+A `vertical` strip always has the line look.
 -}
-boxed : Attribute
+boxed : Attribute key msg
 boxed =
     Attribute (\config -> { config | boxed = True })
 
 
 {-| Lower tabs with smaller text, for tight spaces.
 -}
-small : Attribute
+small : Attribute key msg
 small =
     Attribute (\config -> { config | small = True })
 
 
 {-| The tabs share the full width of the strip equally, instead of being only as
-wide as their labels.
+wide as their labels. No effect on a `vertical` strip.
 -}
-fill : Attribute
+fill : Attribute key msg
 fill =
     Attribute (\config -> { config | fill = True })
+
+
+{-| Stacks the tabs from top to bottom, with the panel beside them, for settings pages
+and detail panes. The arrow keys are Up and Down, and the list says
+`aria-orientation="vertical"`. The default is a horizontal strip.
+-}
+vertical : Attribute key msg
+vertical =
+    Attribute (\config -> { config | vertical = True })
 
 
 {-| Manual activation: the arrow keys only move the focus, and Enter or Space
 selects the focused tab. Without it the arrows move and select in one go, which
 is right when switching is cheap. Use `manual` when switching is expensive, such
-as a tab that loads data.
+as a tab that loads data. The active tab stays the one in the Tab order.
 -}
-manual : Attribute
+manual : Attribute key msg
 manual =
     Attribute (\config -> { config | manual = True })
 
@@ -247,246 +285,252 @@ manual =
 {-| The accessible name of the tab list: what the tabs switch between, for example
 "Order sections". There is no default; without it the list has no name.
 -}
-ariaLabel : String -> Attribute
+ariaLabel : String -> Attribute key msg
 ariaLabel value =
     Attribute (\config -> { config | ariaLabel = Just value })
 
 
-{-| Says that no `panel` or `panels` follows the strip: the tabs choose a route, a
-filter or the contents of a table somewhere else. Without panels the active tab
-must not claim a panel that is not in the page, so it leaves out `aria-controls`.
+{-| The language the counts of `withCount` are written in (digit grouping). Default
+`Locale.en`.
 -}
-withoutPanels : Attribute
-withoutPanels =
-    Attribute (\config -> { config | controlsPanels = False })
+locale : Locale -> Attribute key msg
+locale value =
+    Attribute (\config -> { config | locale = value })
 
 
 
 -- STATE
 
 
-{-| The state of a tab strip: which tab is active and which tab has keyboard
-focus. Make one with `init`, keep it in your model, and give it to `view`,
-`panel` and `panels`.
+{-| The state of a tab strip: which tab is active. Make one with `init`, keep it in your
+model, and give it to `view`.
 -}
-type State
+type State key
     = State
         { id : String
-        , active : String
-        , focused : String
+        , active : key
         }
 
 
 {-| A tab strip with one tab active. The first argument is a DOM id that must be
-unique on the page: it is the prefix of the ids of the tabs and panels. The second
+unique on the page: it is the prefix of the ids of the tabs and of the panel. The second
 is the key of the tab that is active at first.
 
-    Tabs.init "order-tabs" "overview"
+    Tabs.init "order-tabs" Overview
 
 -}
-init : String -> String -> State
+init : String -> key -> State key
 init id initial =
-    State { id = id, active = initial, focused = initial }
+    State { id = id, active = initial }
 
 
-{-| The key of the active tab. Compare it before and after `update` to react when
-the user picks another tab.
+{-| The key of the active tab: the one given to `init` or `setActive`, or the one the
+user picked. Compare it before and after `update` to react when the user picks another
+tab.
 
     Tabs.active tabs /= Tabs.active model.tabs
 
 -}
-active : State -> String
+active : State key -> key
 active (State state) =
     state.active
 
 
 {-| Selects a tab from the application, for instance when the route changes. It
-does not move keyboard focus. The key should belong to an enabled tab; when you
-cannot be sure of that, draw the tabs from `resolve`.
+does not move keyboard focus. When the key belongs to no enabled tab, `view` shows the
+first enabled tab as active.
 -}
-setActive : String -> State -> State
+setActive : key -> State key -> State key
 setActive key (State state) =
-    State { state | active = key, focused = key }
+    State { state | active = key }
 
 
-{-| The state as the strip shows it: when the active key belongs to no tab, or to
-a disabled one, the first enabled tab becomes the active one (the key is empty
-when no tab is enabled); otherwise nothing changes. `view` does this for itself,
-but `panel` and `panels` only see the state, so resolve it once, with the same
-tabs that you give to `tabs`, and hand the result to all three.
-
-    let
-        resolved =
-            Tabs.resolve orderTabs model.tabs
-    in
-    Html.div []
-        [ Tabs.view TabsMsg [ Tabs.tabs orderTabs ] resolved
-        , Tabs.panel resolved "overview" (\_ -> overviewView model)
-        , Tabs.panel resolved "history" (\_ -> historyView model)
-        ]
-
+{-| The messages of a tab strip: a tab was clicked, an arrow key was pressed. Wrap it in
+a constructor of your own message type (`TabsMsg (Tabs.Msg Section)`), pass that
+constructor to `view`, and hand the messages you get back to `update`.
 -}
-resolve : List Tab -> State -> State
-resolve tabList (State state) =
-    State { state | active = resolveKey (enabledKeysOf tabList) state.active }
-
-
-enabledKeysOf : List Tab -> List String
-enabledKeysOf tabList =
-    List.filterMap
-        (\(Tab data) ->
-            if data.disabled then
-                Nothing
-
-            else
-                Just data.key
-        )
-        tabList
-
-
-{-| The key that is selected: the given one when it belongs to an enabled tab,
-otherwise the first enabled tab (or "" when there is none).
--}
-resolveKey : List String -> String -> String
-resolveKey enabledKeys key =
-    if List.member key enabledKeys then
-        key
-
-    else
-        Maybe.withDefault "" (List.head enabledKeys)
-
-
-{-| The messages of a tab strip: a tab was clicked, an arrow key was pressed.
-Wrap it in a constructor of your own message type, pass that constructor to
-`view`, and hand the messages you get back to `update`.
--}
-type Msg
-    = Select String
-    | Move String
-    | FocusOnly String
+type Msg key
+    = Select key
+    | Move key Int
+    | FocusOnly Int
     | Noop
 
 
 {-| Selects tabs and moves keyboard focus between them. The `Cmd` moves the focus
 to the tab the arrow keys reached, so map it with your message constructor.
 -}
-update : Msg -> State -> ( State, Cmd Msg )
+update : Msg key -> State key -> ( State key, Cmd (Msg key) )
 update msg (State state) =
     case msg of
         Select key ->
-            ( State { state | active = key, focused = key }, Cmd.none )
+            ( State { state | active = key }, Cmd.none )
 
-        Move key ->
-            ( State { state | active = key, focused = key }
-            , Internal.focus (tabId state.id key) Noop
+        Move key index ->
+            ( State { state | active = key }
+            , Internal.focus (tabId state.id index) Noop
             )
 
-        FocusOnly key ->
-            ( State { state | focused = key }
-            , Internal.focus (tabId state.id key) Noop
-            )
+        FocusOnly index ->
+            ( State state, Internal.focus (tabId state.id index) Noop )
 
         Noop ->
             ( State state, Cmd.none )
 
 
-tabId : String -> String -> String
-tabId id key =
-    id ++ "-tab-" ++ Internal.sanitizeId key
+tabId : String -> Int -> String
+tabId id index =
+    id ++ "-tab-" ++ String.fromInt index
 
 
-panelId : String -> String -> String
-panelId id key =
-    id ++ "-panel-" ++ Internal.sanitizeId key
+panelId : String -> Int -> String
+panelId id index =
+    id ++ "-panel-" ++ String.fromInt index
 
 
 
 -- VIEW
 
 
-{-| The tab list. The first argument wraps the strip's `Msg` in your own message
-type. The panels are separate: see `panel` and `panels`. When the active key
-belongs to no enabled tab, the first enabled tab is shown as selected; give the
-panels the state from `resolve` so that they follow.
+{-| The tab list, and under it (beside it, with `vertical`) the panel of the active tab
+when the tabs have panels. The first argument wraps the strip's `Msg` in your own message
+type. When the active key belongs to no enabled tab, the first enabled tab is shown as
+active, with its panel.
 -}
-view : (Msg -> msg) -> List Attribute -> State -> Html msg
+view : (Msg key -> msg) -> List (Attribute key msg) -> State key -> Html msg
 view toMsg attributes (State state) =
     let
         config =
             configure attributes
 
-        enabledKeys =
-            enabledKeysOf config.tabs
+        indexed =
+            List.indexedMap Tuple.pair config.tabs
 
-        activeKey =
-            resolveKey enabledKeys state.active
+        enabled =
+            List.filter (\( _, Tab data ) -> not data.disabled) indexed
 
-        -- the one tab that is in the Tab order
-        stopKey =
-            if config.manual && List.member state.focused enabledKeys then
-                state.focused
+        activeIndex =
+            case List.filter (\( _, Tab data ) -> data.key == state.active) enabled of
+                ( index, _ ) :: _ ->
+                    Just index
 
-            else
-                activeKey
+                [] ->
+                    List.head enabled |> Maybe.map Tuple.first
 
-        move key =
-            if config.manual then
-                toMsg (FocusOnly key)
+        activeTab =
+            activeIndex |> Maybe.andThen (\index -> indexed |> List.drop index |> List.head)
 
-            else
-                toMsg (Move key)
-    in
-    Html.div
-        [ Internal.cls
-            [ "klar-tabs"
-            , if config.boxed then
-                "klar-tabs--boxed"
+        hasPanels =
+            List.any (\(Tab data) -> data.panel /= Nothing) config.tabs
 
-              else
-                "klar-tabs--line"
-            , if config.small then
-                "klar-tabs--sm"
+        strip =
+            Html.div
+                [ Internal.cls
+                    [ "klar-tabs"
+                    , if config.boxed && not config.vertical then
+                        "klar-tabs--boxed"
 
-              else
-                ""
-            , if config.fill then
-                "klar-tabs--fill"
+                      else
+                        "klar-tabs--line"
+                    , if config.small then
+                        "klar-tabs--sm"
 
-              else
-                ""
-            ]
-        ]
-        [ Html.div [ Internal.cls [ "klar-tabs__scroller" ] ]
-            [ Html.div
-                [ Internal.cls [ "klar-tabs__list" ]
-                , Attr.attribute "role" "tablist"
-                , Internal.attrMaybe (Attr.attribute "aria-label") config.ariaLabel
+                      else
+                        ""
+                    , if config.fill && not config.vertical then
+                        "klar-tabs--fill"
+
+                      else
+                        ""
+                    , if config.vertical then
+                        "klar-tabs--vertical"
+
+                      else
+                        ""
+                    ]
                 ]
-                (List.map (viewTab toMsg move state.id config.controlsPanels enabledKeys activeKey stopKey) config.tabs)
+                [ Html.div [ Internal.cls [ "klar-tabs__scroller" ] ]
+                    [ Html.div
+                        [ Internal.cls [ "klar-tabs__list" ]
+                        , Attr.attribute "role" "tablist"
+                        , Internal.attrMaybe (Attr.attribute "aria-label") config.ariaLabel
+                        , Internal.attrIf config.vertical (Attr.attribute "aria-orientation" "vertical")
+                        ]
+                        (List.map (viewTab toMsg config state.id (List.map Tuple.first enabled) enabled activeIndex) indexed)
+                    ]
+                ]
+    in
+    if hasPanels then
+        -- The same element tree whatever tab is active, so that focus on a tab
+        -- survives the switch.
+        Html.div
+            [ Internal.cls
+                [ "klar-tabs-layout"
+                , if config.vertical then
+                    "klar-tabs-layout--vertical"
+
+                  else
+                    ""
+                ]
             ]
-        ]
+            [ strip
+            , case activeTab of
+                Just ( index, Tab data ) ->
+                    case data.panel of
+                        Just content ->
+                            Html.div
+                                [ Internal.cls [ "klar-tabs__panel" ]
+                                , Attr.id (panelId state.id index)
+                                , Attr.attribute "role" "tabpanel"
+                                , Attr.attribute "aria-labelledby" (tabId state.id index)
+                                , Attr.tabindex 0
+                                ]
+                                [ content () ]
+
+                        Nothing ->
+                            Html.text ""
+
+                Nothing ->
+                    Html.text ""
+            ]
+
+    else
+        strip
 
 
-viewTab : (Msg -> msg) -> (String -> msg) -> String -> Bool -> List String -> String -> String -> Tab -> Html msg
-viewTab toMsg move id controlsPanels enabledKeys activeKey stopKey (Tab data) =
+viewTab : (Msg key -> msg) -> Config key msg -> String -> List Int -> List ( Int, Tab key msg ) -> Maybe Int -> ( Int, Tab key msg ) -> Html msg
+viewTab toMsg config id enabledIndexes enabled activeIndex ( index, Tab data ) =
     let
         isActive =
-            data.key == activeKey
+            activeIndex == Just index
+
+        move ( target, Tab targetData ) =
+            if config.manual then
+                toMsg (FocusOnly target)
+
+            else
+                toMsg (Move targetData.key target)
 
         neighbour offset =
-            case indexOf data.key enabledKeys of
-                Just index ->
-                    enabledKeys |> List.drop (modBy (List.length enabledKeys) (index + offset)) |> List.head
+            case indexOf index enabledIndexes of
+                Just position ->
+                    enabled |> List.drop (modBy (List.length enabled) (position + offset)) |> List.head
 
                 Nothing ->
                     Nothing
 
+        ( previousKey, nextKey ) =
+            if config.vertical then
+                ( "ArrowUp", "ArrowDown" )
+
+            else
+                ( "ArrowLeft", "ArrowRight" )
+
         keys =
             List.filterMap identity
-                [ neighbour 1 |> Maybe.map (\key -> ( "ArrowRight", move key ))
-                , neighbour -1 |> Maybe.map (\key -> ( "ArrowLeft", move key ))
-                , List.head enabledKeys |> Maybe.map (\key -> ( "Home", move key ))
-                , List.head (List.reverse enabledKeys) |> Maybe.map (\key -> ( "End", move key ))
+                [ neighbour 1 |> Maybe.map (\target -> ( nextKey, move target ))
+                , neighbour -1 |> Maybe.map (\target -> ( previousKey, move target ))
+                , List.head enabled |> Maybe.map (\target -> ( "Home", move target ))
+                , List.head (List.reverse enabled) |> Maybe.map (\target -> ( "End", move target ))
                 ]
     in
     Html.button
@@ -503,7 +547,7 @@ viewTab toMsg move id controlsPanels enabledKeys activeKey stopKey (Tab data) =
               else
                 ""
             ]
-        , Attr.id (tabId id data.key)
+        , Attr.id (tabId id index)
         , Attr.type_ "button"
         , Attr.attribute "role" "tab"
         , Attr.attribute "aria-selected"
@@ -513,9 +557,11 @@ viewTab toMsg move id controlsPanels enabledKeys activeKey stopKey (Tab data) =
              else
                 "false"
             )
-        , Internal.attrIf (isActive && controlsPanels) (Attr.attribute "aria-controls" (panelId id data.key))
+        , Internal.attrIf (isActive && data.panel /= Nothing) (Attr.attribute "aria-controls" (panelId id index))
+
+        -- the one tab in the Tab order: the active one, also in manual mode
         , Attr.tabindex
-            (if data.key == stopKey then
+            (if isActive then
                 0
 
              else
@@ -537,63 +583,15 @@ viewTab toMsg move id controlsPanels enabledKeys activeKey stopKey (Tab data) =
         [ Internal.viewMaybe Icon.view data.icon
         , Html.span [ Internal.cls [ "klar-tabs__label" ] ] [ Html.text data.label ]
         , Internal.viewMaybe
-            (\n -> Html.span [ Internal.cls [ "klar-tabs__count", "klar-tabular" ] ] [ Html.text (String.fromInt n) ])
+            (\n -> Html.span [ Internal.cls [ "klar-tabs__count", "klar-tabular" ] ] [ Html.text (Format.int config.locale n) ])
             data.count
         ]
 
 
-indexOf : String -> List String -> Maybe Int
+indexOf : Int -> List Int -> Maybe Int
 indexOf target list =
     list
         |> List.indexedMap Tuple.pair
-        |> List.filter (\( _, key ) -> key == target)
+        |> List.filter (\( _, value ) -> value == target)
         |> List.head
         |> Maybe.map Tuple.first
-
-
-
--- PANELS
-
-
-{-| The content of one tab: the state, the key of the tab, and a function that
-builds the content. The panel is rendered only while the tab is active; the
-function is not called otherwise. Put it below the strip, and give it the state
-from `resolve` when the active key may not belong to an enabled tab.
-
-    Tabs.panel model.tabs "history" (\_ -> historyView model)
-
--}
-panel : State -> String -> (() -> Html msg) -> Html msg
-panel (State state) key content =
-    if state.active == key then
-        Html.div
-            [ Internal.cls [ "klar-tabs__panel" ]
-            , Attr.id (panelId state.id key)
-            , Attr.attribute "role" "tabpanel"
-            , Attr.attribute "aria-labelledby" (tabId state.id key)
-            , Attr.tabindex 0
-            ]
-            [ content () ]
-
-    else
-        Html.text ""
-
-
-{-| All the panels in one go, as a list of keys with their content functions.
-Only the panel of the active tab is built; as for `panel`, the state from
-`resolve` makes it the tab that the strip shows.
-
-    Tabs.panels model.tabs
-        [ ( "overview", \_ -> overviewView model )
-        , ( "history", \_ -> historyView model )
-        ]
-
--}
-panels : State -> List ( String, () -> Html msg ) -> Html msg
-panels state entries =
-    case List.filter (\( key, _ ) -> key == active state) entries |> List.head of
-        Just ( key, content ) ->
-            panel state key content
-
-        Nothing ->
-            Html.text ""

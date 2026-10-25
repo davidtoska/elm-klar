@@ -3388,16 +3388,16 @@
         "sideNav",
         "onUrlRequest",
         "onUrlChange",
-        "toggleSidebar",
-        "goToContent"
+        "follow",
+        "toggleSidebar"
       ],
       "related": [
         "Klar.Shortcut",
+        "Klar.LeaveGuard",
         "Klar.Overlay",
         "Klar.SideNav",
         "Klar.FileDrop",
         "Klar.Ids",
-        "Klar.LeaveGuard",
         "Klar.Menu",
         "Klar.Alert"
       ],
@@ -3517,19 +3517,21 @@
       "ids": [],
       "stateful": true,
       "quickPath": [
+        "viewStatic",
+        "maxItems",
         "init",
         "update",
         "view"
       ],
       "mainFunctions": [
         "view",
-        "static",
+        "viewStatic",
         "link",
+        "button",
         "text",
         "withIcon",
         "init",
-        "isOpen",
-        "close"
+        "isOpen"
       ],
       "related": [],
       "keywords": [
@@ -3561,19 +3563,19 @@
         "init",
         "update",
         "view",
-        "panel",
-        "active",
-        "setActive"
+        "tab",
+        "withPanel",
+        "active"
       ],
       "mainFunctions": [
         "view",
-        "panel",
-        "panels",
         "init",
         "active",
         "setActive",
-        "resolve",
-        "update"
+        "update",
+        "tab",
+        "withPanel",
+        "withIcon"
       ],
       "related": [
         "Klar.PageHeader"
@@ -3609,7 +3611,9 @@
         "failed",
         "disabledStep"
       ],
-      "related": [],
+      "related": [
+        "Klar.Form"
+      ],
       "keywords": [
         "stepper",
         "navigation",

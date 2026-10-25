@@ -161,7 +161,7 @@ type State
         , ticket : Int
         , restore : Maybe Restore
         , history : History
-        , tabs : Tabs.State
+        , tabs : Tabs.State String
         }
 
 
@@ -283,7 +283,7 @@ type Msg
     | Undo
     | Redo
     | Settled Int
-    | TabsMsg Tabs.Msg
+    | TabsMsg (Tabs.Msg String)
     | Focus
     | Noop
 
@@ -369,7 +369,7 @@ type alias Fields =
     , ticket : Int
     , restore : Maybe Restore
     , history : History
-    , tabs : Tabs.State
+    , tabs : Tabs.State String
     }
 
 
@@ -824,7 +824,6 @@ view toMsg attributes (State state) =
                             [ Tabs.tabs [ Tabs.tab "write" words.write, Tabs.tab "preview" words.preview ]
                             , Tabs.ariaLabel words.views
                             , Tabs.small
-                            , Tabs.withoutPanels
                             ]
                             state.tabs
                         ]

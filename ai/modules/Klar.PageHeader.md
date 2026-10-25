@@ -52,9 +52,9 @@ Do not use when: you need the frame of the whole application (use `Klar.AppShell
 
     PageHeader.view
         [ PageHeader.breadcrumbs
-            (Breadcrumbs.static
+            (Breadcrumbs.viewStatic
                 [ Breadcrumbs.items
-                    [ Breadcrumbs.link "Orders" "#/orders"
+                    [ Breadcrumbs.link { label = "Orders", href = "#/orders" }
                     , Breadcrumbs.text "Order 10482"
                     ]
                 ]
@@ -77,8 +77,8 @@ Do not use when: you need the frame of the whole application (use `Klar.AppShell
             ]
         , PageHeader.tabs
             (Tabs.view TabsMsg
-                [ Tabs.withoutPanels
-                , Tabs.tabs [ Tabs.tab "details" "Details", Tabs.tab "items" "Items" ]
+                [ Tabs.ariaLabel "Order"
+                , Tabs.tabs [ Tabs.tab Details "Details", Tabs.tab Items "Items" ]
                 ]
                 model.tabs
             )
@@ -191,8 +191,8 @@ breadcrumbs : Html msg -> Attribute msg
 ```
 
 Where the page sits in the application, above the title. Pass a
-[Klar.Breadcrumbs](Klar.Breadcrumbs.md) trail, made with `Breadcrumbs.view` or
-`Breadcrumbs.static`. Together with a `backLink` the link comes first, then the
+[Klar.Breadcrumbs](Klar.Breadcrumbs.md) trail, made with `Breadcrumbs.viewStatic` or
+`Breadcrumbs.view`. Together with a `backLink` the link comes first, then the
 trail, on the same line.
 
 ### `backLink`
@@ -224,9 +224,9 @@ tabs : Html msg -> Attribute msg
 ```
 
 A row of tabs along the bottom edge of the header. Pass the tab strip made by
-`Tabs.view` from [Klar.Tabs](Klar.Tabs.md). The panels, if there are any
-(`Tabs.panel`), belong in the body of the page below the header; when the tabs
-choose a route and have no panels, give the strip `Tabs.withoutPanels`.
+`Tabs.view` from [Klar.Tabs](Klar.Tabs.md), with tabs that have no `Tabs.withPanel`:
+the tabs choose a route (or a view of the page), and the body of the page below the
+header shows it, for instance with a `case` on `Tabs.active`.
 
 ## Look
 
