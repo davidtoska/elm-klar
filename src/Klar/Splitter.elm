@@ -1,6 +1,7 @@
 module Klar.Splitter exposing
     ( view, Pane, pane, minSize, maxSize, minPixels, maxPixels, collapsible
     , State, Msg, init, update, sizes, setSizes, isDragging
+    , fold, unfold, isFolded, separatorId
     , Share, percent, toPercent
     , Attribute, stacked, height, fillRest, locale
     )
@@ -91,6 +92,31 @@ folded away. Right-to-left languages are not mirrored yet.
 # State and messages
 
 @docs State, Msg, init, update, sizes, setSizes, isDragging
+
+
+# Folding a pane from the application
+
+A "Hide details" button, or the close button of a pane, folds a `collapsible` pane
+away the way `Enter` on its separator does, and a "Show details" button gives it back
+the room it had:
+
+    DetailsToggled ->
+        ( { model
+            | split =
+                if Splitter.isFolded 1 model.split then
+                    Splitter.unfold 1 model.split
+
+                else
+                    Splitter.fold 1 model.split
+          }
+        , Cmd.none
+        )
+
+A folded pane is hidden, so a button inside it that folds it loses the focus: send
+the focus to the separator in the same `update`, with
+`Klar.focus (Splitter.separatorId 0 model.split) NoOp`.
+
+@docs fold, unfold, isFolded, separatorId
 
 
 # Shares
@@ -240,7 +266,7 @@ collapsible (Pane data) =
 {-| A setting of the splitter. Make them with the functions below and pass a list to
 `view`; later attributes win over earlier ones.
 -}
-type Attribute
+type Attribute msg
     = Attribute (Config -> Config)
 
 
@@ -252,7 +278,7 @@ type alias Config =
     }
 
 
-configure : List Attribute -> Config
+configure : List (Attribute msg) -> Config
 configure attributes =
     List.foldl (\(Attribute change) config -> change config)
         { stacked = False, height = Nothing, fillRest = False, locale = Locale.default }
@@ -263,7 +289,7 @@ configure attributes =
 by side. The keyboard then moves a separator with `Up` and `Down`. The default is
 side by side.
 -}
-stacked : Attribute
+stacked : Attribute msg
 stacked =
     Attribute (\config -> { config | stacked = True })
 
@@ -273,7 +299,7 @@ parent, which must then have a height of its own; a splitter inside a pane of
 another splitter does not need one. A `stacked` splitter needs a height to be able
 to divide anything.
 -}
-height : Int -> Attribute
+height : Int -> Attribute msg
 height pixels =
     Attribute (\config -> { config | height = Just (Basics.max 0 pixels) })
 
@@ -290,7 +316,7 @@ area fills the window under the page header with no pixel height; see
         ]
 
 -}
-fillRest : Attribute
+fillRest : Attribute msg
 fillRest =
     Attribute (\config -> { config | fillRest = True })
 
@@ -299,7 +325,7 @@ fillRest =
 value ("40 percent"). The default is `Locale.default`, which is English. See
 [Klar.Locale](Klar-Locale).
 -}
-locale : Locale -> Attribute
+locale : Locale -> Attribute msg
 locale value =
     Attribute (\config -> { config | locale = value })
 
@@ -364,13 +390,72 @@ sizes (State s) =
     List.map (\fraction -> Share (fraction * 100)) s.sizes
 
 
-{-| Sets the sizes of all the panes, for example to restore a saved layout, or
-`[ percent 0, percent 100 ]` to fold the first pane away. They are scaled to add up
-to 100 percent, like those of `init`.
+{-| Sets the sizes of all the panes, for example to restore a saved layout. They are
+scaled to add up to 100 percent, like those of `init`. A size of 0 folds a
+`collapsible` pane away, but the room it had is forgotten; to fold and unfold a pane
+from a button, use `fold` and `unfold`.
 -}
 setSizes : List Share -> State -> State
 setSizes values (State s) =
     State (Machine.setSizes (List.map toPercent values) s)
+
+
+{-| Folds the pane at this place (counting from 0) away, as `Enter` on its separator
+does: its room goes to the pane after it (the pane before it, for the last pane),
+and the state remembers how much room it had and where it went, so that `unfold`
+and `Enter` on either of its separators give it back from there. The pane is drawn
+folded even when it is not `collapsible`, and `Enter` on its separator opens it
+again. A pane that has no room, or is not there, changes nothing.
+
+    Splitter.fold 1 model.split
+
+-}
+fold : Int -> State -> State
+fold index (State s) =
+    State (Machine.foldPane index s)
+
+
+{-| Gives the pane at this place the room it had before `fold`, or `Enter` on its
+separator, took it away; when that is not known (the layout was restored folded) it
+gets a fifth of the room. The room comes from the neighbour that took it, which
+gives no more than it has, and the view keeps every pane inside its `minSize` and
+`maxSize`, as it does after `setSizes`. A pane that has room changes nothing.
+
+    Splitter.unfold 1 model.split
+
+-}
+unfold : Int -> State -> State
+unfold index (State s) =
+    State (Machine.unfoldPane index s)
+
+
+{-| Has the pane at this place no room: is it folded away? Use it to draw the toggle
+that folds and unfolds it ("Hide details" or "Show details"). It reads the sizes in
+the state: after `fold` the pane is drawn folded, collapsible or not, but a pane that
+is not `collapsible` and gets 0 from `init` or `setSizes` is drawn at its smallest
+size, so give a 0 only to `collapsible` panes. A place that is not there is not
+folded.
+-}
+isFolded : Int -> State -> Bool
+isFolded index (State s) =
+    case List.head (List.drop index s.sizes) of
+        Just size ->
+            index >= 0 && size <= 1.0e-9
+
+        Nothing ->
+            False
+
+
+{-| The DOM id of the separator after the pane at this place (`0` is the separator
+between the first and the second pane), for `Klar.focus`: the place for the focus
+when a button inside a pane folds that pane away.
+
+    Klar.focus (Splitter.separatorId 0 model.split) NoOp
+
+-}
+separatorId : Int -> State -> String
+separatorId index (State s) =
+    Machine.separatorDomId s.domId index
 
 
 {-| Is a separator being dragged with the mouse, a finger or a pen right now?
@@ -424,7 +509,7 @@ empty splitter.
         ]
 
 -}
-view : (Msg -> msg) -> List Attribute -> State -> List (Pane msg) -> Html msg
+view : (Msg -> msg) -> List (Attribute msg) -> State -> List (Pane msg) -> Html msg
 view toMsg attributes (State s) panes =
     let
         config =
@@ -463,7 +548,7 @@ view toMsg attributes (State s) panes =
                     List.drop index sizeList |> List.head |> Maybe.withDefault 0
 
                 folded =
-                    Machine.isFolded layout sizeList index
+                    Machine.isFolded layout s sizeList index
 
                 pixelStyles =
                     if folded then
@@ -614,8 +699,12 @@ viewSeparatorAt send config t s layout panes sizeList limits index =
         ( lowest, highest ) =
             Layout.range index limits sizeList
 
+        -- a pane the application folded opens again from its separator too
         foldsSomething =
-            canFold index || canFold (index + 1)
+            canFold index
+                || canFold (index + 1)
+                || Machine.isFolded layout s sizeList index
+                || Machine.isFolded layout s sizeList (index + 1)
 
         dragHere =
             case s.drag of
@@ -684,7 +773,7 @@ viewSeparatorAt send config t s layout panes sizeList limits index =
          , Attr.attribute "aria-valuemin" (String.fromInt (round (lowest * 100)))
          , Attr.attribute "aria-valuemax" (String.fromInt (round (highest * 100)))
          , Attr.attribute "aria-valuetext"
-            (if Machine.isFolded layout sizeList index then
+            (if Machine.isFolded layout s sizeList index then
                 t.folded
 
              else

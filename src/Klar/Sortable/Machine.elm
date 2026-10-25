@@ -8,6 +8,7 @@ module Klar.Sortable.Machine exposing
     , helpDomId
     , init
     , itemDomId
+    , moveDomId
     , update
     )
 
@@ -33,6 +34,7 @@ type alias State =
     , drops : Int
     , last : Maybe Landing
     , note : Maybe Note
+    , echo : Bool
     }
 
 
@@ -66,6 +68,7 @@ init domId =
     , drops = 0
     , last = Nothing
     , note = Nothing
+    , echo = False
     }
 
 
@@ -80,6 +83,7 @@ type Msg
     | Cancel
     | Blurred String
     | Focused (List String)
+    | MoveBy Layout Int
     | Noop
 
 
@@ -90,8 +94,39 @@ type alias Sample =
     }
 
 
+{-| A live region says nothing when its text does not change, so a key or a move
+button pressed again at the end of the list would be silent: the same note said
+again flips `echo`, which the view writes as a non-breaking space at the end.
+-}
 update : Msg -> State -> ( State, Cmd Msg )
 update msg s =
+    let
+        ( next, cmd ) =
+            apply msg s
+
+        again =
+            case msg of
+                Step _ ->
+                    True
+
+                Jump _ ->
+                    True
+
+                MoveBy _ _ ->
+                    True
+
+                _ ->
+                    False
+    in
+    if again && next.note /= Nothing && next.note == s.note then
+        ( { next | echo = not s.echo }, cmd )
+
+    else
+        ( next, cmd )
+
+
+apply : Msg -> State -> ( State, Cmd Msg )
+apply msg s =
     case msg of
         Lift layout ->
             case Session.keyboard (s.serial + 1) layout of
@@ -208,7 +243,51 @@ update msg s =
                 Nothing ->
                     ( s, Cmd.none )
 
+        MoveBy layout delta ->
+            moveBy layout delta s
+
         Noop ->
+            ( s, Cmd.none )
+
+
+{-| A press of a move button: the item is picked up, moved one place and dropped in
+one go, as with the keyboard, so it passes no fixed item and lands in `reorder`
+like any drop. The focus goes back to the button, which the keyed list has moved
+with its item (and the browser takes the focus from a moved element). While an item
+is held (from the keyboard or the pointer) a press does nothing, so the held item
+never goes back without a word.
+-}
+moveBy : Layout -> Int -> State -> ( State, Cmd Msg )
+moveBy layout delta s =
+    case ( s.session, Session.keyboard (s.serial + 1) layout ) of
+        ( Just _, _ ) ->
+            ( s, Cmd.none )
+
+        ( Nothing, Just session ) ->
+            let
+                target =
+                    (Session.step delta session).to
+
+                total =
+                    List.length session.order
+            in
+            if target == session.from then
+                ( { s | serial = session.serial, session = Nothing, note = Just (AtLimit (session.from + 1) total) }
+                , Cmd.none
+                )
+
+            else
+                ( { s
+                    | serial = session.serial
+                    , session = Nothing
+                    , drops = s.drops + 1
+                    , last = Just { key = session.source, to = target, placed = Order.move session.from target session.order }
+                    , note = Just (MovedTo (target + 1) total)
+                  }
+                , Internal.focus (moveDomId s.domId session.source delta) Noop
+                )
+
+        ( Nothing, Nothing ) ->
             ( s, Cmd.none )
 
 
@@ -392,3 +471,17 @@ handleDomId domId key =
 helpDomId : String -> String
 helpDomId domId =
     domId ++ "-help"
+
+
+{-| The id of the "Move up" (a negative step) or "Move down" button of an item.
+-}
+moveDomId : String -> String -> Int -> String
+moveDomId domId key delta =
+    domId
+        ++ (if delta < 0 then
+                "-up-"
+
+            else
+                "-down-"
+           )
+        ++ Internal.percentEncode key

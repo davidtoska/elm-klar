@@ -1335,12 +1335,30 @@ css =
   font-weight: var(--klar-weight-bold);
 }
 
-.klar-accordion__body {
-  padding: var(--klar-space-1) var(--klar-space-4) var(--klar-space-4) calc(var(--klar-space-3) + 16px + var(--klar-space-2));
+/* The body has no box of its own: a closed body stays in the page as
+   hidden="until-found" (content-visibility: hidden), where a padding would still take
+   room. The padding is on the content inside. */
+.klar-accordion__body { padding: 0; border: 0; }
+
+/* The base rule `[hidden] { display: none !important }` would also take a closed body out of
+   the layout, and the find-in-page of the browser only searches an until-found body that is
+   laid out with content-visibility: hidden (the browser's own rule for it). This rule is more
+   specific, so it wins; content-visibility keeps the body hidden in a browser that knows it but
+   not until-found, and a browser without content-visibility keeps display: none. */
+@supports (content-visibility: hidden) {
+  .klar-accordion__body[hidden="until-found"] {
+    display: block !important;
+    content-visibility: hidden;
+  }
+}
+
+.klar-accordion__content {
+  padding-block: var(--klar-space-1) var(--klar-space-4);
+  padding-inline: calc(var(--klar-space-3) + 16px + var(--klar-space-2)) var(--klar-space-4);
   animation: klar-fade-in var(--klar-dur) var(--klar-ease);
 }
 
-.klar-accordion--flush .klar-accordion__body { padding-left: calc(var(--klar-space-1) + 16px + var(--klar-space-2)); padding-right: var(--klar-space-1); }
+.klar-accordion--flush .klar-accordion__content { padding-inline: calc(var(--klar-space-1) + 16px + var(--klar-space-2)) var(--klar-space-1); }
 
 .klar-accordion__section--disabled .klar-accordion__header,
 .klar-accordion__section--disabled .klar-accordion__header:hover {
@@ -1392,6 +1410,10 @@ css =
 }
 
 .klar-toolbar--scroll > * { flex: none; }
+
+/* A bar that scrolls clips what sticks out of it, so a plain one keeps room inside for
+   the focus ring of the controls at its edges. */
+.klar-toolbar--plain.klar-toolbar--scroll { padding: var(--klar-space-1); margin: calc(-1 * var(--klar-space-1)); }
 .klar-toolbar--scroll .klar-toolbar__group { flex-wrap: nowrap; }
 
 /* A group stays together while it fits; in a bar narrower than the group itself
@@ -1437,19 +1459,28 @@ css =
 
 /* ---- Description list ------------------------------------------------------ */
 
+/* A column is never narrower than --_min (200px; with the label beside, the label column
+   and 160px for the value), and never wider than the list. */
 .klar-description-list {
   --_gap: var(--klar-space-6);
+  --_min: 200px;
   display: grid;
   grid-template-columns: repeat(
     auto-fill,
-    minmax(max(200px, calc((100% - (var(--klar-dl-cols, 1) - 1) * var(--_gap)) / var(--klar-dl-cols, 1) - 0.5px)), 1fr)
+    minmax(min(100%, max(var(--_min), calc((100% - (var(--klar-dl-cols, 1) - 1) * var(--_gap)) / var(--klar-dl-cols, 1) - 0.5px))), 1fr)
   );
   gap: var(--klar-space-4) var(--_gap);
   margin: 0;
 }
 
+.klar-description-list--beside { --_min: calc(var(--klar-dl-label-w, 160px) + var(--klar-space-4) + 160px); }
+
+/* The density of the list (`DescriptionList.density`), or else the density of the application. */
 .klar-description-list--compact,
-:where([data-klar-density="compact"]) .klar-description-list:where(:not(.klar-description-list--compact, .klar-description-list--comfortable)) { row-gap: var(--klar-space-2); }
+:where([data-klar-density="compact"]) .klar-description-list:where(:not(.klar-description-list--normal, .klar-description-list--comfortable)) { row-gap: var(--klar-space-2); }
+
+.klar-description-list--comfortable,
+:where([data-klar-density="comfortable"]) .klar-description-list:where(:not(.klar-description-list--compact, .klar-description-list--normal)) { row-gap: var(--klar-space-6); }
 
 .klar-description-list__item {
   display: flex;
@@ -1498,7 +1529,10 @@ css =
 }
 
 .klar-description-list--bordered.klar-description-list--compact .klar-description-list__item,
-:where([data-klar-density="compact"]) .klar-description-list--bordered:where(:not(.klar-description-list--compact, .klar-description-list--comfortable)) .klar-description-list__item { padding: 6px 0; }
+:where([data-klar-density="compact"]) .klar-description-list--bordered:where(:not(.klar-description-list--normal, .klar-description-list--comfortable)) .klar-description-list__item { padding: 6px 0; }
+
+.klar-description-list--bordered.klar-description-list--comfortable .klar-description-list__item,
+:where([data-klar-density="comfortable"]) .klar-description-list--bordered:where(:not(.klar-description-list--compact, .klar-description-list--normal)) .klar-description-list__item { padding: var(--klar-space-4) 0; }
 
 /* ---- Stepper --------------------------------------------------------------- */
 

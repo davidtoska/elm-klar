@@ -10,7 +10,7 @@ Components keep their values as text keys internally (a table's selection, the o
 nodes of a tree, the choices of a rule). An application writes the two functions once
 per id type, as a constant next to the type, and gives the same `Ids` to every
 component that holds that type: `Table.rowId`, `Tree.leaf`, `Picking.leaf` (and so
-`TreeSelect` and `Cascader`), `Transfer.options`, `Sortable.view`, `SideNav.item`,
+`TreeSelect` and `Cascader`), `Transfer.options`, `Sortable.item`, `Accordion.section`, `SideNav.item`,
 `ServerList.target`, `Spec.choice` and `Spec.choices` of a form, `Rule.choiceFieldOf`
 and `Form.Check.lostIds`. `Select`, `MultiSelect` and `Autocomplete` compare their
 values with `==` and take no `Ids`.

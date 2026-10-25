@@ -41,7 +41,7 @@ import Klar.Progress as Progress
 import Klar.Remote as Remote exposing (Remote)
 import Klar.Table as Table
 import Klar.Text as Text
-import Klar.Theme exposing (Size(..), Tone(..))
+import Klar.Theme as Theme exposing (Size(..), Tone(..))
 import Klar.Tree as Tree
 import Page.Effect as Effect exposing (Context, Effect(..))
 import Page.Products.Category as Category exposing (Branch(..), Category)
@@ -545,7 +545,7 @@ priceCell locale product =
 details : Locale -> Product -> Html Msg
 details locale product =
     DescriptionList.view
-        [ DescriptionList.columns 2, DescriptionList.compact, DescriptionList.locale locale ]
+        [ DescriptionList.columns 2, DescriptionList.density Theme.Compact, DescriptionList.locale locale ]
         [ DescriptionList.text "Supplier" product.supplier
         , DescriptionList.text "Category" (Category.pathLabel product.category)
         , DescriptionList.text "Reorder level" (Format.int locale product.reorderLevel)

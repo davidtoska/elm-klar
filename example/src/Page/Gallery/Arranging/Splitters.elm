@@ -44,8 +44,7 @@ type Msg
     | Select Int
     | SaveLayout
     | RestoreLayout
-    | FoldFilters
-    | OpenFilters
+    | FiltersToggled
 
 
 init : Model
@@ -113,11 +112,17 @@ update msg model =
                 Nothing ->
                     ( model, Cmd.none )
 
-        FoldFilters ->
-            ( { model | filters = Splitter.setSizes [ Splitter.percent 0, Splitter.percent 100 ] model.filters }, Cmd.none )
+        FiltersToggled ->
+            ( { model
+                | filters =
+                    if Splitter.isFolded 0 model.filters then
+                        Splitter.unfold 0 model.filters
 
-        OpenFilters ->
-            ( { model | filters = Splitter.setSizes [ Splitter.percent 28, Splitter.percent 72 ] model.filters }, Cmd.none )
+                    else
+                        Splitter.fold 0 model.filters
+              }
+            , Cmd.none
+            )
 
 
 
@@ -211,7 +216,7 @@ RestoreLayout ->
 
 orderList : Int -> Html Msg
 orderList selected =
-    ListItem.list [ ListItem.listLabel "Orders" ]
+    ListItem.list [ ListItem.ariaLabel "Orders" ]
         (List.indexedMap
             (\index order ->
                 ListItem.view
@@ -297,7 +302,7 @@ workspaceExample locale model =
 
 warehouseList : Html msg
 warehouseList =
-    ListItem.list [ ListItem.listLabel "Warehouses" ]
+    ListItem.list [ ListItem.ariaLabel "Warehouses" ]
         (List.map
             (\warehouse -> ListItem.view [ ListItem.icon Icon.warehouse ] warehouse.name)
             (List.take 8 Sample.warehouses)
@@ -322,7 +327,7 @@ foldExample : Locale -> Model -> Html Msg
 foldExample locale model =
     Doc.example
         { title = "A pane that folds away"
-        , description = Just "Press Enter on the separator, or double-click it, to fold the filters away and to open them again. A folded pane has no room, and it is not there for the keyboard or for screen readers; its size is 0 in the saved sizes, so a layout that is saved folded comes back folded. The buttons do the same with setSizes."
+        , description = Just "Press Enter on the separator, or double-click it, to fold the filters away and to open them again. A folded pane has no room, and it is not there for the keyboard or for screen readers; its size is 0 in the saved sizes, so a layout that is saved folded comes back folded. The button does the same with fold and unfold: drag the separator, fold the filters with the button, and unfold gives back the width you had."
         , code = Just """Splitter.view FiltersMsg
     []
     model.filters
@@ -332,17 +337,26 @@ foldExample locale model =
     , Splitter.pane "Results" results
     ]
 
--- fold and open from a button
-FoldFilters ->
-    ( { model | filters = Splitter.setSizes [ Splitter.percent 0, Splitter.percent 100 ] model.filters }, Cmd.none )
+-- fold and unfold from a button
+FiltersToggled ->
+    ( { model
+        | filters =
+            if Splitter.isFolded 0 model.filters then
+                Splitter.unfold 0 model.filters
 
-OpenFilters ->
-    ( { model | filters = Splitter.setSizes [ Splitter.percent 28, Splitter.percent 72 ] model.filters }, Cmd.none )"""
+            else
+                Splitter.fold 0 model.filters
+      }
+    , Cmd.none
+    )"""
         }
         (Layout.stack [ Layout.gap 3 ]
             [ Layout.row [ Layout.gap 2, Layout.alignCenter, Layout.wrap ]
-                [ Button.view [ Button.small, Button.icon Icon.chevronLeft, Button.onClick FoldFilters ] "Fold the filters away"
-                , Button.view [ Button.small, Button.icon Icon.chevronRight, Button.onClick OpenFilters ] "Open the filters"
+                [ if Splitter.isFolded 0 model.filters then
+                    Button.view [ Button.small, Button.icon Icon.chevronRight, Button.onClick FiltersToggled ] "Show the filters"
+
+                  else
+                    Button.view [ Button.small, Button.icon Icon.chevronLeft, Button.onClick FiltersToggled ] "Hide the filters"
                 , Text.caption ("Now: " ++ sizesText model.filters)
                 ]
             , framed
@@ -369,7 +383,7 @@ filterPanel =
 
 resultList : Locale -> Html msg
 resultList locale =
-    ListItem.list [ ListItem.listLabel "Results" ]
+    ListItem.list [ ListItem.ariaLabel "Results" ]
         (List.map
             (\order ->
                 ListItem.view

@@ -235,7 +235,7 @@ listScrollTests =
             [ ListItem.view [] "Order 1", ListItem.view [] "Order 2" ]
 
         orderRow name =
-            ListItem.view [] name
+            ( name, ListItem.view [] name )
     in
     describe "ListItem.maxHeight makes a scroll area that the keyboard can reach"
         [ test "a list with maxHeight is in the tab order" <|
@@ -246,19 +246,19 @@ listScrollTests =
             \_ -> ListItem.list [ ListItem.maxHeight 200 ] rows |> has [ role "list" ]
         , test "a list with maxHeight is never a region, named or not" <|
             \_ ->
-                ListItem.list [ ListItem.maxHeight 200, ListItem.listLabel "Tickets" ] rows
+                ListItem.list [ ListItem.maxHeight 200, ListItem.ariaLabel "Tickets" ] rows
                     |> hasNot [ role "region" ]
         , test "a named list with maxHeight keeps its name" <|
             \_ ->
-                ListItem.list [ ListItem.maxHeight 200, ListItem.listLabel "Tickets" ] rows
+                ListItem.list [ ListItem.maxHeight 200, ListItem.ariaLabel "Tickets" ] rows
                     |> has [ focusable, role "list", ariaLabel "Tickets" ]
-        , test "remote: the rows of a loaded list scroll and can take focus" <|
+        , test "viewRemote: the rows of a loaded list scroll and can take focus" <|
             \_ ->
-                ListItem.remote [ ListItem.maxHeight 200 ] orderRow (Loaded [ "Order 1" ])
+                ListItem.viewRemote [ ListItem.maxHeight 200 ] (Loaded [ orderRow "Order 1" ])
                     |> has [ focusable, Selector.class "klar-list--scroll" ]
-        , test "remote: the placeholder rows have no height limit, so no tab stop" <|
+        , test "viewRemote: the placeholder rows have no height limit, so no tab stop" <|
             \_ ->
-                ListItem.remote [ ListItem.maxHeight 200 ] orderRow Loading
+                ListItem.viewRemote [ ListItem.maxHeight 200 ] Loading
                     |> hasNot [ focusable ]
         ]
 
@@ -361,11 +361,12 @@ listLinkTests =
                     |> Query.find [ Selector.tag "button" ]
                     |> Event.simulate Event.click
                     |> Event.expect Opened
-        , test "a disabled row is neither a link nor a button" <|
+        , test "a disabled row stays a link (so it keeps the focus), without its address" <|
             \_ ->
                 linkRow [ ListItem.disabled True ]
                     |> Expect.all
-                        [ howMany [ Selector.tag "a" ] 0
+                        [ howMany [ Selector.tag "a", Selector.attribute (Attr.attribute "aria-disabled" "true") ] 1
+                        , howMany [ Selector.tag "a", Selector.attribute (Attr.href "#/orders/1") ] 0
                         , howMany [ Selector.tag "button" ] 0
                         ]
         ]
@@ -377,30 +378,30 @@ listLinkTests =
 
 listLabelTests : Test
 listLabelTests =
-    describe "ListItem.label"
+    describe "ListItem.rowAriaLabel"
         [ test "names a row that is a button" <|
             \_ ->
-                ListItem.view [ ListItem.onClick Opened, ListItem.label "Open order 1" ] "Order 1"
+                ListItem.view [ ListItem.onClick Opened, ListItem.rowAriaLabel "Open order 1" ] "Order 1"
                     |> howMany [ Selector.tag "button", ariaLabel "Open order 1" ] 1
         , test "names a row that is a link" <|
             \_ ->
-                ListItem.view [ ListItem.href "#/orders/1", ListItem.label "Open order 1" ] "Order 1"
+                ListItem.view [ ListItem.href "#/orders/1", ListItem.rowAriaLabel "Open order 1" ] "Order 1"
                     |> howMany [ Selector.tag "a", ariaLabel "Open order 1" ] 1
         , test "names a row that is a link with an onClick" <|
             \_ ->
-                linkRow [ ListItem.label "Open order 1" ]
+                linkRow [ ListItem.rowAriaLabel "Open order 1" ]
                     |> howMany [ Selector.tag "a", ariaLabel "Open order 1" ] 1
         , test "a plain row has no aria-label: a div has no role that can take one" <|
             \_ ->
-                ListItem.view [ ListItem.label "Order 1, shipped" ] "Order 1"
+                ListItem.view [ ListItem.rowAriaLabel "Order 1, shipped" ] "Order 1"
                     |> howMany [ ariaLabel "Order 1, shipped" ] 0
-        , test "a disabled row has no aria-label either" <|
+        , test "a disabled row stays a button, so it keeps its name" <|
             \_ ->
-                ListItem.view [ ListItem.onClick Opened, ListItem.disabled True, ListItem.label "Open order 1" ] "Order 1"
-                    |> howMany [ ariaLabel "Open order 1" ] 0
+                ListItem.view [ ListItem.onClick Opened, ListItem.disabled True, ListItem.rowAriaLabel "Open order 1" ] "Order 1"
+                    |> howMany [ Selector.tag "button", ariaLabel "Open order 1" ] 1
         , test "a plain row still shows its title" <|
             \_ ->
-                ListItem.view [ ListItem.label "Order 1, shipped" ] "Order 1"
+                ListItem.view [ ListItem.rowAriaLabel "Order 1, shipped" ] "Order 1"
                     |> howMany [ Selector.class "klar-list-item__title", Selector.exactText "Order 1" ] 1
         ]
 

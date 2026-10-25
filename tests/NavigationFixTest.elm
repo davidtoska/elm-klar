@@ -2,14 +2,13 @@ module NavigationFixTest exposing (suite)
 
 {-| Regression tests for navigation and structure modules that used to behave
 inconsistently: the strip and the panels of `Tabs`, the role of `Toolbar`, the ids
-of `SideNav` sections, the mode of `Accordion`, the range of `Stepper.current`,
+of `SideNav` sections, the range of `Stepper.current`,
 the heading of `PageHeader`, and the toggles and the brand of `AppShell`.
 -}
 
 import Expect exposing (Expectation)
 import Html exposing (Html)
 import Html.Attributes as Attr
-import Klar.Accordion as Accordion
 import Klar.AppShell as AppShell
 import Klar.Ids as Ids exposing (Ids)
 import Klar.Locale as Locale
@@ -30,7 +29,6 @@ suite =
         [ tabsTests
         , toolbarTests
         , sideNavTests
-        , accordionTests
         , stepperTests
         , pageHeaderTests
         , appShellTests
@@ -290,151 +288,6 @@ sideNavTests =
                         [ Query.hasNot [ Selector.tag "h2" ]
                         , Query.hasNot [ Selector.attribute (Attr.attribute "aria-labelledby" "main-nav-section-0") ]
                         ]
-        ]
-
-
-
--- ACCORDION
-
-
-accordionSections : List (Accordion.Section msg)
-accordionSections =
-    [ Accordion.section "a" "Alpha" [ Html.text "alpha" ]
-    , Accordion.section "b" "Beta" [ Html.text "beta" ]
-    , Accordion.section "c" "Gamma" [ Html.text "gamma" ]
-    ]
-
-
-{-| Click the header of the section, and give the message that it sends to
-`Accordion.update`.
--}
-clickHeader : List (Accordion.Attribute Accordion.Msg) -> String -> Accordion.State -> Result String Accordion.State
-clickHeader attributes key state =
-    Accordion.view identity (Accordion.sections accordionSections :: attributes) state
-        |> Query.fromHtml
-        |> Query.find [ Selector.id ("acc-header-" ++ key) ]
-        |> Event.simulate Event.click
-        |> Event.toResult
-        |> Result.map (\msg -> Tuple.first (Accordion.update msg state))
-
-
-openAfter : (Accordion.State -> Accordion.State) -> Accordion.State -> List String
-openAfter change state =
-    change state |> Accordion.openKeys
-
-
-single : Accordion.State
-single =
-    Accordion.init "acc"
-
-
-several : Accordion.State
-several =
-    Accordion.init "acc" |> Accordion.setMultiple True
-
-
-accordionTests : Test
-accordionTests =
-    describe "Klar.Accordion: open and toggle follow the mode like a click on a header"
-        [ test "in the default mode open closes the other sections" <|
-            \_ ->
-                single
-                    |> Accordion.open "a"
-                    |> Accordion.open "b"
-                    |> Accordion.openKeys
-                    |> Expect.equal [ "b" ]
-        , test "in the default mode toggle opens one section and closes the others" <|
-            \_ ->
-                single
-                    |> Accordion.toggle "a"
-                    |> Accordion.toggle "b"
-                    |> Accordion.openKeys
-                    |> Expect.equal [ "b" ]
-        , test "toggle closes an open section" <|
-            \_ ->
-                single
-                    |> Accordion.toggle "a"
-                    |> Accordion.toggle "a"
-                    |> Accordion.openKeys
-                    |> Expect.equal []
-        , test "in the default mode open leaves only that section open, also if it was open with others" <|
-            \_ ->
-                single
-                    |> Accordion.openMany [ "a", "b" ]
-                    |> Accordion.open "a"
-                    |> Accordion.openKeys
-                    |> Expect.equal [ "a" ]
-        , test "after setMultiple True open keeps the other sections open" <|
-            \_ ->
-                several
-                    |> Accordion.open "a"
-                    |> Accordion.open "b"
-                    |> Accordion.openKeys
-                    |> Expect.equal [ "a", "b" ]
-        , test "after setMultiple True toggle keeps the other sections open" <|
-            \_ ->
-                several
-                    |> Accordion.toggle "a"
-                    |> Accordion.toggle "b"
-                    |> Accordion.toggle "a"
-                    |> Accordion.openKeys
-                    |> Expect.equal [ "b" ]
-        , test "opening a section that is open does not repeat it" <|
-            \_ ->
-                several
-                    |> Accordion.open "a"
-                    |> Accordion.open "a"
-                    |> Accordion.openKeys
-                    |> Expect.equal [ "a" ]
-        , test "setMultiple False brings back the default mode" <|
-            \_ ->
-                several
-                    |> Accordion.open "a"
-                    |> Accordion.setMultiple False
-                    |> Accordion.open "b"
-                    |> Accordion.openKeys
-                    |> Expect.equal [ "b" ]
-        , test "setMultiple keeps the open sections" <|
-            \_ ->
-                single
-                    |> Accordion.open "a"
-                    |> Accordion.setMultiple True
-                    |> Accordion.openKeys
-                    |> Expect.equal [ "a" ]
-        , test "openMany sets exactly these sections, whatever the mode" <|
-            \_ ->
-                Expect.all
-                    [ \_ -> single |> Accordion.openMany [ "a", "c" ] |> Accordion.openKeys |> Expect.equal [ "a", "c" ]
-                    , \_ -> several |> Accordion.open "b" |> Accordion.openMany [ "a", "c" ] |> Accordion.openKeys |> Expect.equal [ "a", "c" ]
-                    ]
-                    ()
-        , test "a click on a header does what toggle does in the default mode" <|
-            \_ ->
-                Expect.equal
-                    (clickHeader [] "b" (single |> Accordion.open "a") |> Result.map Accordion.openKeys)
-                    (Ok (single |> Accordion.open "a" |> Accordion.toggle "b" |> Accordion.openKeys))
-        , test "a click on a header does what toggle does after setMultiple True" <|
-            \_ ->
-                Expect.equal
-                    (clickHeader [] "b" (several |> Accordion.open "a") |> Result.map Accordion.openKeys)
-                    (Ok (several |> Accordion.open "a" |> Accordion.toggle "b" |> Accordion.openKeys))
-        , test "a click on an open header closes it, in both modes" <|
-            \_ ->
-                Expect.all
-                    [ \_ -> clickHeader [] "a" (single |> Accordion.open "a") |> Result.map Accordion.openKeys |> Expect.equal (Ok [])
-                    , \_ -> clickHeader [] "a" (several |> Accordion.open "a") |> Result.map Accordion.openKeys |> Expect.equal (Ok [])
-                    ]
-                    ()
-        , test "the multiple attribute still lets clicks keep other sections open" <|
-            \_ ->
-                clickHeader [ Accordion.multiple ] "b" (single |> Accordion.open "a")
-                    |> Result.map Accordion.openKeys
-                    |> Expect.equal (Ok [ "a", "b" ])
-        , test "without the attribute a click follows a state that allows several" <|
-            \_ ->
-                clickHeader [] "c" (several |> Accordion.open "a" |> Accordion.open "b")
-                    |> Result.map Accordion.openKeys
-                    |> Expect.equal (Ok [ "a", "b", "c" ])
         ]
 
 

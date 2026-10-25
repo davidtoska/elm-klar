@@ -1193,11 +1193,19 @@ css =
   text-decoration: none;
 }
 
+/* The density of the list (`ListItem.density`), or else the density of the application. */
 .klar-list--compact .klar-list-item__main,
-:where([data-klar-density="compact"]) .klar-list:where(:not(.klar-list--compact, .klar-list--comfortable)) .klar-list-item__main {
+:where([data-klar-density="compact"]) .klar-list:where(:not(.klar-list--normal, .klar-list--comfortable)) .klar-list-item__main {
   gap: 8px;
   min-height: 32px;
   padding: 4px 10px;
+}
+
+.klar-list--comfortable .klar-list-item__main,
+:where([data-klar-density="comfortable"]) .klar-list:where(:not(.klar-list--compact, .klar-list--normal)) .klar-list-item__main {
+  gap: var(--klar-space-3);
+  min-height: 52px;
+  padding: var(--klar-space-2) var(--klar-space-4);
 }
 
 .klar-list-item--interactive .klar-list-item__main { cursor: pointer; }
@@ -1223,6 +1231,10 @@ css =
 .klar-list-item--accent-warning { --_a: var(--klar-warning); }
 .klar-list-item--accent-danger { --_a: var(--klar-danger); }
 
+/* The strip of the selected row wins over the strip of its `accent`, which only repeats what
+   the text of the row says. */
+.klar-list-item--selected.klar-list-item--accent { --_a: var(--klar-primary); }
+
 .klar-list-item--disabled { opacity: 0.55; }
 .klar-list-item--disabled .klar-list-item__main { cursor: not-allowed; }
 
@@ -1242,7 +1254,7 @@ css =
 }
 
 .klar-list--compact .klar-list-item__leading--icon,
-:where([data-klar-density="compact"]) .klar-list:where(:not(.klar-list--compact, .klar-list--comfortable)) .klar-list-item__leading--icon { width: 22px; height: 22px; }
+:where([data-klar-density="compact"]) .klar-list:where(:not(.klar-list--normal, .klar-list--comfortable)) .klar-list-item__leading--icon { width: 22px; height: 22px; }
 
 .klar-list-item__body {
   display: flex;
@@ -1300,6 +1312,26 @@ css =
 }
 
 .klar-list-item--skeleton .klar-list-item__main { pointer-events: none; }
+
+/* A disabled row keeps its button or link, so it must not look clickable. */
+.klar-list-item--disabled a.klar-list-item__main { text-decoration: none; }
+
+@media (forced-colors: active) {
+  /* The colored strip of `accent` is a background, which the high-contrast mode removes. */
+  .klar-list-item--accent::before {
+    forced-color-adjust: none;
+    background: CanvasText;
+  }
+
+  /* The tint of the selected row is a background too: its strip is drawn in Highlight, beside
+     the Highlight outline of the selected rows below. */
+  .klar-list-item--selected::before {
+    forced-color-adjust: none;
+    background: Highlight;
+  }
+
+  .klar-list-item--disabled .klar-list-item__main { color: GrayText; }
+}
 
 
 /* ==========================================================================

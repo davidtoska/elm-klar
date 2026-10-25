@@ -11,7 +11,7 @@ Types: `Msg`, `Pane`, `Share`, `State`, `Attribute`
 ```elm
 -- View
 type Pane msg  -- opaque: no constructors are exposed
-view : (Msg -> msg) -> List Attribute -> State -> List (Pane msg) -> Html msg
+view : (Msg -> msg) -> List (Attribute msg) -> State -> List (Pane msg) -> Html msg
 pane : String -> Html msg -> Pane msg
 minSize : Share -> Pane msg -> Pane msg
 maxSize : Share -> Pane msg -> Pane msg
@@ -28,17 +28,23 @@ sizes : State -> List Share
 setSizes : List Share -> State -> State
 isDragging : State -> Bool
 
+-- Folding a pane from the application
+fold : Int -> State -> State
+unfold : Int -> State -> State
+isFolded : Int -> State -> Bool
+separatorId : Int -> State -> String
+
 -- Shares
 type Share  -- opaque: no constructors are exposed
 percent : Float -> Share
 toPercent : Share -> Float
 
 -- Attributes
-type Attribute  -- opaque: no constructors are exposed
-stacked : Attribute
-height : Int -> Attribute
-fillRest : Attribute
-locale : Locale.Locale -> Attribute
+type Attribute msg  -- opaque: no constructors are exposed
+stacked : Attribute msg
+height : Int -> Attribute msg
+fillRest : Attribute msg
+locale : Locale.Locale -> Attribute msg
 ```
 
 ## Documentation
@@ -134,7 +140,7 @@ One pane: a name and what to draw. Refine it with `minSize`, `maxSize`,
 ### `view`
 
 ```elm
-view : (Msg -> msg) -> List Attribute -> State -> List (Pane msg) -> Html msg
+view : (Msg -> msg) -> List (Attribute msg) -> State -> List (Pane msg) -> Html msg
 ```
 
 The splitter. It takes the constructor that wraps the messages, the attributes,
@@ -279,9 +285,10 @@ line when the user moves a separator.
 setSizes : List Share -> State -> State
 ```
 
-Sets the sizes of all the panes, for example to restore a saved layout, or
-`[ percent 0, percent 100 ]` to fold the first pane away. They are scaled to add up
-to 100 percent, like those of `init`.
+Sets the sizes of all the panes, for example to restore a saved layout. They are
+scaled to add up to 100 percent, like those of `init`. A size of 0 folds a
+`collapsible` pane away, but the room it had is forgotten; to fold and unfold a pane
+from a button, use `fold` and `unfold`.
 
 ### `isDragging`
 
@@ -290,6 +297,82 @@ isDragging : State -> Bool
 ```
 
 Is a separator being dragged with the mouse, a finger or a pen right now?
+
+## Folding a pane from the application
+
+A "Hide details" button, or the close button of a pane, folds a `collapsible` pane
+away the way `Enter` on its separator does, and a "Show details" button gives it back
+the room it had:
+
+    DetailsToggled ->
+        ( { model
+            | split =
+                if Splitter.isFolded 1 model.split then
+                    Splitter.unfold 1 model.split
+
+                else
+                    Splitter.fold 1 model.split
+          }
+        , Cmd.none
+        )
+
+A folded pane is hidden, so a button inside it that folds it loses the focus: send
+the focus to the separator in the same `update`, with
+`Klar.focus (Splitter.separatorId 0 model.split) NoOp`.
+
+### `fold`
+
+```elm
+fold : Int -> State -> State
+```
+
+Folds the pane at this place (counting from 0) away, as `Enter` on its separator
+does: its room goes to the pane after it (the pane before it, for the last pane),
+and the state remembers how much room it had and where it went, so that `unfold`
+and `Enter` on either of its separators give it back from there. The pane is drawn
+folded even when it is not `collapsible`, and `Enter` on its separator opens it
+again. A pane that has no room, or is not there, changes nothing.
+
+    Splitter.fold 1 model.split
+
+### `unfold`
+
+```elm
+unfold : Int -> State -> State
+```
+
+Gives the pane at this place the room it had before `fold`, or `Enter` on its
+separator, took it away; when that is not known (the layout was restored folded) it
+gets a fifth of the room. The room comes from the neighbour that took it, which
+gives no more than it has, and the view keeps every pane inside its `minSize` and
+`maxSize`, as it does after `setSizes`. A pane that has room changes nothing.
+
+    Splitter.unfold 1 model.split
+
+### `isFolded`
+
+```elm
+isFolded : Int -> State -> Bool
+```
+
+Has the pane at this place no room: is it folded away? Use it to draw the toggle
+that folds and unfolds it ("Hide details" or "Show details"). It reads the sizes in
+the state: after `fold` the pane is drawn folded, collapsible or not, but a pane that
+is not `collapsible` and gets 0 from `init` or `setSizes` is drawn at its smallest
+size, so give a 0 only to `collapsible` panes. A place that is not there is not
+folded.
+
+### `separatorId`
+
+```elm
+separatorId : Int -> State -> String
+```
+
+The DOM id of the separator after the pane at this place (`0` is the separator
+between the first and the second pane), for `Klar.focus`: the place for the focus
+when a button inside a pane folds that pane away.
+
+    Klar.focus (Splitter.separatorId 0 model.split) NoOp
 
 ## Shares
 
@@ -326,7 +409,7 @@ The share in percent, from 0 to 100.
 ### `Attribute`
 
 ```elm
-type Attribute  -- opaque: no constructors are exposed
+type Attribute msg  -- opaque: no constructors are exposed
 ```
 
 A setting of the splitter. Make them with the functions below and pass a list to
@@ -335,7 +418,7 @@ A setting of the splitter. Make them with the functions below and pass a list to
 ### `stacked`
 
 ```elm
-stacked : Attribute
+stacked : Attribute msg
 ```
 
 The panes lie one above the other, with horizontal separators, instead of side
@@ -345,7 +428,7 @@ side by side.
 ### `height`
 
 ```elm
-height : Int -> Attribute
+height : Int -> Attribute msg
 ```
 
 The height of the splitter in pixels. Without it the splitter is as high as its
@@ -356,7 +439,7 @@ to divide anything.
 ### `fillRest`
 
 ```elm
-fillRest : Attribute
+fillRest : Attribute msg
 ```
 
 Makes the splitter as high as the room that is left in its parent, instead of
@@ -373,7 +456,7 @@ area fills the window under the page header with no pixel height; see
 ### `locale`
 
 ```elm
-locale : Locale.Locale -> Attribute
+locale : Locale.Locale -> Attribute msg
 ```
 
 The language of the built-in text: "Resize" in the name of a separator and the

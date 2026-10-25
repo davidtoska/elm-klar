@@ -69,6 +69,48 @@ css =
   flex: 0 1 auto;
 }
 
+/* ---- The move buttons (`moveButtons`): the way that needs no dragging ------ */
+
+.klar-sortable__moves {
+  display: inline-flex;
+  flex: none;
+  gap: var(--klar-space-1);
+}
+
+.klar-sortable__move {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: var(--klar-control-sm);
+  height: var(--klar-control-sm);
+  padding: 0;
+  border: 1px solid transparent;
+  border-radius: var(--klar-radius);
+  background: transparent;
+  color: var(--klar-text-secondary);
+  font: inherit;
+  cursor: pointer;
+}
+
+.klar-sortable__move:hover { background: var(--klar-surface-hover); color: var(--klar-text); }
+
+.klar-sortable__move:focus-visible {
+  outline: 2px solid var(--klar-focus-color);
+  outline-offset: 1px;
+}
+
+.klar-sortable__move[aria-disabled="true"],
+.klar-sortable__move[aria-disabled="true"]:hover {
+  background: transparent;
+  color: var(--klar-text-disabled);
+  cursor: default;
+}
+
+@media (forced-colors: active) {
+  .klar-sortable__move { border-color: ButtonText; }
+  .klar-sortable__move[aria-disabled="true"] { border-color: GrayText; color: GrayText; }
+}
+
 /* ---- The handle: a button that is a tab stop of its own ---------------- */
 
 .klar-sortable__handle {

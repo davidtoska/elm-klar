@@ -21,6 +21,7 @@ suite =
         , keyboardTests
         , pointerTests
         , sizesTests
+        , foldTests
         ]
 
 
@@ -30,7 +31,7 @@ suite =
 
 type alias Model =
     { split : Splitter.State
-    , attributes : List Splitter.Attribute
+    , attributes : List (Splitter.Attribute Splitter.Msg)
     , panes : List (Splitter.Pane Splitter.Msg)
     }
 
@@ -578,4 +579,114 @@ sizesTests =
                     |> rendered
                     |> Query.find [ Selector.id "split-pane-0" ]
                     |> Query.has [ Selector.attribute (Attr.attribute "style" "--klar-grow:50") ]
+        ]
+
+
+
+-- FOLDING FROM THE APPLICATION
+
+
+percents : Splitter.State -> List Int
+percents state =
+    Splitter.sizes state |> List.map (Splitter.toPercent >> round)
+
+
+thirtySeventy : Splitter.State
+thirtySeventy =
+    Splitter.init "split" [ Splitter.percent 30, Splitter.percent 70 ]
+
+
+foldTests : Test
+foldTests =
+    describe "fold, unfold and isFolded"
+        [ test "fold gives the room of the pane to the next one" <|
+            \_ -> thirtySeventy |> Splitter.fold 0 |> percents |> Expect.equal [ 0, 100 ]
+        , test "fold of the last pane gives its room to the one before" <|
+            \_ -> thirtySeventy |> Splitter.fold 1 |> percents |> Expect.equal [ 100, 0 ]
+        , test "unfold gives back the room the pane had" <|
+            \_ ->
+                Expect.all
+                    [ \_ -> thirtySeventy |> Splitter.fold 0 |> Splitter.unfold 0 |> percents |> Expect.equal [ 30, 70 ]
+                    , \_ -> thirtySeventy |> Splitter.fold 1 |> Splitter.unfold 1 |> percents |> Expect.equal [ 30, 70 ]
+                    ]
+                    ()
+        , test "isFolded follows" <|
+            \_ ->
+                Expect.equal [ False, True, False ]
+                    [ Splitter.isFolded 1 thirtySeventy
+                    , Splitter.isFolded 1 (Splitter.fold 1 thirtySeventy)
+                    , Splitter.isFolded 1 (thirtySeventy |> Splitter.fold 1 |> Splitter.unfold 1)
+                    ]
+        , test "a place that is not there is not folded, and folding it changes nothing" <|
+            \_ ->
+                Expect.all
+                    [ \_ -> Splitter.isFolded 5 thirtySeventy |> Expect.equal False
+                    , \_ -> Splitter.isFolded -1 thirtySeventy |> Expect.equal False
+                    , \_ -> thirtySeventy |> Splitter.fold 5 |> percents |> Expect.equal [ 30, 70 ]
+                    , \_ -> thirtySeventy |> Splitter.fold -1 |> percents |> Expect.equal [ 30, 70 ]
+                    ]
+                    ()
+        , test "unfold of a pane that has room changes nothing" <|
+            \_ -> thirtySeventy |> Splitter.unfold 0 |> percents |> Expect.equal [ 30, 70 ]
+        , test "a pane restored folded gets a fifth back" <|
+            \_ ->
+                thirtySeventy
+                    |> Splitter.setSizes [ Splitter.percent 0, Splitter.percent 100 ]
+                    |> Splitter.unfold 0
+                    |> percents
+                    |> Expect.equal [ 20, 80 ]
+        , test "the middle pane of three folds into the next one and comes back from it" <|
+            \_ ->
+                Splitter.init "split" [ Splitter.percent 20, Splitter.percent 30, Splitter.percent 50 ]
+                    |> Expect.all
+                        [ Splitter.fold 1 >> percents >> Expect.equal [ 20, 0, 80 ]
+                        , Splitter.fold 1 >> Splitter.unfold 1 >> percents >> Expect.equal [ 20, 30, 50 ]
+                        ]
+        , test "a folded collapsible pane is drawn folded" <|
+            \_ ->
+                { twoPanes | split = Splitter.fold 1 twoPanes.split, panes = [ pane "A", pane "B" |> Splitter.collapsible ] }
+                    |> rendered
+                    |> Query.find [ Selector.id "split-pane-1" ]
+                    |> Query.has [ Selector.class "klar-splitter__pane--folded" ]
+        , test "a pane the application folds is drawn folded even when it is not collapsible, so isFolded tells the truth" <|
+            \_ ->
+                { twoPanes | split = Splitter.fold 1 twoPanes.split, panes = [ pane "A", pane "B" |> Splitter.minSize (Splitter.percent 30) ] }
+                    |> Expect.all
+                        [ \model -> Splitter.isFolded 1 model.split |> Expect.equal True
+                        , rendered
+                            >> Query.find [ Selector.id "split-pane-1" ]
+                            >> Query.has [ Selector.class "klar-splitter__pane--folded" ]
+                        ]
+        , test "Enter on the separator opens a pane the application folded, collapsible or not" <|
+            \_ ->
+                { twoPanes | split = Splitter.fold 1 twoPanes.split }
+                    |> send (separator 0) (key "Enter")
+                    |> Result.map percentages
+                    |> Expect.equal (Ok [ 40, 60 ])
+        , test "the middle pane of three opens from the pane that took its room, from either separator" <|
+            \_ ->
+                { threePanes | split = Splitter.fold 1 threePanes.split, panes = [ pane "Navigator", pane "Orders" |> Splitter.collapsible, pane "Details" ] }
+                    |> Expect.all
+                        [ \model -> percentages model |> Expect.equal [ 20, 0, 80 ]
+                        , send (separator 0) (key "Enter") >> Result.map percentages >> Expect.equal (Ok [ 20, 50, 30 ])
+                        , send (separator 1) (key "Enter") >> Result.map percentages >> Expect.equal (Ok [ 20, 50, 30 ])
+                        ]
+        , test "unfold after a restored fold is brought inside the smallest size of the pane when it is drawn" <|
+            \_ ->
+                { twoPanes
+                    | split =
+                        twoPanes.split
+                            |> Splitter.setSizes [ Splitter.percent 100, Splitter.percent 0 ]
+                            |> Splitter.unfold 1
+                    , panes = [ pane "A", pane "B" |> Splitter.collapsible |> Splitter.minSize (Splitter.percent 30) ]
+                }
+                    |> rendered
+                    |> Query.find (separator 0)
+                    |> Query.has [ Selector.attribute (Attr.attribute "aria-valuenow" "70") ]
+        , test "separatorId is the id of the separator" <|
+            \_ ->
+                twoPanes
+                    |> rendered
+                    |> Query.find [ Selector.id (Splitter.separatorId 0 twoPanes.split) ]
+                    |> Query.has [ Selector.attribute (Attr.attribute "role" "separator") ]
         ]

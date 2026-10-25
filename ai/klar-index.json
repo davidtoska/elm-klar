@@ -2778,7 +2778,7 @@
       "group": "Tables and lists",
       "purpose": "A dense list row, and the list that holds the rows.",
       "whenToUse": "the application shows records such as orders, tickets and files, a menu of things to open, or a master list next to a detail pane.",
-      "whenNot": "people must search, sort and act on many rows of one kind (as `Klar.Table`).",
+      "whenNot": "people must search, sort and act on many rows of one kind (use `Klar.Table`), or the list has thousands of rows (use `Klar.VirtualList` with `ListItem.content`).",
       "state": [],
       "msg": [],
       "ids": [],
@@ -2789,10 +2789,10 @@
         "content",
         "heading",
         "list",
-        "listLabel",
+        "keyedList",
+        "ariaLabel",
         "undivided",
-        "compact",
-        "bordered"
+        "density"
       ],
       "related": [
         "Klar.VirtualList",
@@ -3631,9 +3631,9 @@
       "name": "Klar.Accordion",
       "import": "import Klar.Accordion as Accordion",
       "group": "Structure",
-      "purpose": "Sections that open and close: the details of a record, groups of settings, advanced filters.",
+      "purpose": "Sections that open and close in place: the details of a record, groups of settings, advanced filters.",
       "whenToUse": "sections of content should open and close in place, such as the details of a record or groups of settings.",
-      "whenNot": "the sections are views the user switches between (use `Klar.Tabs`).",
+      "whenNot": "the sections are views the user switches between (use `Klar.Tabs`), or one block of content opens on its own (a `Klar.Card` with a button of your own).",
       "state": [
         "State"
       ],
@@ -3646,9 +3646,9 @@
         "init",
         "update",
         "view",
-        "isOpen",
-        "open",
-        "closeAll"
+        "section",
+        "isExpanded",
+        "expand"
       ],
       "mainFunctions": [
         "view",
@@ -3660,15 +3660,17 @@
         "withBadge",
         "disabledSection"
       ],
-      "related": [],
+      "related": [
+        "Klar.Ids"
+      ],
       "keywords": [
         "accordion",
         "structure",
         "sections",
         "close",
+        "place",
         "details",
-        "record",
-        "groups"
+        "record"
       ],
       "reference": "ai/modules/Klar.Accordion.md"
     },
@@ -3676,9 +3678,9 @@
       "name": "Klar.Toolbar",
       "import": "import Klar.Toolbar as Toolbar",
       "group": "Structure",
-      "purpose": "A horizontal bar of grouped actions: the strip above a table, the actions of an editor, or the bulk actions that appear when rows are selected.",
-      "whenToUse": "a row of grouped actions is needed above a table or an editor, or for bulk actions on selected rows.",
-      "whenNot": "you need a single list of actions in a dropdown (use `Klar.Menu`).",
+      "purpose": "A horizontal bar of grouped controls for a whole view: the strip above a table or a list (new, export, search, view switches) or the actions of an editor.",
+      "whenToUse": "a row of grouped controls for the whole view is needed above a table, a list or an editor.",
+      "whenNot": "the actions are for the items the user has selected (use `Klar.BulkBar`, which covers this bar while something is selected; a `Klar.Table` draws its own with `Table.bulkActions`), or the actions belong in one dropdown (use `Klar.Menu`).",
       "state": [],
       "msg": [],
       "ids": [],
@@ -3692,15 +3694,17 @@
         "separator",
         "spacer"
       ],
-      "related": [],
+      "related": [
+        "Klar.BulkBar"
+      ],
       "keywords": [
         "toolbar",
         "structure",
         "horizontal",
         "grouped",
-        "actions",
-        "strip",
-        "above"
+        "controls",
+        "whole",
+        "strip"
       ],
       "reference": "ai/modules/Klar.Toolbar.md"
     },
@@ -3710,7 +3714,7 @@
       "group": "Structure",
       "purpose": "Label and value pairs for detail views, rendered as a semantic `dl`.",
       "whenToUse": "the application shows the facts about one thing, such as an order, a customer or a shipment.",
-      "whenNot": "there are many things of the same kind to compare or sort, use `Klar.Table`.",
+      "whenNot": "there are many things of the same kind to compare or sort (use `Klar.Table`), or two or more versions of one thing are compared side by side (use `Klar.Compare`).",
       "state": [],
       "msg": [],
       "ids": [],
@@ -3725,6 +3729,7 @@
         "fullWidth"
       ],
       "related": [
+        "Klar.RemoteView",
         "Klar.Table"
       ],
       "keywords": [
@@ -3767,8 +3772,7 @@
         "init",
         "update",
         "lifted",
-        "reorder",
-        "move"
+        "reorder"
       ],
       "related": [
         "Klar.Ids",

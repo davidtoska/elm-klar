@@ -1,35 +1,41 @@
 module Klar.ListItem exposing
     ( view, content, heading, Attribute
     , secondary, meta, icon, avatar, leading, trailing, accent
-    , onClick, href, selected, disabled, id, label
-    , list, ListAttribute, listLabel, undivided, compact, bordered, maxHeight
-    , remote, skeleton, skeletonRows, onRetry, emptyTitle, emptyDescription, emptyIcon, locale, settings
+    , onClick, href, selected, disabled, id, rowAriaLabel
+    , list, keyedList, ListAttribute, ariaLabel, undivided, density, bordered, maxHeight
+    , viewRemote, listId, skeleton, skeletonRows, onRetry, emptyState, locale, settings
     )
 
 {-| A dense list row, and the list that holds the rows.
 
 Use when: the application shows records such as orders, tickets and files, a menu of things to open, or a master list next to a detail pane.
-Do not use when: people must search, sort and act on many rows of one kind (as `Klar.Table`).
+Do not use when: people must search, sort and act on many rows of one kind (use `Klar.Table`), or the list has thousands of rows (use `Klar.VirtualList` with `ListItem.content`).
 
     import Klar.ListItem as ListItem
+    import Klar.Remote as Remote
 
-    ListItem.list [ ListItem.listLabel "Tickets" ]
-        [ ListItem.view
-            [ ListItem.avatar "Ada Lovelace"
-            , ListItem.secondary "Order 1042 arrived damaged"
-            , ListItem.meta "Today 14:05"
-            , ListItem.selected (model.selected == Just 1042)
-            , ListItem.onClick (TicketSelected 1042)
-            , ListItem.trailing [ ticketMenu ]
-            ]
-            "Ada Lovelace"
+    -- a list that never changes while the user is on it
+    ListItem.list [ ListItem.ariaLabel "Settings" ]
+        [ ListItem.view [ ListItem.icon Icon.user, ListItem.href "#/settings/profile" ] "Profile"
+        , ListItem.view [ ListItem.icon Icon.lock, ListItem.href "#/settings/security" ] "Security"
         ]
 
-    -- from the backend: skeleton, failure with retry, empty state and rows
-    ListItem.remote
-        [ ListItem.onRetry ReloadTickets, ListItem.emptyTitle "No tickets" ]
-        viewTicket
-        model.tickets
+    -- records from the backend: every row keyed by the id of its record
+    ListItem.viewRemote
+        [ ListItem.ariaLabel "Tickets", ListItem.onRetry ReloadTickets ]
+        (Remote.map (List.map (\ticket -> ( ticket.id, viewTicket model ticket ))) model.tickets)
+
+    viewTicket : Model -> Ticket -> Html Msg
+    viewTicket model ticket =
+        ListItem.view
+            [ ListItem.avatar ticket.customer
+            , ListItem.secondary ticket.subject
+            , ListItem.meta ticket.received
+            , ListItem.selected (model.selected == Just ticket.id)
+            , ListItem.onClick (TicketSelected ticket.id)
+            , ListItem.trailing [ ticketMenu ticket ]
+            ]
+            ticket.customer
 
 A row is made of a leading element (an icon, an avatar or any HTML), a title
 with a secondary line, a meta text on the right and trailing actions. A row with
@@ -40,11 +46,19 @@ message when it is followed with a plain click. The selected row is marked with
 `aria-current`. The title, the secondary line and the meta text are each cut with
 an ellipsis when they do not fit; the whole text is the tooltip.
 
+Rows that can come, go or move while the user is on them (records from the
+backend, a polled queue) go into a `keyedList`, or `viewRemote`, with the id of
+the record as the key. Then a new row at the top never moves the keyboard focus
+or the next `Enter` onto another record, which is what happens with a `list`,
+whose rows are matched by their place. A refresh, a failed refresh and old data
+(`Remote.Kept`) keep the rows where they are, so the focus stays on its row.
+
 When the rows have several columns that the user compares or sorts, use
 [Klar.Table](Klar-Table) instead.
 
 There are two kinds of attributes: `Attribute` configures a row and goes to
-`view`, `ListAttribute` configures the list and goes to `list` and `remote`.
+`view`, `ListAttribute` configures the list and goes to `list`, `keyedList` and
+`viewRemote`.
 
 
 # Rows
@@ -62,23 +76,24 @@ goes into it is `content`, the row without the `li` and without anything to clic
 
 # Row behavior
 
-@docs onClick, href, selected, disabled, id, label
+@docs onClick, href, selected, disabled, id, rowAriaLabel
 
 
 # Lists
 
-@docs list, ListAttribute, listLabel, undivided, compact, bordered, maxHeight
+@docs list, keyedList, ListAttribute, ariaLabel, undivided, density, bordered, maxHeight
 
 
 # Data from a backend
 
-@docs remote, skeleton, skeletonRows, onRetry, emptyTitle, emptyDescription, emptyIcon, locale, settings
+@docs viewRemote, listId, skeleton, skeletonRows, onRetry, emptyState, locale, settings
 
 -}
 
 import Html exposing (Html)
 import Html.Attributes as Attr
 import Html.Events as Events
+import Html.Keyed as Keyed
 import Json.Decode as Decode
 import Klar.Avatar as Avatar
 import Klar.EmptyState as EmptyState
@@ -90,7 +105,7 @@ import Klar.Locale as Locale exposing (Locale)
 import Klar.Remote as Remote exposing (Problem, Remote)
 import Klar.Settings as Settings exposing (Settings)
 import Klar.Skeleton as Skeleton
-import Klar.Theme as Theme exposing (Tone)
+import Klar.Theme exposing (Density(..), Tone)
 
 
 
@@ -202,6 +217,11 @@ selected value =
 
 {-| Visible but dimmed and not clickable: `onClick` and `href` are ignored, and
 the row is marked `aria-disabled`. The default is `False`.
+
+A row with `onClick` or `href` stays the same button or link while it is
+disabled, without the click and out of the `Tab` order, so a row that is disabled
+while it has the focus (during a save) keeps the focus.
+
 -}
 disabled : Bool -> Attribute msg
 disabled value =
@@ -230,33 +250,42 @@ href url =
 
 {-| A colored strip at the left edge: a status the user should see in a long
 list. `Neutral` is gray, `Primary` and `Info` are blue, and `Success`, `Warning`
-and `Danger` have colors of their own.
+and `Danger` have colors of their own. A color says nothing to a screen reader,
+so the status must also be in the text of the row (the `meta` or the
+`secondary` line); in the high-contrast mode of Windows the strip is drawn in
+the color of the text.
 -}
 accent : Tone -> Attribute msg
 accent value =
     Attribute (\config -> { config | accent = Just value })
 
 
-{-| The DOM id of the row (its `li` element).
+{-| The DOM id of the row. A row with `onClick` or `href` puts it on its button
+or link, the element that takes the focus, so `Klar.focus` with this id brings
+the keyboard back to the row (after a delete or a retry); any other row puts it on
+its `li`.
+
+    ListItem.id ("order-" ++ order.id)
+
 -}
 id : String -> Attribute msg
 id value =
     Attribute (\config -> { config | id = Just value })
 
 
-{-| An accessible name (`aria-label`) for the button or link of the row. It
-replaces the text of the row when a screen reader reads it, so use it only when
-the title and the secondary text would not make sense out of context. A row that
-is neither a button nor a link (it has no `onClick` or `href`, or it is
-`disabled`) is plain content and ignores the label.
+{-| An accessible name (`aria-label`) for the button or link of the row, which
+only screen readers hear. It replaces the text of the row when a screen reader
+reads it, so use it only when the title and the secondary text would not make
+sense out of context. A row that is neither a button nor a link (it has no
+`onClick` or `href`) is plain content and ignores it.
 -}
-label : String -> Attribute msg
-label text =
+rowAriaLabel : String -> Attribute msg
+rowAriaLabel text =
     Attribute (\config -> { config | ariaLabel = Just text })
 
 
 {-| One row of a list. The text is the title. The row is an `li`, so put it in a
-`list`.
+`list`, a `keyedList` or `viewRemote`.
 
     ListItem.view [ ListItem.icon Icon.fileText, ListItem.meta "2 MB" ] "invoice-2041.pdf"
 
@@ -269,8 +298,8 @@ view attributes title =
 {-| What is in a row, for a place that makes the `li` itself, such as a
 [Klar.VirtualList](Klar-VirtualList): the same look as `view` (a title, a second
 line, a meta text, an icon or an avatar, a colored edge) in a `div`. It is not a
-button or a link, so `onClick`, `href`, `label` and `trailing` do nothing in it:
-the row around it is what is clicked.
+button or a link, so `onClick`, `href`, `rowAriaLabel` and `trailing` do nothing in
+it: the row around it is what is clicked.
 
     ListItem.content [ ListItem.secondary "Ada Lovelace", ListItem.meta "Today" ] "Order 1042"
 
@@ -287,11 +316,13 @@ content attributes title =
 row : (List (Html.Attribute msg) -> List (Html msg) -> Html msg) -> RowConfig msg -> String -> Html msg
 row root config title =
     let
-        interactive =
-            not config.disabled && (config.onClick /= Nothing || config.href /= Nothing)
+        -- A row that has something to click keeps its button or link while it is
+        -- disabled: replacing the element would take the focus from it.
+        clickable =
+            config.onClick /= Nothing || config.href /= Nothing
 
-        mainClass =
-            Internal.cls [ "klar-list-item__main" ]
+        interactive =
+            clickable && not config.disabled
 
         mainContent =
             [ viewLeading config.leading
@@ -307,44 +338,56 @@ row root config title =
             ]
 
         commonAttributes =
-            [ mainClass
+            [ Internal.cls [ "klar-list-item__main" ]
             , Internal.attrIf config.selected (Attr.attribute "aria-current" "true")
+            , Internal.attrIf config.disabled (Attr.attribute "aria-disabled" "true")
             ]
 
         -- Only a button or a link can have a name of its own. A plain `div`
         -- has no role that takes `aria-label`, so it gets none.
-        nameAttribute =
-            Internal.attrMaybe (Attr.attribute "aria-label") config.ariaLabel
+        clickableAttributes =
+            [ Internal.attrMaybe (Attr.attribute "aria-label") config.ariaLabel
+            , Internal.attrMaybe Attr.id config.id
+
+            -- out of the Tab order, but still able to hold the focus it has
+            , Internal.attrIf config.disabled (Attr.attribute "tabindex" "-1")
+            ]
 
         main_ =
-            if interactive then
+            if clickable then
                 case config.href of
                     Just url ->
                         Html.a
                             (commonAttributes
-                                ++ [ nameAttribute
-                                   , Attr.href url
-                                   , Internal.attrMaybe plainClick config.onClick
-                                   ]
+                                ++ clickableAttributes
+                                ++ (if config.disabled then
+                                        -- a link without `href` has no role of its own
+                                        [ Attr.attribute "role" "link" ]
+
+                                    else
+                                        [ Attr.href url
+                                        , Internal.attrMaybe plainClick config.onClick
+                                        ]
+                                   )
                             )
                             mainContent
 
                     Nothing ->
                         Html.button
                             (commonAttributes
-                                ++ [ nameAttribute
-                                   , Attr.type_ "button"
-                                   , Internal.attrMaybe Events.onClick config.onClick
+                                ++ clickableAttributes
+                                ++ [ Attr.type_ "button"
+                                   , if config.disabled then
+                                        Internal.noAttr
+
+                                     else
+                                        Internal.attrMaybe Events.onClick config.onClick
                                    ]
                             )
                             mainContent
 
             else
-                Html.div
-                    (commonAttributes
-                        ++ [ Internal.attrIf config.disabled (Attr.attribute "aria-disabled" "true") ]
-                    )
-                    mainContent
+                Html.div commonAttributes mainContent
     in
     root
         [ Internal.cls
@@ -371,7 +414,11 @@ row root config title =
                 Nothing ->
                     ""
             ]
-        , Internal.attrMaybe Attr.id config.id
+        , if clickable then
+            Internal.noAttr
+
+          else
+            Internal.attrMaybe Attr.id config.id
         ]
         [ main_
         , if List.isEmpty config.trailing then
@@ -432,7 +479,8 @@ plainClick msg =
 
 
 {-| A small caption between groups of rows, such as "Today" and "Earlier",
-shown in capital letters. Put it among the rows in the list.
+shown in capital letters. Put it among the rows in the list (in a `keyedList`,
+with a key of its own).
 
     ListItem.list []
         [ ListItem.heading "Today"
@@ -449,7 +497,8 @@ heading text =
 
 {-| One placeholder row for data that is on its way. The number only varies the
 widths of the two text lines, so that a stack of placeholders does not look
-uniform: pass the index of the row. `remote` shows placeholder rows by itself.
+uniform: pass the index of the row. `viewRemote` shows placeholder rows by
+itself.
 -}
 skeleton : Int -> Html msg
 skeleton count =
@@ -469,8 +518,8 @@ skeleton count =
 
 
 {-| A setting of a list. Make them with the functions below and pass a list to
-`list` or `remote`; later attributes win over earlier ones. Settings of a single
-row are `Attribute`s, which go to `view`.
+`list`, `keyedList` or `viewRemote`; later attributes win over earlier ones.
+Settings of a single row are `Attribute`s, which go to `view`.
 -}
 type ListAttribute msg
     = ListAttribute (ListConfig msg -> ListConfig msg)
@@ -478,14 +527,13 @@ type ListAttribute msg
 
 type alias ListConfig msg =
     { divided : Bool
-    , compact : Bool
+    , density : Maybe Density
     , bordered : Bool
     , maxHeight : Maybe Int
-    , label : Maybe String
+    , ariaLabel : Maybe String
+    , listId : Maybe String
     , onRetry : Maybe msg
-    , emptyTitle : Maybe String
-    , emptyDescription : Maybe String
-    , emptyIcon : Icon
+    , emptyState : List (EmptyState.Attribute msg)
     , skeletonRows : Int
     , locale : Locale
     , settings : Settings
@@ -496,14 +544,13 @@ configureList : List (ListAttribute msg) -> ListConfig msg
 configureList attributes =
     List.foldl (\(ListAttribute change) config -> change config)
         { divided = True
-        , compact = False
+        , density = Nothing
         , bordered = False
         , maxHeight = Nothing
-        , label = Nothing
+        , ariaLabel = Nothing
+        , listId = Nothing
         , onRetry = Nothing
-        , emptyTitle = Nothing
-        , emptyDescription = Nothing
-        , emptyIcon = Icon.inbox
+        , emptyState = []
         , skeletonRows = 4
         , locale = Locale.default
         , settings = Settings.default
@@ -518,12 +565,17 @@ undivided =
     ListAttribute (\config -> { config | divided = False })
 
 
-{-| Tighter rows: less padding and a smaller box around the `icon`. Lists follow a
-compact density of the application (`Klar.Settings`) without it.
+{-| How tightly the rows are packed: `Compact` (32 pixels, less padding and a
+smaller box around the `icon`), `Normal` (44 pixels) or `Comfortable` (52
+pixels). Without it the list follows the density of the application
+(`Klar.Settings`), so give it only to a list that must differ from the rest.
+
+    ListItem.density Compact
+
 -}
-compact : ListAttribute msg
-compact =
-    ListAttribute (\config -> { config | compact = True })
+density : Density -> ListAttribute msg
+density value =
+    ListAttribute (\config -> { config | density = Just value })
 
 
 {-| A border and rounded corners around the list, on a white background.
@@ -537,8 +589,8 @@ bordered =
 lists in a panel. By default the list grows with its rows.
 
 A list that scrolls can take the keyboard focus (`tabindex="0"`), so that
-keyboard users can scroll it with the arrow keys. It stays a `list`; give it a
-`listLabel` to name it.
+keyboard users can scroll it with the arrow keys. It stays a `list`; give it an
+`ariaLabel` to name it.
 
 -}
 maxHeight : Int -> ListAttribute msg
@@ -546,46 +598,63 @@ maxHeight pixels =
     ListAttribute (\config -> { config | maxHeight = Just pixels })
 
 
-{-| The accessible name of the list (`aria-label`), such as "Tickets".
+{-| The accessible name of the list (`aria-label`), which only screen readers
+hear, such as "Tickets". There is none by default; give one to every list when
+a page has more than one.
 -}
-listLabel : String -> ListAttribute msg
-listLabel text =
-    ListAttribute (\config -> { config | label = Just text })
+ariaLabel : String -> ListAttribute msg
+ariaLabel text =
+    ListAttribute (\config -> { config | ariaLabel = Just text })
 
 
-{-| The message sent by the "Try again" button in the failure state of `remote`.
-Without it there is no button. The button is also hidden when trying again would
-not help (see [Klar.ErrorState](Klar-ErrorState)).
+{-| The DOM id of `viewRemote`, on the element around the list that is the same in
+every state (loading, failed, empty, rows, old data) and can take the focus
+(`tabindex="-1"`). It gives `Klar.focus` a place to put the focus back when the
+element that had it goes away, such as the "Try again" button of the failure state
+after a press. The id must be unique on the page. There is none by default.
+
+    ListItem.viewRemote [ ListItem.listId "orders", ListItem.onRetry ReloadOrders ] rows
+
+    -- update
+    ReloadOrders ->
+        ( { model | orders = Remote.Loading }
+        , Cmd.batch [ fetchOrders, Klar.focus "orders" NoOp ]
+        )
+
+-}
+listId : String -> ListAttribute msg
+listId value =
+    ListAttribute (\config -> { config | listId = Just value })
+
+
+{-| The message sent by the "Try again" button of `viewRemote`: in the failure
+state, and beside "Old data from 14:05" when a refresh failed. Without it there
+is no button. The button is also hidden when trying again would not help (see
+[Klar.ErrorState](Klar-ErrorState)).
 -}
 onRetry : msg -> ListAttribute msg
 onRetry msg =
     ListAttribute (\config -> { config | onRetry = Just msg })
 
 
-{-| The title of the empty state of `remote`. The default is the built-in
-"Nothing to show".
+{-| Changes the empty state of `viewRemote`, which shows when the list has no
+rows: by default a small inbox icon and the title "Nothing to show". These
+attributes are applied after the defaults, so yours win. Use it to say why the
+list is empty and what to do next.
+
+    ListItem.emptyState
+        [ EmptyState.title "No orders"
+        , EmptyState.description "No order matches the filter."
+        , EmptyState.icon Icon.search
+        ]
+
 -}
-emptyTitle : String -> ListAttribute msg
-emptyTitle text =
-    ListAttribute (\config -> { config | emptyTitle = Just text })
+emptyState : List (EmptyState.Attribute msg) -> ListAttribute msg
+emptyState attributes =
+    ListAttribute (\config -> { config | emptyState = attributes })
 
 
-{-| The text under the title of the empty state of `remote`. There is none by
-default.
--}
-emptyDescription : String -> ListAttribute msg
-emptyDescription text =
-    ListAttribute (\config -> { config | emptyDescription = Just text })
-
-
-{-| The icon of the empty state of `remote`. The default is `Icon.inbox`.
--}
-emptyIcon : Icon -> ListAttribute msg
-emptyIcon value =
-    ListAttribute (\config -> { config | emptyIcon = value })
-
-
-{-| How many placeholder rows `remote` shows while the data is loading. The
+{-| How many placeholder rows `viewRemote` shows while the data is loading. The
 default is 4, and the value is kept between 1 and 20.
 -}
 skeletonRows : Int -> ListAttribute msg
@@ -604,9 +673,10 @@ settings given =
     ListAttribute (\config -> { config | settings = given })
 
 
-{-| The language of the built-in text of `remote`: the default title of the empty
-state ("Nothing to show" in English) and the "Try again" button. The default is
-`Locale.default`, which is English.
+{-| The language of the built-in text of `viewRemote`: "Loading" for screen
+readers, the default title of the empty state ("Nothing to show" in English), the
+marker for old data and the "Try again" button. The default is `Locale.default`,
+which is English.
 -}
 locale : Locale -> ListAttribute msg
 locale value =
@@ -614,9 +684,11 @@ locale value =
 
 
 {-| The container of the rows: a `ul` with the role `list`. Its children are rows
-made with `view` and, between groups, `heading`s.
+made with `view` and, between groups, `heading`s. The rows are matched by their
+place when the list is drawn again, so use it for rows that do not come and go
+while the user is on them; otherwise use `keyedList`.
 
-    ListItem.list [ ListItem.bordered, ListItem.compact ]
+    ListItem.list [ ListItem.bordered, ListItem.density Compact ]
         [ ListItem.view [] "Order 1042"
         , ListItem.view [] "Order 1043"
         ]
@@ -624,27 +696,41 @@ made with `view` and, between groups, `heading`s.
 -}
 list : List (ListAttribute msg) -> List (Html msg) -> Html msg
 list attributes rows =
-    let
-        config =
-            configureList attributes
-    in
-    Html.ul
-        [ listClass config
-        , Attr.attribute "role" "list"
-        , Internal.attrMaybe (Attr.attribute "aria-label") config.label
-        , case config.maxHeight of
-            Just pixels ->
-                Internal.styleVars [ ( "max-height", Internal.px pixels ) ]
+    Html.ul (listAttributes (configureList attributes)) rows
 
-            Nothing ->
-                Internal.noAttr
 
-        -- A list that scrolls must be reachable with the keyboard. It keeps its
-        -- role `list`: a role `region` would take the list semantics away from
-        -- the rows.
-        , Internal.attrIf (config.maxHeight /= Nothing) (Attr.tabindex 0)
-        ]
-        rows
+{-| A `list` whose rows are each given with a key that names their record, such
+as the id of an order. When a row is added, removed or moved, the other rows keep
+their elements, so the keyboard focus stays on its record and the next `Enter`
+does not open another one. Every key must be unique in the list; a `heading` needs
+one too.
+
+    ListItem.keyedList [ ListItem.ariaLabel "Orders" ]
+        (List.map (\order -> ( order.id, viewOrder order )) model.orders)
+
+-}
+keyedList : List (ListAttribute msg) -> List ( String, Html msg ) -> Html msg
+keyedList attributes rows =
+    Keyed.ul (listAttributes (configureList attributes)) rows
+
+
+listAttributes : ListConfig msg -> List (Html.Attribute msg)
+listAttributes config =
+    [ listClass config
+    , Attr.attribute "role" "list"
+    , Internal.attrMaybe (Attr.attribute "aria-label") config.ariaLabel
+    , case config.maxHeight of
+        Just pixels ->
+            Internal.styleVars [ ( "max-height", Internal.px pixels ) ]
+
+        Nothing ->
+            Internal.noAttr
+
+    -- A list that scrolls must be reachable with the keyboard. It keeps its
+    -- role `list`: a role `region` would take the list semantics away from
+    -- the rows.
+    , Internal.attrIf (config.maxHeight /= Nothing) (Attr.tabindex 0)
+    ]
 
 
 listClass : ListConfig msg -> Html.Attribute msg
@@ -656,11 +742,18 @@ listClass config =
 
           else
             ""
-        , if config.compact then
-            "klar-list--compact"
+        , case config.density of
+            Just Compact ->
+                "klar-list--compact"
 
-          else
-            ""
+            Just Normal ->
+                "klar-list--normal"
+
+            Just Comfortable ->
+                "klar-list--comfortable"
+
+            Nothing ->
+                ""
         , if config.bordered then
             "klar-list--bordered"
 
@@ -674,88 +767,113 @@ listClass config =
         ]
 
 
-{-| A list of records from the backend. `toRow` turns one record into a row,
-usually with `view`. While the data is `NotAsked` or `Loading` the list shows
-placeholder rows (`skeletonRows`), a `Failed` shows an error state with a retry
-button (`onRetry`), an empty list shows an empty state (`emptyTitle`) and
-otherwise the rows are shown in a `list`. Data that is `Kept` stays: dimmed and
-busy while it is refreshed, and under "Old data from 14:05" with a retry
-(`onRetry`) when the last refresh failed.
+{-| A `keyedList` of records from the backend, in every state of the `Remote`.
+Shape the records into keyed rows with `Remote.map`; the key is the id of the
+record.
 
-    ListItem.remote [ ListItem.onRetry ReloadOrders ] viewOrder model.orders
+    ListItem.viewRemote [ ListItem.ariaLabel "Orders", ListItem.onRetry ReloadOrders ]
+        (Remote.map (List.map (\order -> ( order.id, viewOrder order ))) model.orders)
+
+While the data is `NotAsked` or `Loading` the list shows placeholder rows
+(`skeletonRows`) and says "Loading" to screen readers, a `Failed` shows an error
+state with a retry button (`onRetry`), no rows show the empty state
+(`emptyState`), and otherwise the rows are shown. Data that is `Kept` stays:
+dimmed and busy while it is refreshed, and under "Old data from 14:05" with a
+retry (`onRetry`) when the last refresh failed, also when it has no rows.
+
+Every state is drawn inside one element that stays (`listId` gives it an id), and
+the rows inside the same elements whether the data is fresh, refreshing or old, so
+a refresh that starts or ends never takes the focus from a row. "Loading" is said
+by a polite status that is always in the page, empty in the other states.
 
 -}
-remote : List (ListAttribute msg) -> (a -> Html msg) -> Remote (List a) -> Html msg
-remote attributes toRow data =
+viewRemote : List (ListAttribute msg) -> Remote (List ( String, Html msg )) -> Html msg
+viewRemote attributes data =
     let
         config =
             configureList attributes
 
-        framed inner =
-            Html.div [ Internal.cls [ "klar-list-state" ], Internal.attrIf config.bordered (Internal.cls [ "klar-list-state--bordered" ]) ] [ inner ]
+        ( settled, freshness ) =
+            Freshness.settle data
     in
-    case Freshness.settle data of
-        ( Remote.Loaded items, freshness ) ->
-            if List.isEmpty items then
-                framed (emptyView config)
+    Html.div
+        [ Internal.cls [ "klar-list-fresh", Freshness.className freshness ]
+        , Internal.attrMaybe Attr.id config.listId
+        , Internal.attrIf (config.listId /= Nothing) (Attr.tabindex -1)
+        ]
+        [ Html.span [ Internal.cls [ "klar-sr-only" ], Attr.attribute "role" "status" ]
+            [ Html.text
+                (if Freshness.waiting settled then
+                    Locale.pick config.locale { nb = "Laster", en = "Loading" }
 
-            else
-                case freshness of
-                    Freshness.Fresh ->
-                        list attributes (List.map toRow items)
+                 else
+                    ""
+                )
+            ]
+        , Freshness.notice
+            { locale = config.locale, settings = config.settings, onRetry = config.onRetry, inline = False }
+            freshness
+        , case settled of
+            Remote.Loaded rows ->
+                if List.isEmpty rows then
+                    framed [ Freshness.busyAttr freshness ] config (emptyView config)
 
-                    _ ->
-                        Html.div
-                            [ Internal.cls [ "klar-list-fresh", Freshness.className freshness ]
-                            , Freshness.busyAttr freshness
-                            ]
-                            [ Freshness.notice
-                                { locale = config.locale, settings = config.settings, onRetry = config.onRetry, inline = False }
-                                freshness
-                            , list attributes (List.map toRow items)
-                            ]
+                else
+                    Keyed.ul (Freshness.busyAttr freshness :: listAttributes config) rows
 
-        ( settled, _ ) ->
-            remoteWithout config framed settled
+            Remote.Failed problem ->
+                framed [] config (failureView config problem)
+
+            _ ->
+                loadingView config
+        ]
 
 
-remoteWithout : ListConfig msg -> (Html msg -> Html msg) -> Remote (List a) -> Html msg
-remoteWithout config framed data =
-    case data of
-        Remote.NotAsked ->
-            skeletonList config
+{-| The frame of the empty and the failure state. `aria-busy` goes on it and on the
+list, never on the element around them, which holds the live regions.
+-}
+framed : List (Html.Attribute msg) -> ListConfig msg -> Html msg -> Html msg
+framed attributes config inner =
+    Html.div
+        (Internal.cls
+            [ "klar-list-state"
+            , if config.bordered then
+                "klar-list-state--bordered"
 
-        Remote.Loading ->
-            skeletonList config
-
-        Remote.Failed problem ->
-            framed (failureView config problem)
-
-        _ ->
-            skeletonList config
+              else
+                ""
+            ]
+            :: attributes
+        )
+        [ inner ]
 
 
 emptyView : ListConfig msg -> Html msg
 emptyView config =
     EmptyState.view
-        (List.filterMap identity
-            [ Just EmptyState.compact
-            , Just (EmptyState.icon config.emptyIcon)
-            , Just
-                (EmptyState.title
-                    (Maybe.withDefault (Locale.pick config.locale { nb = "Ingenting å vise", en = "Nothing to show" }) config.emptyTitle)
-                )
-            , Maybe.map EmptyState.description config.emptyDescription
-            ]
+        ([ EmptyState.compact
+         , EmptyState.icon Icon.inbox
+         , EmptyState.title (Locale.pick config.locale { nb = "Ingenting å vise", en = "Nothing to show" })
+         ]
+            ++ config.emptyState
         )
 
 
-skeletonList : ListConfig msg -> Html msg
-skeletonList config =
+{-| The placeholder rows, hidden from screen readers, which hear "Loading" from the
+status beside them instead.
+-}
+loadingView : ListConfig msg -> Html msg
+loadingView config =
     Html.ul
         [ listClass config
         , Attr.attribute "aria-busy" "true"
-        , Internal.attrMaybe (Attr.attribute "aria-label") config.label
+        , Internal.attrMaybe (Attr.attribute "aria-label") config.ariaLabel
+        , case config.maxHeight of
+            Just pixels ->
+                Internal.styleVars [ ( "max-height", Internal.px pixels ) ]
+
+            Nothing ->
+                Internal.noAttr
         ]
         (List.range 1 config.skeletonRows |> List.map skeleton)
 
