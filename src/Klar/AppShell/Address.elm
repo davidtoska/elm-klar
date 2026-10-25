@@ -15,8 +15,8 @@ import Url exposing (Url)
     side menu): the page is entered again, without another entry in the history, so
     Back does not need one press per click.
   - `Anchor`: only the fragment differs and it is not a route (`#field-id`, not
-    `#/orders`): a link to an element of the page. The shell moves focus there, and
-    follows the address as a route only when no element has that id.
+    `#/orders`): a link to an element of the page. The shell moves focus there (when an
+    element has that id) and stays on the page.
 
 -}
 type Follow

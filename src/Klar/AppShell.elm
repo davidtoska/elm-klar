@@ -106,7 +106,8 @@ That is the one wiring of the frame, and the only one to write (not a `SideNav.i
     address elsewhere. A link to the address the user is on (the current page in the side
     menu) enters the page again with `replaceUrl`, so Back never needs one press per click.
     A link to an element of the page (`#field-id`, not a route like `#/orders`) moves focus
-    to that element and adds nothing to the history.
+    to that element and adds nothing to the history: a route in the fragment starts with
+    `/`, and any other fragment never changes the page.
   - A new page (another path, or another route before the `?` of a `#/route?query`) closes
     the drawer, scrolls the content to the top and moves focus to the content, because the
     element that had it went with the old page. When the user chose the page with Enter on
@@ -942,7 +943,6 @@ address of the page. Wrap it in one constructor of your own, `ShellMsg`.
 type Msg
     = UrlRequested Browser.UrlRequest
     | UrlChanged Url
-    | NoSuchTarget String
     | SideNavMsg SideNav.Msg
     | SidebarLinkKey
     | ToggleSidebar
@@ -991,10 +991,6 @@ update msg (State inner) =
                     follow request (State inner)
             in
             ( next, cmd, Nothing )
-
-        NoSuchTarget href ->
-            -- No element has the id of the fragment: it is a route after all.
-            ( State inner, Nav.pushUrl inner.key href, Nothing )
 
         UrlChanged url ->
             let
@@ -1141,18 +1137,9 @@ follow request (State inner) =
                     ( State leaving, Cmd.batch [ Nav.replaceUrl inner.key href, fromDrawer ] )
 
                 Address.Anchor target ->
-                    ( State { inner | fromSidebar = False }
-                    , Dom.focus target
-                        |> Task.attempt
-                            (\result ->
-                                case result of
-                                    Ok () ->
-                                        NoOp
-
-                                    Err _ ->
-                                        NoSuchTarget (Url.toString url)
-                            )
-                    )
+                    -- A fragment that does not start with `/` is never a route: focus
+                    -- the element it names, if there is one, and stay on the page.
+                    ( State { inner | fromSidebar = False }, Internal.focus target NoOp )
 
         Browser.External href ->
             ( State inner, Nav.load href )

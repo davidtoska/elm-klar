@@ -177,7 +177,8 @@ That is the one wiring of the frame, and the only one to write (not a `SideNav.i
     address elsewhere. A link to the address the user is on (the current page in the side
     menu) enters the page again with `replaceUrl`, so Back never needs one press per click.
     A link to an element of the page (`#field-id`, not a route like `#/orders`) moves focus
-    to that element and adds nothing to the history.
+    to that element and adds nothing to the history: a route in the fragment starts with
+    `/`, and any other fragment never changes the page.
   - A new page (another path, or another route before the `?` of a `#/route?query`) closes
     the drawer, scrolls the content to the top and moves focus to the content, because the
     element that had it went with the old page. When the user chose the page with Enter on
