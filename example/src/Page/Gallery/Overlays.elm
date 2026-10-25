@@ -1092,7 +1092,7 @@ view locale model =
                 , contextSection model
                 , paletteSection model
                 , helpSection
-                , ContextMenu.view ContextMsg [ ContextMenu.items contextItems, ContextMenu.ariaLabel "Order actions", ContextMenu.locale locale ] model.context
+                , ContextMenu.view ContextMsg [ ContextMenu.ariaLabel "Order actions", ContextMenu.locale locale ] contextItems model.context
                 ]
             ]
         , overlays = overlays locale model
@@ -2303,7 +2303,8 @@ contextMenuCode =
     [ row ]
 
 ContextMenu.view ContextMsg
-    [ ContextMenu.items itemsFor, ContextMenu.ariaLabel "Order actions" ]
+    [ ContextMenu.ariaLabel "Order actions" ]
+    itemsFor
     model.context
 
 -- the same menu from the row's ⋯ button
@@ -2342,8 +2343,24 @@ PaletteMsg inner ->
             CommandPalette.query palette
     in
     if asked /= CommandPalette.query model.palette then
-        ( { model | palette = palette, hits = Loading }
-        , Cmd.batch [ Cmd.map PaletteMsg cmd, searchOrders asked ]
+        -- an empty query asks nothing: the section goes away
+        ( { model
+            | palette = palette
+            , hits =
+                if asked == "" then
+                    NotAsked
+
+                else
+                    Loading
+          }
+        , Cmd.batch
+            [ Cmd.map PaletteMsg cmd
+            , if asked == "" then
+                Cmd.none
+
+              else
+                searchOrders asked
+            ]
         )
 
     else

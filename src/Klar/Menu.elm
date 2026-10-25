@@ -524,6 +524,7 @@ viewPopup toMsg config (State state) =
             , Attr.id (popupId state.id)
             , Attr.tabindex -1
             , Attr.attribute "role" "menu"
+            , Attr.attribute "aria-labelledby" (triggerId state.id)
             , if state.highlighted >= 0 then
                 Attr.attribute "aria-activedescendant" (optionId state.id state.highlighted)
 

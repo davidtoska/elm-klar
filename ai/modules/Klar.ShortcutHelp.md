@@ -213,6 +213,8 @@ platform : Kbd.Platform -> Attribute msg
 The keyboard to write the keys for, as in [Klar.Kbd](Klar.Kbd.md): `Kbd.pc` (the
 default: Ctrl, Alt, Shift) or `Kbd.mac` (⌘, ⌥, ⇧ in the order a Mac writes them).
 Read it once from the user agent with `Kbd.platformFromUserAgent`.
+[Klar.Shortcut](Klar.Shortcut.md) finds a Mac by itself, a view cannot: without
+this a Mac user reads "Ctrl K" for a shortcut that fires on ⌘ K.
 
     ShortcutHelp.platform (Kbd.platformFromUserAgent flags.userAgent)
 

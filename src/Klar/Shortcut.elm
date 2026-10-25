@@ -93,18 +93,26 @@ command palette) prevents its default action, and a shortcut ignores a key press
 whose default action was prevented. The `Enter` or `Escape` that ends the
 composition of an input method (Japanese, Chinese, Korean) is never a shortcut
 either. Holding a key down does not repeat a shortcut, unless it is marked
-`repeats` (one that moves through rows, say).
+`repeats` (one that moves through rows, say), and the repeats of a held key that
+fired a shortcut do not reach the browser either (holding Ctrl+S never saves the
+page).
 
-**Keyboards**: a symbol typed with AltGr (on a German keyboard `[` is AltGr and
+**Keyboards**: a symbol typed with AltGr, such as `[` from AltGr and the eight
+key of a German keyboard, counts as the plain symbol and not as Ctrl+Alt; in a
+field it is text that never fires a shortcut. With Ctrl, Alt or Cmd held, a
+letter or a digit is also found by the place of its key, so `mod (char 'k')`
+fires on a Russian or Greek layout, and `alt (char 'a')` fires for Option and A
+on a Mac (where the key types "å"). Option with a symbol types another
+character on a Mac, so `alt` with a symbol (`alt (char '/')`) fires only on a
+PC. On a Mac `mod` is Cmd; Ctrl counts as `mod` too, except in a text field,
+where Ctrl+A, Ctrl+E and Ctrl+K keep their editing meaning.
 
-1.  counts as the plain symbol, not as Ctrl+Alt, and in a field it is text that
-    never fires a shortcut. With Ctrl, Alt or Cmd held, a letter or digit is also
-    found by the key's place on the keyboard, so `mod (char 'k')` fires on a Russian
-    or Greek layout, and `alt (char 'a')` with Option and A on a Mac (where the key
-    types "å"). On a Mac `mod` is Cmd; Ctrl counts as `mod` too, except in a text
-    field, where Ctrl+A, Ctrl+E and Ctrl+K keep their editing meaning. To show the
-    keys, give the same `Keys` to [Klar.Kbd](Klar-Kbd), which writes them for a PC
-    or a Mac.
+**Showing the keys**: give the same `Keys` to [Klar.Kbd](Klar-Kbd), which writes
+them for a PC or a Mac. This module finds out from each key press whether the
+keyboard is a Mac's, but a view cannot: read the platform once with
+`Kbd.platformFromUserAgent` and pass it to everything that shows keys
+(`Kbd.platform`, `CommandPalette.platform`, `ShortcutHelp.platform`), or a Mac
+user sees "Ctrl K" for a shortcut that fires on ⌘ K.
 
 
 # Defining shortcuts
@@ -415,7 +423,9 @@ mod =
     withModifier "mod"
 
 
-{-| Alt (Option on a Mac) held with the keys: `alt up`.
+{-| Alt (Option on a Mac) held with the keys: `alt up`. With a letter or a digit
+it fires on every keyboard; with a symbol (`alt (char '/')`) only on a PC, as
+Option with a symbol types another character on a Mac.
 -}
 alt : Keys -> Keys
 alt =
@@ -449,18 +459,19 @@ withModifier modifier (Notation.Keys keys) =
 
 
 {-| What the shortcuts hold on to between key presses: the keys of a sequence
-that is waiting for its next key, and when the last of them was pressed. Make one
-with `init` and keep it in your model.
+that is waiting for its next key, when the last of them was pressed, and the
+last key that fired a shortcut (whose repeats a held key sends). Make one with
+`init` and keep it in your model.
 -}
 type State
-    = State { pending : List String, at : Float }
+    = State { pending : List String, at : Float, fired : String }
 
 
 {-| The state to start with, when no sequence is under way.
 -}
 init : State
 init =
-    State { pending = [], at = 0 }
+    State { pending = [], at = 0, fired = "" }
 
 
 {-| A message from `listen` or `subscription`. Wrap it in one of your own
@@ -470,6 +481,7 @@ type Msg
     = Fired Int String
     | Pending (List String) Float
     | Cleared
+    | Held
 
 
 sequenceTimeout : Float
@@ -505,13 +517,20 @@ update wrapped msg (State state) =
                         [] ->
                             firstWithKeys keys shortcuts
             in
-            ( State { state | pending = [] }, Maybe.map .msg chosen )
+            ( State { state | pending = [], fired = Notation.steps keys |> List.reverse |> List.head |> Maybe.withDefault "" }
+            , Maybe.map .msg chosen
+            )
 
         Pending keys time ->
-            ( State { pending = keys, at = time }, Nothing )
+            ( State { pending = keys, at = time, fired = "" }, Nothing )
 
         Cleared ->
-            ( State { state | pending = [] }, Nothing )
+            ( State { state | pending = [], fired = "" }, Nothing )
+
+        Held ->
+            -- the repeat of a key that fired: nothing happens, and the browser
+            -- did not get it either
+            ( State state, Nothing )
 
 
 firstWithKeys : String -> List (Entry msg) -> Maybe (Entry msg)
@@ -656,9 +675,9 @@ insidePopup depth =
 {-| An attribute for the focusable root element of the application (give it
 `tabindex -1`). It hears the key presses of everything inside the element and
 prevents the browser's own action for the ones that trigger a shortcut, so
-Ctrl+K does not reach the browser. A key that only starts a sequence is not
-prevented, and a key that an element inside has already handled (its default
-action is prevented) is left alone.
+Ctrl+K does not reach the browser, also not while the keys are held down. A key
+that only starts a sequence is not prevented, and a key that an element inside
+has already handled (its default action is prevented) is left alone.
 
     Html.div
         [ Shortcut.listen ShortcutMsg shortcuts model.shortcuts
@@ -695,6 +714,10 @@ subscription toMsg shortcuts state =
                 (\info ->
                     if info.targetTag == "BODY" || info.targetTag == "HTML" || info.targetTag == "" then
                         case decide shortcuts state info of
+                            Just ( Held, _ ) ->
+                                -- a subscription cannot stop the browser: no message
+                                Decode.fail "a held key"
+
                             Just ( m, _ ) ->
                                 Decode.succeed (toMsg m)
 
@@ -829,13 +852,36 @@ decide wrapped (State state) info =
 
                         else
                             Nothing
+
+            -- A held key sends its keydown again and again. A shortcut that
+            -- does not repeat fired on the first one and fires nothing now, but
+            -- the browser must not get the repeats either: Ctrl+S would save the
+            -- page, Ctrl+K go to the address bar. The last key of a sequence
+            -- counts only right after the sequence fired.
+            heldDown press =
+                List.any
+                    (\( _, candidate ) ->
+                        let
+                            wanted =
+                                Notation.steps candidate.keys
+                        in
+                        allowed press candidate
+                            && (wanted
+                                    == [ press.step ]
+                                    || (state.fired == press.step && List.head (List.reverse wanted) == Just press.step)
+                               )
+                    )
+                    entries
         in
         case firstJust outcome presses of
             Just found ->
                 Just found
 
             Nothing ->
-                if List.isEmpty state.pending || info.repeat then
+                if info.repeat && List.any heldDown presses then
+                    Just ( Held, True )
+
+                else if List.isEmpty state.pending || info.repeat then
                     Nothing
 
                 else
@@ -868,13 +914,15 @@ isModifierOnly key =
 
 
 {-| Text typed through the AltGr layer, like `[` on a German keyboard (AltGr and
-8), or through Option on a Mac ("å" for Option and A, a dead key for Option and
-N). Windows reports AltGr as Ctrl and Alt together, and the Mac's Option key as
-Alt; the character that comes out is all the user meant.
+the eight key), or through Option on a Mac ("å" for Option and A, a dead key for
+Option and N). Windows reports AltGr as Ctrl and Alt together, and the Mac's
+Option key as Alt; the character that comes out is all the user meant. Alt
+alone with a symbol on a PC types nothing: that is `alt` and the symbol.
 -}
 typedAsText : KeyInfo -> Bool
 typedAsText info =
     info.alt
+        && (info.mac || info.ctrl)
         && (info.key
                 == "Dead"
                 || (String.length info.key == 1 && not (isAsciiLetterOrDigit info.key) && info.key /= " ")

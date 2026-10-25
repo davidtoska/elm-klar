@@ -584,7 +584,43 @@ preventDefaultTests =
         , check "is stopped for the second key of a sequence that fired" True (pressAmong shortcuts afterG (press "o")).prevented
         , check "is not stopped for a key that ends a sequence that did not fire" False (pressAmong shortcuts afterG (press "x")).prevented
         , check "is not stopped for a shortcut that does not apply while typing" False (pressAmong shortcuts Shortcut.init (press "n" |> inField)).prevented
+        , check "is stopped for the repeats of a held Ctrl+S, which fire nothing (the page is not saved)"
+            { fired = Nothing, prevented = True }
+            (pressAmong shortcuts (stateAfter shortcuts [ press "s" |> ctrl ]) (press "s" |> ctrl |> held) |> firedAndPrevented)
+        , check "is stopped for the repeats of a held Ctrl+K in the search box it opened (a field, and the shortcut is marked inInputs)"
+            { fired = Nothing, prevented = True }
+            (pressAmong shortcuts (stateAfter shortcuts [ press "k" |> ctrl ]) (press "k" |> ctrl |> held |> inField |> (\p -> { p | dialogLevels = Just 1 })) |> firedAndPrevented)
+        , check "is not stopped for the repeats of a key that is no shortcut" False (pressAmong shortcuts Shortcut.init (press "q" |> held)).prevented
+        , check "is not stopped for the repeats of a shortcut that does not apply in a field" False (pressAmong shortcuts (stateAfter shortcuts [ press "s" |> ctrl ]) (press "s" |> ctrl |> held |> inField)).prevented
+        , check "is stopped for the repeats of the last key of a sequence that just fired"
+            True
+            (pressAmong twoStep (stateAfter twoStep [ press "k" |> ctrl, press "s" |> ctrl ]) (press "s" |> ctrl |> held)).prevented
+        , check "is not stopped for a held key that ends a sequence that did not fire (the user may be typing)"
+            False
+            (pressAmong shortcuts Shortcut.init (press "o" |> held)).prevented
+        , check "a held key with a shortcut marked repeats fires each time, and is stopped"
+            { fired = Just NextRow, prevented = True }
+            (pressAmong [ Shortcut.shortcut (Shortcut.char 'j') "Orders" "Next row" NextRow |> Shortcut.repeats ] Shortcut.init (press "j" |> held) |> firedAndPrevented)
         ]
+
+
+{-| A sequence of two steps with Ctrl: Ctrl+K, then Ctrl+S.
+-}
+twoStep : List (Shortcut Msg)
+twoStep =
+    [ Shortcut.shortcut (Shortcut.sequence [ Shortcut.mod (Shortcut.char 'k'), Shortcut.mod (Shortcut.char 's') ]) "Orders" "Save all" Save ]
+
+
+{-| The state after a series of key presses.
+-}
+stateAfter : List (Shortcut Msg) -> List Press -> Shortcut.State
+stateAfter list presses =
+    List.foldl (\p state -> (pressAmong list state p).state) Shortcut.init presses
+
+
+firedAndPrevented : Outcome -> { fired : Maybe Msg, prevented : Bool }
+firedAndPrevented outcome =
+    { fired = outcome.fired, prevented = outcome.prevented }
 
 
 
@@ -711,8 +747,12 @@ altGrTests =
     in
     describe "symbols typed with AltGr"
         [ check "a bracket typed with AltGr (Ctrl and Alt) counts as the plain bracket" (Just OpenBracket) (firesAmong [ bracket ] (press "[" |> ctrl |> alt))
-        , check "a bracket typed with Alt alone (the Mac) counts as the plain bracket" (Just OpenBracket) (firesAmong [ bracket ] (press "[" |> alt))
+        , check "a bracket typed with Option on a Mac counts as the plain bracket" (Just OpenBracket) (firesAmong [ bracket ] (press "[" |> alt |> onMac))
         , check "so it is not Ctrl+Alt+[" Nothing (firesAlone "mod+alt+[" (press "[" |> ctrl |> alt))
+        , check "Alt and a symbol on a PC is alt with that symbol, not text" (Just Save) (firesAlone "alt+/" (press "/" |> alt))
+        , check "and it fires in a field when it is marked inInputs" (Just Save) (firesInFields "alt+/" (press "/" |> alt |> inField))
+        , check "and is not the plain symbol" Nothing (firesAmong [ Shortcut.shortcut (Shortcut.char '/') "G" "L" Slash ] (press "/" |> alt))
+        , check "on a Mac Option and a symbol types another character, which is text" Nothing (firesAlone "alt+/" (press "÷" |> alt |> onMac |> onKey "Slash"))
         , check "a letter with Alt is still alt+letter" Nothing (firesAmong [ bracket ] (press "k" |> alt))
         , check "a letter with Alt fires alt+letter" (Just Save) (firesAlone "alt+k" (press "k" |> alt))
         , check "a digit with Alt is alt+digit" (Just Save) (firesAlone "alt+1" (press "1" |> alt))

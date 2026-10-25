@@ -10,11 +10,15 @@ Types: `Msg`, `State`, `Attribute`
 
 ```elm
 -- View
-view : (Msg a -> msg) -> List (Attribute a msg) -> State a -> Html msg
+view :
+    (Msg a -> msg)
+    -> List (Attribute a msg)
+    -> (a -> List (Menu.Item msg))
+    -> State a
+    -> Html msg
 
 -- Attributes
 type Attribute a msg  -- opaque: no constructors are exposed
-items : (a -> List (Menu.Item msg)) -> Attribute a msg
 ariaLabel : String -> Attribute a msg
 locale : Locale.Locale -> Attribute a msg
 
@@ -56,16 +60,14 @@ Quick path: `init`, `area`, `view`, `update`, `close`
 
     -- once, anywhere: the menu. The items come from the order that was clicked.
     ContextMenu.view ContextMsg
-        [ ContextMenu.items
-            (\order ->
-                [ Menu.item "Open" (OpenOrder order) |> Menu.withIcon Icon.externalLink
-                , Menu.item "Edit" (EditOrder order) |> Menu.withIcon Icon.edit
-                , Menu.separator
-                , Menu.item "Delete" (AskDelete order) |> Menu.withIcon Icon.trash |> Menu.danger
-                ]
-            )
-        , ContextMenu.ariaLabel "Order actions"
-        ]
+        [ ContextMenu.ariaLabel "Order actions" ]
+        (\order ->
+            [ Menu.item "Open" (OpenOrder order) |> Menu.withIcon Icon.externalLink
+            , Menu.item "Edit" (EditOrder order) |> Menu.withIcon Icon.edit
+            , Menu.separator
+            , Menu.item "Delete" (AskDelete order) |> Menu.withIcon Icon.trash |> Menu.danger
+            ]
+        )
         model.context
 
     -- update
@@ -112,14 +114,20 @@ the menu cannot take focus back from the dialog (the same holds for
 ### `view`
 
 ```elm
-view : (Msg a -> msg) -> List (Attribute a msg) -> State a -> Html msg
+view :
+    (Msg a -> msg)
+    -> List (Attribute a msg)
+    -> (a -> List (Menu.Item msg))
+    -> State a
+    -> Html msg
 ```
 
-The menu: render it once, anywhere (it shows nothing while closed). The menu
-opens at the pointer; where the browser supports CSS anchor positioning it flips
-towards the free side near the edges of the window.
+The menu: render it once, anywhere (it shows nothing while closed). The
+function makes the items from what was right-clicked (the `a`), when the menu
+opens. The menu opens at the pointer; where the browser supports CSS anchor
+positioning it flips towards the free side near the edges of the window.
 
-    ContextMenu.view ContextMsg [ ContextMenu.items orderActions ] model.context
+    ContextMenu.view ContextMsg [ ContextMenu.ariaLabel "Order actions" ] orderActions model.context
 
 ## Attributes
 
@@ -132,17 +140,6 @@ type Attribute a msg  -- opaque: no constructors are exposed
 A setting of the context menu. Make them with the functions below and pass a
 list to `view`; later attributes win over earlier ones. The `a` is the type of
 what the menu is opened for.
-
-### `items`
-
-```elm
-items : (a -> List (Menu.Item msg)) -> Attribute a msg
-```
-
-The items of the menu, made from what was right-clicked. The default is an
-empty menu.
-
-    ContextMenu.items (\order -> [ Menu.item "Open" (OpenOrder order) ])
 
 ### `ariaLabel`
 

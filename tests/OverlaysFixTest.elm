@@ -997,18 +997,17 @@ drawContext state =
     Html.div []
         [ ContextMenu.area Context state { id = "order-row", target = "1042" } [ Html.text "Order 1042" ]
         , ContextMenu.view Context
-            [ ContextMenu.items
-                (\order ->
-                    [ Menu.heading ("Order " ++ order)
-                    , Menu.item "Open" (ContextPicked "open")
-                    , Menu.item "Edit" (ContextPicked "edit") |> Menu.disabledItem
-                    , Menu.item "Print" (ContextPicked "print")
-                    , Menu.separator
-                    , Menu.heading "Danger zone"
-                    , Menu.item "Delete" (ContextPicked "delete")
-                    ]
-                )
-            ]
+            []
+            (\order ->
+                [ Menu.heading ("Order " ++ order)
+                , Menu.item "Open" (ContextPicked "open")
+                , Menu.item "Edit" (ContextPicked "edit") |> Menu.disabledItem
+                , Menu.item "Print" (ContextPicked "print")
+                , Menu.separator
+                , Menu.heading "Danger zone"
+                , Menu.item "Delete" (ContextPicked "delete")
+                ]
+            )
             state
         ]
 
@@ -1239,9 +1238,28 @@ contextMenuTests =
                         (\state ->
                             drawContext state
                                 |> Query.fromHtml
-                                |> Query.find [ Selector.class "klar-context" ]
-                                |> Query.find [ Selector.tag "button" ]
-                                |> Query.has [ Selector.text "Actions" ]
+                                |> Expect.all
+                                    [ Query.find [ role "menu" ]
+                                        >> Query.has [ Selector.attribute (Attr.attribute "aria-labelledby" (contextId ++ "-trigger")) ]
+                                    , Query.find [ Selector.id (contextId ++ "-trigger") ]
+                                        >> Query.has [ Selector.text "Actions" ]
+                                    ]
+                        )
+        , test "ariaLabel names the menu, in the language of locale by default" <|
+            \_ ->
+                rightClicked
+                    |> expectOk
+                        (\state ->
+                            Html.div []
+                                [ ContextMenu.view Context [ ContextMenu.ariaLabel "Order actions" ] (\_ -> [ Menu.item "Open" (ContextPicked "open") ]) state
+                                , ContextMenu.view Context [ ContextMenu.locale Locale.nb ] (\_ -> [ Menu.item "Åpne" (ContextPicked "open") ]) state
+                                ]
+                                |> Query.fromHtml
+                                |> Query.findAll [ Selector.id (contextId ++ "-trigger") ]
+                                |> Expect.all
+                                    [ Query.index 0 >> Query.has [ Selector.text "Order actions" ]
+                                    , Query.index 1 >> Query.has [ Selector.text "Handlinger" ]
+                                    ]
                         )
         , test "Tab in the open menu does not move focus on through the page (it goes back to the row)" <|
             \_ ->

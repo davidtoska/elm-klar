@@ -1118,6 +1118,14 @@ onThePage ( name, target ) =
                     Err _ ->
                         Expect.pass
 
+                    Ok (ShortcutMsg inner) ->
+                        -- the repeat is kept from the browser (Shift+? stays quiet), and fires nothing
+                        Expect.all
+                            [ \_ -> Shortcut.update [ help ] inner Shortcut.init |> Tuple.second |> Expect.equal Nothing
+                            , \_ -> Event.expectPreventDefault event
+                            ]
+                            ()
+
                     Ok _ ->
                         Expect.fail "a repeated key press fired the shortcut"
         ]
@@ -1209,7 +1217,7 @@ helpSheetTests =
             \_ ->
                 helpSheet [ palette ]
                     |> Query.fromHtml
-                    |> Query.contains [ Html.text "Shortcuts do not work while you type in a field, unless stated otherwise. While a dialog is open, only the ones with Ctrl, Alt or Cmd work." ]
+                    |> Query.contains [ Html.text "Shortcuts do not work while you type in a field, unless they say “works in fields”. While a dialog or a menu is open, only the ones with Ctrl, Alt or Cmd and the ones that work in fields do." ]
         , test "marks a shortcut that works in a field" <|
             \_ ->
                 helpSheet [ Shortcut.inInputs palette, help ]
@@ -1254,6 +1262,20 @@ helpSheetTests =
                         , Query.findAll [ Selector.class "klar-shortcuts__row" ] >> Query.index 1 >> Query.has [ Selector.text "Open the menu of the row" ]
                         , Query.findAll [ Selector.class "klar-shortcuts__row" ] >> Query.index 1 >> Query.has [ Selector.text "F10" ]
                         ]
+        , test "one letter is looked for in the labels and groups, not inside the names of the keys" <|
+            \_ ->
+                -- "m" is in "command", and in "question mark", a name of the "?" of the other one
+                helpSheetFiltered "m" [ palette, help ]
+                    |> Query.fromHtml
+                    |> Query.findAll [ Selector.class "klar-shortcuts__row" ]
+                    |> Query.count (Expect.equal 1)
+        , test "the Norwegian names of the keys are found too" <|
+            \_ ->
+                Expect.all
+                    [ \_ -> helpSheetFiltered "kontroll" [ palette, help ] |> Query.fromHtml |> Query.findAll [ Selector.class "klar-shortcuts__row" ] |> Query.count (Expect.equal 1)
+                    , \_ -> helpSheetFiltered "spørsmålstegn" [ palette, help ] |> Query.fromHtml |> Query.findAll [ Selector.class "klar-shortcuts__row" ] |> Query.count (Expect.equal 1)
+                    ]
+                    ()
         , test "a polite status says how many shortcuts the filter matches" <|
             \_ ->
                 helpSheetFiltered "cmd" [ palette, help ]
