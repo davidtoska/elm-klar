@@ -81,6 +81,7 @@ of thumb:
 import Html exposing (Html)
 import Html.Attributes as Attr
 import Klar.Internal as Internal
+import Klar.Internal.Keys as Notation
 import Klar.Kbd as Kbd
 import Klar.Shortcut as Shortcut
 
@@ -225,7 +226,7 @@ cannot express.
 -}
 ariaKeys : Kbd.Platform -> Shortcut.Keys -> Html.Attribute msg
 ariaKeys which keys =
-    case Shortcut.keycaps keys of
+    case Notation.words keys of
         [ step ] ->
             Attr.attribute "aria-keyshortcuts"
                 (step

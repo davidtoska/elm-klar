@@ -7,6 +7,7 @@ Not meant for application code.
 
 -}
 
+import Klar.Internal.Keys as Notation
 import Klar.Shortcut as Shortcut exposing (Keys)
 
 
@@ -18,7 +19,7 @@ its value separates two shortcuts, not two steps of one.
 -}
 keyShortcuts : { mac : Bool } -> Keys -> Maybe String
 keyShortcuts platform keys =
-    case Shortcut.keycaps keys of
+    case Notation.words keys of
         [ words ] ->
             if List.isEmpty words then
                 Nothing
