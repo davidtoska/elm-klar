@@ -160,10 +160,10 @@ renderTests =
                         [ Query.has [ Selector.tag "mark", Selector.class "klar-highlight" ]
                         , Query.hasNot [ dot ]
                         ]
-        , test "the stylesheet has one rule for the mark of a search and one for the dot" <|
+        , test "the stylesheet has one rule for the highlight of a search and one for the dot" <|
             \_ ->
                 Expect.all
-                    [ \css -> List.length (String.indexes "\n.klar-mark {" css) |> Expect.equal 1
+                    [ \css -> List.length (String.indexes "\n.klar-highlight {" css) |> Expect.equal 1
                     , \css -> List.length (String.indexes "\n.klar-dot {" css) |> Expect.equal 1
                     ]
                     Klar.css
