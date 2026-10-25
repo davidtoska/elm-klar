@@ -31,7 +31,9 @@ Do not use when: the data is a table or a list (use `Klar.Table` or `Klar.ListIt
 the problem with a "Try again" button (`onRetry`). `Loaded` calls your function.
 Data that is `Kept` ([Klar.Remote](Klar-Remote)) stays on the screen: dimmed and
 busy while it is refreshed, and with "Old data from 14:05" and a retry when the
-last refresh failed. An empty result is yours to draw, with
+last refresh failed. What your function makes is drawn in one column (the same
+element whether the data is fresh, refreshing or old, so a refresh that starts or
+ends keeps the focus in it). An empty result is yours to draw, with
 [Klar.EmptyState](Klar-EmptyState), inside the function.
 
 The body is a list of nodes, so it fits wherever a list of children goes: the body

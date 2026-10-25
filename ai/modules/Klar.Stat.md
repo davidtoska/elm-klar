@@ -460,7 +460,9 @@ or `Loading` the tile shows a skeleton, on `Failed` it shows the problem, and
 when the data has arrived it applies the attributes that the function returns
 for it. Data that is `Kept` stays on the tile: dimmed and busy while it is
 refreshed, and with "Old data from 14:05" and a retry (`onRetry`) when the last
-refresh failed. A tile with that retry is a plain block, like a failed tile.
+refresh failed. A tile with that retry is a plain block, like a failed tile. The
+marker on a tile is not announced to a screen reader (a dashboard of tiles would
+speak once per tile): show `Alert.stale` once on the page when data is old.
 
     Stat.view
         [ Stat.label "Shipments"
