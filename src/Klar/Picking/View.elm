@@ -14,12 +14,14 @@ module Klar.Picking.View exposing
     , renderedRange
     , retryFor
     , rowHeight
+    , staleRetry
     , viewChevron
     , viewClearButton
     , viewEmpty
     , viewFailure
     , viewFooter
     , viewLayer
+    , viewNotice
     , viewSearch
     , viewSkeleton
     , whenEmpty
@@ -47,9 +49,11 @@ import Klar.EmptyState as EmptyState
 import Klar.ErrorState as ErrorState
 import Klar.Icon as Icon exposing (Icon)
 import Klar.Internal as Internal
+import Klar.Internal.Freshness as Freshness exposing (Freshness)
 import Klar.Internal.Window as Window
 import Klar.Locale exposing (Locale)
 import Klar.Remote as Remote
+import Klar.Settings exposing (Settings)
 import Klar.Skeleton as Skeleton
 import Klar.Spinner as Spinner
 import Klar.VirtualList as VirtualList
@@ -670,4 +674,55 @@ viewFailure config problem =
                 ]
             )
             problem
+        ]
+
+
+{-| The retry of data that is old, when trying again could help: what the Try
+again button of the marker for old data sends.
+-}
+staleRetry : Freshness -> Maybe msg -> Maybe msg
+staleRetry freshness onRetry =
+    case freshness of
+        Freshness.Stale value ->
+            retryFor value.problem onRetry
+
+        _ ->
+            Nothing
+
+
+{-| The marker for old data above the rows (`Freshness.notice`), in a wrapper
+that is always there and keeps focus safe: a mouse press on it does not take
+focus, a click on its retry (also Enter on the button) sends `refocus`, so focus
+is back in the search or filter box before the button goes away, and Tab on the
+button sends `leave` when it is the last stop of a popup.
+-}
+viewNotice :
+    { locale : Locale
+    , settings : Settings
+    , onRetry : Maybe msg
+    , refocus : msg
+    , leave : Maybe msg
+    , noop : msg
+    }
+    -> Freshness
+    -> Html msg
+viewNotice config freshness =
+    let
+        retry =
+            staleRetry freshness config.onRetry
+    in
+    Html.div
+        [ Internal.cls [ "klar-picking__notice" ]
+        , Internal.onMouseDownPrevent config.noop
+        , Internal.attrIf (isJust retry) (Events.onClick config.refocus)
+        , case ( retry, config.leave ) of
+            ( Just _, Just leave ) ->
+                onKeydown { handled = [], passive = [ ( "Tab", leave ) ] }
+
+            _ ->
+                Internal.attrIf False (Attr.title "")
+        ]
+        [ Freshness.notice
+            { locale = config.locale, settings = config.settings, onRetry = config.onRetry, inline = False }
+            freshness
         ]

@@ -167,11 +167,50 @@ freshnessTests =
                     ()
         , test "draws the same tree in every state, so focus and the highlight survive a refresh" <|
             \_ ->
-                Expect.equal [ True, True, True ]
-                    (List.map
-                        (\top -> Drive.has [ Selector.id "site-tree", attr "role" "tree" ] (withTop top open))
-                        [ Loaded Trees.cities, Remote.refresh (Loaded Trees.cities), stale ]
-                    )
+                let
+                    shape top =
+                        ( Drive.has [ Selector.id "site-tree", attr "role" "tree" ] (withTop top open)
+                        , Drive.count [ Selector.containing [ Selector.id "site-tree" ] ] (withTop top open)
+                        )
+                in
+                Expect.equal [ shape (Loaded Trees.cities), shape (Loaded Trees.cities) ]
+                    [ shape (Remote.refresh (Loaded Trees.cities)), shape stale ]
+        , test "Tab goes on to Try again of old data, a click on it sends focus back to the search box, and Tab on it closes" <|
+            \_ ->
+                let
+                    h =
+                        withTop stale open
+
+                    fresh =
+                        withTop (Loaded Trees.cities) open
+
+                    refocus =
+                        Drive.fire [ Selector.class "klar-select__state" ] Event.click (withTop (Failed (Remote.problem Remote.server)) open)
+
+                    dismiss =
+                        Drive.fire [ Selector.id "site-search" ] (Drive.key "Tab") fresh
+                in
+                Expect.all
+                    [ \_ -> Expect.equal Nothing (Drive.fire [ Selector.id "site-search" ] (Drive.key "Tab") h)
+                    , \_ -> Expect.notEqual Nothing refocus
+                    , \_ -> Expect.equal refocus (Drive.fire [ Selector.class "klar-picking__notice" ] Event.click h)
+                    , \_ -> Expect.notEqual Nothing dismiss
+                    , \_ -> Expect.equal dismiss (Drive.fire [ Selector.class "klar-picking__notice" ] (Drive.key "Tab") h)
+                    , \_ -> Expect.equal Nothing (Drive.fire [ Selector.class "klar-picking__notice" ] Event.click fresh)
+                    ]
+                    ()
+        , test "the marker for old data stays above No matches" <|
+            \_ ->
+                let
+                    h =
+                        withTop stale (typeText "zzzz" open)
+                in
+                Expect.all
+                    [ \_ -> Expect.equal True (Drive.has [ Selector.class "klar-stale", Selector.containing [ Selector.text "Old data" ] ] h)
+                    , \_ -> Expect.equal True (Drive.has [ Selector.text "No matches" ] h)
+                    , \_ -> Expect.equal (Just Retried) (Drive.fire [ Selector.class "klar-stale", Selector.tag "button" ] Event.click h)
+                    ]
+                    ()
         , test "settings write the time of old data in the zone of the application" <|
             \_ ->
                 let

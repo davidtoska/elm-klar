@@ -82,7 +82,9 @@ put it in one that has a width). Right-to-left languages are not supported: the
 keys for moving between the lists assume left-to-right text.
 
 Keyboard: in each list Tab goes from the header check box to the filter box, to the
-list, and on to the buttons and the other list. In a filter box Enter or ArrowDown
+list, and on to the buttons and the other list; with `movedOrder` the four buttons
+that rearrange "Chosen" come after its check box (they move the marked items, and
+are unavailable while nothing is marked or the filter of "Chosen" has text). In a filter box Enter or ArrowDown
 moves on to the list (and never submits a form). In a list ArrowDown and ArrowUp,
 Home and End, and PageUp and PageDown move the highlight, and Shift with the arrows
 marks a range from where the last mark was made (going back shrinks it). Space
@@ -714,12 +716,16 @@ advance msg data0 =
 
 
 {-| Moves the marked items of "Chosen" (the highlighted one when none is marked)
-up, down, to the top or to the bottom, in the order of moving only. The highlight
-stays on its item, and the new place is announced.
+up, down, to the top or to the bottom, in the order of moving only, and not while
+the filter of "Chosen" hides items. The highlight stays on its item, and the new
+place is announced.
 -}
 rearrange : Lists.Placement -> Env id -> Data id -> ( Data id, Cmd (Msg id) )
 rearrange placement env data =
     let
+        filtered =
+            not (List.isEmpty (Lists.filterWords (pick ChosenSide data.queries)))
+
         keys =
             case shownMarked ChosenSide data of
                 [] ->
@@ -734,7 +740,7 @@ rearrange placement env data =
         keySet =
             Set.fromList keys
     in
-    if env.order /= Lists.MovedOrder || List.isEmpty keys then
+    if env.order /= Lists.MovedOrder || filtered || List.isEmpty keys then
         ( data, Cmd.none )
 
     else
@@ -754,12 +760,24 @@ rearrange placement env data =
             announced =
                 case firstMoved of
                     Just i ->
+                        let
+                            t =
+                                Texts.texts env.locale
+
+                            count =
+                                Array.length (rowsOf ChosenSide moved)
+
+                            -- the item is named, so that the user hears what moved
+                            what =
+                                case ( keys, Array.get i (rowsOf ChosenSide moved) ) of
+                                    ( [ _ ], Just row ) ->
+                                        t.movedToPlace row.option.label (i + 1) count
+
+                                    _ ->
+                                        t.movedManyToPlace (List.length keys) (i + 1) count
+                        in
                         { moved
-                            | announcement =
-                                Just
-                                    { text = (Texts.texts env.locale).movedToPlace (i + 1) (Array.length (rowsOf ChosenSide moved))
-                                    , tick = moved.ticks + 1
-                                    }
+                            | announcement = Just { text = what, tick = moved.ticks + 1 }
                             , ticks = moved.ticks + 1
                         }
 
@@ -1328,10 +1346,11 @@ sourceOrder =
 {-| The chosen ids are kept in the order in which the user moved them, the newest
 last: that order is the value, and `setValues` keeps the order it is given. Use it
 when the order means something, such as the columns of an export. The user can
-also rearrange "Chosen": the buttons in its header move the marked items (the
-highlighted one when none is marked) up, down, to the top or to the bottom, and
-Alt+ArrowUp and Alt+ArrowDown in the list do the same; the new place is announced
-("Moved to place 2 of 7").
+also rearrange "Chosen": the buttons in its header move the marked items up, down,
+to the top or to the bottom, and Alt+ArrowUp and Alt+ArrowDown in the list do the
+same (for the highlighted item when none is marked). The new place is announced
+with the item ("Bergen moved to place 2 of 7"). Rearranging waits while the filter
+of "Chosen" has text, since a step would jump over the items it hides.
 -}
 movedOrder : Order
 movedOrder =
@@ -1773,8 +1792,9 @@ viewPane toMsg config t env data interactive side =
             ]
 
         -- in the order of moving, Alt with the arrows moves items inside "Chosen"
+        -- (not while its filter hides items that a step would jump over)
         rearranging =
-            if side == ChosenSide && config.order == Lists.MovedOrder then
+            if side == ChosenSide && config.order == Lists.MovedOrder && not filtering then
                 [ ( "Alt+ArrowUp", toMsg (Rearrange Lists.Up env) )
                 , ( "Alt+ArrowDown", toMsg (Rearrange Lists.Down env) )
                 ]
@@ -1828,8 +1848,16 @@ viewPane toMsg config t env data interactive side =
                         )
                         [ case side of
                             Available ->
-                                Freshness.notice
-                                    { locale = config.locale, settings = config.settings, onRetry = config.onRetry, inline = False }
+                                -- a retry sends focus to the filter box, which
+                                -- stays, before the button goes away
+                                View.viewNotice
+                                    { locale = config.locale
+                                    , settings = config.settings
+                                    , onRetry = config.onRetry
+                                    , refocus = toMsg (FocusFilter Available)
+                                    , leave = Nothing
+                                    , noop = toMsg NoOp
+                                    }
                                     config.freshness
 
                             ChosenSide ->
@@ -1887,7 +1915,10 @@ viewPane toMsg config t env data interactive side =
             , Html.span [ Internal.cls [ "klar-transfer__title" ] ] [ Html.text title ]
             , Html.span [ Internal.cls [ "klar-transfer__count", "klar-tabular" ] ] [ Html.text count ]
             , if side == ChosenSide && config.order == Lists.MovedOrder then
-                viewRearrange toMsg t env interactive (shownCount > 0)
+                -- the buttons move the marked items: without a mark the cursor
+                -- they would move is not to be seen, and a filter hides items
+                -- that a step would jump over
+                viewRearrange toMsg t env interactive (markedCount > 0 && not filtering)
 
               else
                 Html.text ""
