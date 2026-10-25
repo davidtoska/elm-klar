@@ -9,10 +9,10 @@ import Klar.Ids as Ids exposing (Ids)
 import Klar.Internal.Freshness as Freshness exposing (Freshness)
 import Klar.Locale as Locale exposing (Locale)
 import Klar.Menu as Menu
-import Klar.Remote as Remote exposing (Problem, Remote)
+import Klar.Remote as Remote exposing (Remote)
 import Klar.Settings as Settings exposing (Settings)
-import Klar.Table.Types exposing (Align(..), Attribute(..), Column(..), ColumnAttribute(..), ColumnConfig, ColumnId(..), Config, Ctx, Data, DataStatus(..), Direction(..), Draft(..), Filter(..), FilterKind(..), Footer(..), Model, MoneyTotal, Msg(..), Picked(..), Popup(..), Query, RowInfo, Rows(..), Selection(..), SortBy(..), Source(..), State(..))
-import Klar.Theme as Theme exposing (Density(..), Tone)
+import Klar.Table.Types exposing (Attribute(..), Column(..), Config, Rows(..), Source(..))
+import Klar.Theme as Theme exposing (Tone)
 
 
 configure : List (Attribute id row msg) -> Config row msg

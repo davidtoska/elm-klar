@@ -14,19 +14,19 @@ import Klar.Format as Format
 import Klar.Icon as Icon
 import Klar.Internal as Internal
 import Klar.Money as Money exposing (Money)
-import Klar.Remote as Remote exposing (Problem, Remote)
+import Klar.Remote as Remote exposing (Remote)
 import Klar.Search as Search
-import Klar.Table.DomIds exposing (bulkDomId, detailDomId, filterInputId, popupDomId, popupSuffix, rowDomId, scrollDomId, triggerDomId)
-import Klar.Table.Filter exposing (activeDrafts, canonicalChoice, choiceLabels, choiceOf, choicesOf, filterTest, fold, localChoice, parseNumber, searchTest, searchText, searchWords, toDraft, toFilter, withinRange)
-import Klar.Table.Layout exposing (activeRowHidden, activeRowRequested, alignClass, dataCellClasses, expandWidth, fixedWidth, flexibleMinWidth, flexibleShare, gridPart, hasFocusableContent, headerWidth, isFiltered, isTreegrid, menuWidth, pinLeft, pinStyle, scrollVars, selectWidth, systemCells, systemPinStyle, tableMinWidth, usableFilter, viewColgroup)
-import Klar.Table.Numeric exposing (formatNumber, majorAmount, moneyTotals, plainDecimal)
-import Klar.Table.Popup exposing (focusLeft, isInside, outsideClick, viewPopup)
-import Klar.Table.Processing exposing (keepMatching, process, processClient, sortLevels, sortRows)
-import Klar.Table.Rows exposing (prepareRows, rowsArray, sourceArray, sourceList, usablePrepared)
+import Klar.Table.DomIds exposing (filterInputId, triggerDomId)
+import Klar.Table.Filter exposing (canonicalChoice, choiceLabels, choiceOf, choicesOf, parseNumber, toFilter)
+import Klar.Table.Layout exposing (usableFilter)
+import Klar.Table.Numeric exposing (formatNumber)
+import Klar.Table.Popup exposing (viewPopup)
+import Klar.Table.Processing exposing (keepMatching)
+import Klar.Table.Rows exposing (sourceList)
 import Klar.Table.Sort as Sorting
-import Klar.Table.Types exposing (Align(..), Attribute(..), Column(..), ColumnAttribute(..), ColumnConfig, ColumnId(..), Config, Ctx, Data, DataStatus(..), Direction(..), Draft(..), Filter(..), FilterKind(..), Footer(..), Model, MoneyTotal, Msg(..), Picked(..), Popup(..), Query, RowInfo, Rows(..), Selection(..), SortBy(..), Source(..), State(..))
+import Klar.Table.Types exposing (Align(..), ColumnConfig, Ctx, Draft(..), FilterKind(..), Msg(..), Popup(..), Rows(..), Source(..))
 import Klar.TextInput as TextInput
-import Klar.Theme as Theme exposing (Density(..), Tone)
+import Klar.Theme as Theme
 import Set exposing (Set)
 
 

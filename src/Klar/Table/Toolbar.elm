@@ -11,19 +11,19 @@ import Klar.Checkbox as Checkbox
 import Klar.Icon as Icon
 import Klar.Internal as Internal
 import Klar.Table.Bulk exposing (viewBulkBar)
-import Klar.Table.ColumnLogic exposing (exportValue, findColumn, hasFooter, isShown, isSortable, sortKeyOf, sortLevel, visibleColumns)
-import Klar.Table.DomIds exposing (bulkDomId, detailDomId, filterInputId, popupDomId, popupSuffix, rowDomId, scrollDomId, triggerDomId)
-import Klar.Table.Export exposing (csvSeparatorOf, exportOptions, viewExportMenu)
-import Klar.Table.Filter exposing (activeDrafts, canonicalChoice, choiceLabels, choiceOf, choicesOf, filterTest, fold, localChoice, parseNumber, searchTest, searchText, searchWords, toDraft, toFilter, withinRange)
-import Klar.Table.HeaderFilters exposing (filterFocusTargets, filterValues, loadedRows, rangeDecimals, viewChoiceFilter, viewFilterButton, viewFilterContent)
-import Klar.Table.Identity exposing (idsOf, isJust, keysBetween, keysOf, lookup, toggled)
-import Klar.Table.Numeric exposing (formatNumber, majorAmount, moneyTotals, plainDecimal)
-import Klar.Table.Popup exposing (focusLeft, isInside, outsideClick, viewPopup)
-import Klar.Table.Selection exposing (clearSelection, deselect, dropAllMatching, dropAllMatchingOf, everyRowCanBeSelected, isLongClientTable, isPicked, isSelected, matchingSelectionState, pick, rowIsDisabled, select, selectableCount, selectableKeys, selectedCount, selectedIds, selection, selectionTotal, setSelectedIds)
-import Klar.Table.Types exposing (Align(..), Attribute(..), Column(..), ColumnAttribute(..), ColumnConfig, ColumnId(..), Config, Ctx, Data, DataStatus(..), Direction(..), Draft(..), Filter(..), FilterKind(..), Footer(..), Model, MoneyTotal, Msg(..), Picked(..), Popup(..), Query, RowInfo, Rows(..), Selection(..), SortBy(..), Source(..), State(..))
+import Klar.Table.ColumnLogic exposing (findColumn)
+import Klar.Table.DomIds exposing (triggerDomId)
+import Klar.Table.Export exposing (viewExportMenu)
+import Klar.Table.Filter exposing (activeDrafts, canonicalChoice, choiceLabels, parseNumber)
+import Klar.Table.HeaderFilters exposing (loadedRows, rangeDecimals)
+import Klar.Table.Identity exposing (isJust)
+import Klar.Table.Numeric exposing (formatNumber)
+import Klar.Table.Popup exposing (viewPopup)
+import Klar.Table.Selection exposing (selectionTotal)
+import Klar.Table.Types exposing (ColumnConfig, Ctx, DataStatus(..), Draft(..), Msg(..), Popup(..))
 import Klar.Tag as Tag
 import Klar.TextInput as TextInput
-import Klar.Theme as Theme exposing (Density(..), Tone)
+import Klar.Theme as Theme exposing (Density(..))
 import Set exposing (Set)
 
 

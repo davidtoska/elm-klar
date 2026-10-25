@@ -4,7 +4,7 @@ module Klar.Table.DomIds exposing (..)
 -}
 
 import Klar.Internal as Internal
-import Klar.Table.Types exposing (Align(..), Attribute(..), Column(..), ColumnAttribute(..), ColumnConfig, ColumnId(..), Config, Ctx, Data, DataStatus(..), Direction(..), Draft(..), Filter(..), FilterKind(..), Footer(..), Model, MoneyTotal, Msg(..), Picked(..), Popup(..), Query, RowInfo, Rows(..), Selection(..), SortBy(..), Source(..), State(..))
+import Klar.Table.Types exposing (Popup(..))
 
 
 popupSuffix : Popup -> String

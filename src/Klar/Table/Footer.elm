@@ -11,12 +11,12 @@ import Klar.Internal.Window as Window
 import Klar.Money as Money exposing (Money)
 import Klar.Pagination as Pagination
 import Klar.Spinner as Spinner
-import Klar.Table.ColumnLogic exposing (exportValue, findColumn, hasFooter, isShown, isSortable, sortKeyOf, sortLevel, visibleColumns)
-import Klar.Table.Layout exposing (activeRowHidden, activeRowRequested, alignClass, dataCellClasses, expandWidth, fixedWidth, flexibleMinWidth, flexibleShare, gridPart, hasFocusableContent, headerWidth, isFiltered, isTreegrid, menuWidth, pinLeft, pinStyle, scrollVars, selectWidth, systemCells, systemPinStyle, tableMinWidth, usableFilter, viewColgroup)
-import Klar.Table.Numeric exposing (formatNumber, majorAmount, moneyTotals, plainDecimal)
-import Klar.Table.State exposing (clearFilters, collapse, collapseAll, columnId, columnName, density, expand, expandedIds, filters, init, isColumnVisible, isExpanded, page, pageSize, query, search, setColumnVisible, setDensity, setExpandedIds, setFilter, setPage, setPageSize, setQuery, setSearch, setSort, settled, sort, toggle)
-import Klar.Table.Types exposing (Align(..), Attribute(..), Column(..), ColumnAttribute(..), ColumnConfig, ColumnId(..), Config, Ctx, Data, DataStatus(..), Direction(..), Draft(..), Filter(..), FilterKind(..), Footer(..), Model, MoneyTotal, Msg(..), Picked(..), Popup(..), Query, RowInfo, Rows(..), Selection(..), SortBy(..), Source(..), State(..))
-import Klar.Theme as Theme exposing (Density(..), Tone)
+import Klar.Table.ColumnLogic exposing (hasFooter)
+import Klar.Table.Layout exposing (dataCellClasses, gridPart, isFiltered, pinStyle, systemCells)
+import Klar.Table.Numeric exposing (formatNumber, moneyTotals)
+import Klar.Table.State exposing (page, pageSize)
+import Klar.Table.Types exposing (ColumnConfig, Ctx, DataStatus(..), Footer(..), Msg(..))
+import Klar.Theme as Theme
 
 
 viewFoot : Ctx row msg -> Html msg

@@ -6,12 +6,12 @@ module Klar.Table.Rows exposing (..)
 import Array exposing (Array)
 import Dict exposing (Dict)
 import Klar.Locale as Locale exposing (Locale)
-import Klar.Table.ColumnLogic exposing (exportValue, findColumn, hasFooter, isShown, isSortable, sortKeyOf, sortLevel, visibleColumns)
-import Klar.Table.Filter exposing (activeDrafts, canonicalChoice, choiceLabels, choiceOf, choicesOf, filterTest, fold, localChoice, parseNumber, searchTest, searchText, searchWords, toDraft, toFilter, withinRange)
+import Klar.Table.ColumnLogic exposing (sortKeyOf, visibleColumns)
+import Klar.Table.Filter exposing (searchText)
 import Klar.Table.Index as Index exposing (Index)
-import Klar.Table.Numeric exposing (formatNumber, majorAmount, moneyTotals, plainDecimal)
-import Klar.Table.State exposing (clearFilters, collapse, collapseAll, columnId, columnName, density, expand, expandedIds, filters, init, isColumnVisible, isExpanded, page, pageSize, query, search, setColumnVisible, setDensity, setExpandedIds, setFilter, setPage, setPageSize, setQuery, setSearch, setSort, settled, sort, toggle)
-import Klar.Table.Types exposing (Align(..), Attribute(..), Column(..), ColumnAttribute(..), ColumnConfig, ColumnId(..), Config, Ctx, Data, DataStatus(..), Direction(..), Draft(..), Filter(..), FilterKind(..), Footer(..), Model, MoneyTotal, Msg(..), Picked(..), Popup(..), Query, RowInfo, Rows(..), Selection(..), SortBy(..), Source(..), State(..))
+import Klar.Table.Numeric exposing (moneyTotals)
+import Klar.Table.State exposing (init, search)
+import Klar.Table.Types exposing (Column(..), ColumnConfig, Footer(..), Rows(..), Source(..), State(..))
 
 
 {-| Prepares the rows for a table with these columns in this locale (the `Locale`

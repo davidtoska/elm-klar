@@ -7,7 +7,7 @@ import Dict exposing (Dict)
 import Klar.Format as Format
 import Klar.Locale as Locale exposing (Locale)
 import Klar.Money as Money exposing (Money)
-import Klar.Table.Types exposing (Align(..), Attribute(..), Column(..), ColumnAttribute(..), ColumnConfig, ColumnId(..), Config, Ctx, Data, DataStatus(..), Direction(..), Draft(..), Filter(..), FilterKind(..), Footer(..), Model, MoneyTotal, Msg(..), Picked(..), Popup(..), Query, RowInfo, Rows(..), Selection(..), SortBy(..), Source(..), State(..))
+import Klar.Table.Types exposing (MoneyTotal)
 
 
 {-| An amount in whole units of its currency (12.5 for 12,50 kroner), for sorting

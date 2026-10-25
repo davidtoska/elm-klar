@@ -4,9 +4,9 @@ module Klar.Table.CsvRows exposing (..)
 -}
 
 import Klar.Locale as Locale exposing (Locale)
-import Klar.Table.ColumnLogic exposing (exportValue, findColumn, hasFooter, isShown, isSortable, sortKeyOf, sortLevel, visibleColumns)
+import Klar.Table.ColumnLogic exposing (exportValue)
 import Klar.Table.Csv as Csv
-import Klar.Table.Types exposing (Align(..), Attribute(..), Column(..), ColumnAttribute(..), ColumnConfig, ColumnId(..), Config, Ctx, Data, DataStatus(..), Direction(..), Draft(..), Filter(..), FilterKind(..), Footer(..), Model, MoneyTotal, Msg(..), Picked(..), Popup(..), Query, RowInfo, Rows(..), Selection(..), SortBy(..), Source(..), State(..))
+import Klar.Table.Types exposing (ColumnConfig)
 
 
 {-| The CSV text of some rows: a line of titles, then a line per row with the

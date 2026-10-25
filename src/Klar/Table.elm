@@ -483,56 +483,30 @@ rows" at the top).
 -}
 
 import Array exposing (Array)
-import Browser.Dom as Dom
 import Dict exposing (Dict)
-import File.Download as Download
 import Html exposing (Html)
-import Html.Attributes as Attr
-import Html.Events as Events
-import Html.Keyed
 import Json.Decode as Decode exposing (Decoder)
 import Json.Encode as Encode
-import Klar.Badge as Badge
-import Klar.Button as Button
-import Klar.Checkbox as Checkbox
 import Klar.Date as Date exposing (Date)
 import Klar.EmptyState as EmptyState
-import Klar.ErrorState as ErrorState
-import Klar.Format as Format
-import Klar.Icon as Icon
 import Klar.Ids as Ids exposing (Ids)
-import Klar.Internal as Internal
-import Klar.Internal.Freshness as Freshness exposing (Freshness)
 import Klar.Internal.Window as Window
 import Klar.Locale as Locale exposing (Locale)
 import Klar.Menu as Menu
 import Klar.Money as Money exposing (Money)
-import Klar.Pagination as Pagination
-import Klar.Remote as Remote exposing (Problem, Remote)
-import Klar.Search as Search
+import Klar.Remote as Remote exposing (Remote)
 import Klar.Settings as Settings exposing (Settings)
-import Klar.Skeleton as Skeleton
-import Klar.Spinner as Spinner
 import Klar.Table.Columns as Columns
 import Klar.Table.Config as Config
-import Klar.Table.Core as Core
-import Klar.Table.Csv as Csv
-import Klar.Table.Identity exposing (idsOf, isJust, keysBetween, keysOf, lookup, toggled)
 import Klar.Table.Index as Index exposing (Index)
 import Klar.Table.Query as Query
 import Klar.Table.Rows as Rows
 import Klar.Table.Selection as Selection
-import Klar.Table.Sort as Sorting
 import Klar.Table.State as State
-import Klar.Table.Texts as Texts exposing (Texts)
 import Klar.Table.Types as Types
 import Klar.Table.Update as Update
-import Klar.Tag as Tag
-import Klar.TextInput as TextInput
+import Klar.Table.View as View
 import Klar.Theme as Theme exposing (Density(..), Tone)
-import Process
-import Set exposing (Set)
-import Task
 
 
 {-| The direction of a sort: `Ascending` (A to Z, smallest or earliest first)
@@ -2033,7 +2007,7 @@ call; the `State` only holds what the user changed.
 -}
 view : (Msg -> msg) -> List (Attribute id row msg) -> State id -> Html msg
 view arg1 arg2 arg3 =
-    Core.view (fromCoreMsg >> arg1) (List.map unwrapAttribute arg2) (unwrapState arg3)
+    View.view (fromCoreMsg >> arg1) (List.map unwrapAttribute arg2) (unwrapState arg3)
 
 
 unwrapState : State id -> Types.State id

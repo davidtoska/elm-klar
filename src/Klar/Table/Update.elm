@@ -9,12 +9,12 @@ import File.Download as Download
 import Klar.Internal as Internal
 import Klar.Internal.Window as Window
 import Klar.Menu as Menu
-import Klar.Table.DomIds exposing (bulkDomId, detailDomId, filterInputId, popupDomId, popupSuffix, rowDomId, scrollDomId, triggerDomId)
-import Klar.Table.Filter exposing (activeDrafts, canonicalChoice, choiceLabels, choiceOf, choicesOf, filterTest, fold, localChoice, parseNumber, searchTest, searchText, searchWords, toDraft, toFilter, withinRange)
-import Klar.Table.Identity exposing (idsOf, isJust, keysBetween, keysOf, lookup, toggled)
-import Klar.Table.Selection exposing (clearSelection, deselect, dropAllMatching, dropAllMatchingOf, everyRowCanBeSelected, isLongClientTable, isPicked, isSelected, matchingSelectionState, pick, rowIsDisabled, select, selectableCount, selectableKeys, selectedCount, selectedIds, selection, selectionTotal, setSelectedIds)
-import Klar.Table.State exposing (clearFilters, collapse, collapseAll, columnId, columnName, density, expand, expandedIds, filters, init, isColumnVisible, isExpanded, page, pageSize, query, search, setColumnVisible, setDensity, setExpandedIds, setFilter, setPage, setPageSize, setQuery, setSearch, setSort, settled, sort, toggle)
-import Klar.Table.Types exposing (Align(..), Attribute(..), Column(..), ColumnAttribute(..), ColumnConfig, ColumnId(..), Config, Ctx, Data, DataStatus(..), Direction(..), Draft(..), Filter(..), FilterKind(..), Footer(..), Model, MoneyTotal, Msg(..), Picked(..), Popup(..), Query, RowInfo, Rows(..), Selection(..), SortBy(..), Source(..), State(..))
+import Klar.Table.DomIds exposing (bulkDomId, filterInputId, popupDomId, scrollDomId, triggerDomId)
+import Klar.Table.Filter exposing (activeDrafts, choicesOf, toFilter)
+import Klar.Table.Identity exposing (lookup, toggled)
+import Klar.Table.Selection exposing (dropAllMatchingOf, pick, selection)
+import Klar.Table.State exposing (density, filters, page, pageSize, search, sort)
+import Klar.Table.Types exposing (Direction(..), Draft(..), Model, Msg(..), Picked(..), Popup(..), State(..))
 import Process
 import Set exposing (Set)
 import Task

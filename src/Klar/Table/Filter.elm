@@ -8,7 +8,7 @@ import Klar.Internal as Internal
 import Klar.Locale as Locale exposing (Locale)
 import Klar.Search as Search
 import Klar.Table.Texts as Texts exposing (Texts)
-import Klar.Table.Types exposing (Align(..), Attribute(..), Column(..), ColumnAttribute(..), ColumnConfig, ColumnId(..), Config, Ctx, Data, DataStatus(..), Direction(..), Draft(..), Filter(..), FilterKind(..), Footer(..), Model, MoneyTotal, Msg(..), Picked(..), Popup(..), Query, RowInfo, Rows(..), Selection(..), SortBy(..), Source(..), State(..))
+import Klar.Table.Types exposing (ColumnConfig, Draft(..), Filter(..), Model)
 import Set exposing (Set)
 
 

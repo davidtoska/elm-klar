@@ -5,11 +5,11 @@ module Klar.Table.State exposing (..)
 
 import Dict exposing (Dict)
 import Klar.Ids as Ids exposing (Ids)
-import Klar.Table.Filter exposing (activeDrafts, canonicalChoice, choiceLabels, choiceOf, choicesOf, filterTest, fold, localChoice, parseNumber, searchTest, searchText, searchWords, toDraft, toFilter, withinRange)
-import Klar.Table.Identity exposing (idsOf, isJust, keysBetween, keysOf, lookup, toggled)
-import Klar.Table.Selection exposing (clearSelection, deselect, dropAllMatching, dropAllMatchingOf, everyRowCanBeSelected, isLongClientTable, isPicked, isSelected, matchingSelectionState, pick, rowIsDisabled, select, selectableCount, selectableKeys, selectedCount, selectedIds, selection, selectionTotal, setSelectedIds)
-import Klar.Table.Types exposing (Align(..), Attribute(..), Column(..), ColumnAttribute(..), ColumnConfig, ColumnId(..), Config, Ctx, Data, DataStatus(..), Direction(..), Draft(..), Filter(..), FilterKind(..), Footer(..), Model, MoneyTotal, Msg(..), Picked(..), Popup(..), Query, RowInfo, Rows(..), Selection(..), SortBy(..), Source(..), State(..))
-import Klar.Theme as Theme exposing (Density(..), Tone)
+import Klar.Table.Filter exposing (toDraft)
+import Klar.Table.Identity exposing (idsOf, keysOf, toggled)
+import Klar.Table.Selection exposing (dropAllMatchingOf, selection)
+import Klar.Table.Types exposing (ColumnId(..), Direction(..), Filter(..), Model, Picked(..), Popup(..), Query, State(..))
+import Klar.Theme as Theme exposing (Density(..))
 import Set exposing (Set)
 
 

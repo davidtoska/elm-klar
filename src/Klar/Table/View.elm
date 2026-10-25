@@ -1,75 +1,31 @@
-module Klar.Table.Core exposing (..)
+module Klar.Table.View exposing (view)
 
-{-| The table implementation behind its documented, representation-stable public boundary.
+{-| Composition of the table toolbar, frame, rows and footer behind Klar.Table.
 -}
 
-import Array exposing (Array)
-import Browser.Dom as Dom
-import Dict exposing (Dict)
-import File.Download as Download
 import Html exposing (Html)
 import Html.Attributes as Attr
 import Html.Events as Events
 import Html.Keyed
-import Json.Decode as Decode exposing (Decoder)
-import Json.Encode as Encode
-import Klar.Badge as Badge
-import Klar.Button as Button
-import Klar.Checkbox as Checkbox
-import Klar.Date as Date exposing (Date)
-import Klar.EmptyState as EmptyState
-import Klar.ErrorState as ErrorState
-import Klar.Format as Format
-import Klar.Icon as Icon
-import Klar.Ids as Ids exposing (Ids)
+import Json.Decode as Decode
 import Klar.Internal as Internal
 import Klar.Internal.Freshness as Freshness exposing (Freshness)
-import Klar.Internal.Window as Window
-import Klar.Locale as Locale exposing (Locale)
-import Klar.Menu as Menu
-import Klar.Money as Money exposing (Money)
 import Klar.Pagination as Pagination
-import Klar.Remote as Remote exposing (Problem, Remote)
-import Klar.Search as Search
-import Klar.Settings as Settings exposing (Settings)
-import Klar.Skeleton as Skeleton
-import Klar.Spinner as Spinner
-import Klar.Table.Body exposing (rangeClick, retryClicked, skeletonRow, skeletonRows, spacerBody, stateRow, viewBodies, viewBody, viewCell, viewEmpty, viewRow, viewRowAndDetail)
-import Klar.Table.Bulk exposing (viewBulkBar)
-import Klar.Table.ColumnLogic exposing (exportValue, findColumn, hasFooter, isShown, isSortable, sortKeyOf, sortLevel, visibleColumns)
-import Klar.Table.Columns exposing (actions, alignCenter, alignRight, alwaysVisible, badge, baseColumn, bool, build, cell, custom, date, exportAs, filterOptions, filterRange, filterSelect, filterText, filterValue, float, footer, footerAverage, footerSum, hiddenByDefault, hint, includeInSearch, int, maybeDate, minWidth, money, noTooltip, notExported, notSearchable, pinned, sortDate, sortMaybeNumber, sortNumber, sortText, sortWith, status, text, unsortable, width, wrap)
-import Klar.Table.Config exposing (activeExternalFilters, ariaLabel, bulkActions, columnChooser, columns, configure, csvSeparator, currentRow, densityToggle, emptyState, expandedRow, exportCsv, fillHeight, finish, locale, maxHeight, multiSort, onRefresh, onResetFilters, onRetry, onRowClick, pageSizes, rangeText, remote, remotePrepared, rowActions, rowDisabled, rowFilter, rowId, rowLabel, rowTone, searchDebounce, searchPlaceholder, searchable, selectable, server, settings, toolbarActions, unpaged, virtual, zebra)
-import Klar.Table.Csv as Csv
-import Klar.Table.CsvRows exposing (csvText, withSuffix)
-import Klar.Table.DomIds exposing (bulkDomId, detailDomId, filterInputId, popupDomId, popupSuffix, rowDomId, scrollDomId, triggerDomId)
-import Klar.Table.Export exposing (csvSeparatorOf, exportOptions, viewExportMenu)
-import Klar.Table.Filter exposing (activeDrafts, canonicalChoice, choiceLabels, choiceOf, choicesOf, filterTest, fold, localChoice, parseNumber, searchTest, searchText, searchWords, toDraft, toFilter, withinRange)
-import Klar.Table.Footer exposing (footerContent, viewFoot, viewFooter, viewPagination, viewRange)
-import Klar.Table.Header exposing (viewHead, viewHeaderCell)
-import Klar.Table.HeaderFilters exposing (filterFocusTargets, filterValues, loadedRows, rangeDecimals, viewChoiceFilter, viewFilterButton, viewFilterContent)
-import Klar.Table.Identity exposing (idsOf, isJust, keysBetween, keysOf, lookup, toggled)
-import Klar.Table.Index as Index exposing (Index)
-import Klar.Table.Keyboard exposing (ignoreControls, rangeKeys, rangeMsg, rowContextMenu, rowKeyMsg, rowKeys, startsOnControl)
-import Klar.Table.Layout exposing (activeRowHidden, activeRowRequested, alignClass, dataCellClasses, expandWidth, fixedWidth, flexibleMinWidth, flexibleShare, gridPart, hasFocusableContent, headerWidth, isFiltered, isTreegrid, menuWidth, pinLeft, pinStyle, scrollVars, selectWidth, systemCells, systemPinStyle, tableMinWidth, usableFilter, viewColgroup)
-import Klar.Table.Numeric exposing (formatNumber, majorAmount, moneyTotals, plainDecimal)
-import Klar.Table.Popup exposing (focusLeft, isInside, outsideClick, viewPopup)
-import Klar.Table.Processing exposing (keepMatching, process, processClient, sortLevels, sortRows)
-import Klar.Table.Query exposing (encodeQuery, filterDecoder, optionalField, queryDecoder, sortDecoder)
-import Klar.Table.Rows exposing (prepareRows, rowsArray, sourceArray, sourceList, usablePrepared)
-import Klar.Table.Selection exposing (clearSelection, deselect, dropAllMatching, dropAllMatchingOf, everyRowCanBeSelected, isLongClientTable, isPicked, isSelected, matchingSelectionState, pick, rowIsDisabled, select, selectableCount, selectableKeys, selectedCount, selectedIds, selection, selectionTotal, setSelectedIds)
-import Klar.Table.Sort as Sorting
-import Klar.Table.State exposing (clearFilters, collapse, collapseAll, columnId, columnName, density, expand, expandedIds, filters, init, isColumnVisible, isExpanded, page, pageSize, query, search, setColumnVisible, setDensity, setExpandedIds, setFilter, setPage, setPageSize, setQuery, setSearch, setSort, settled, sort, toggle)
+import Klar.Table.Body exposing (retryClicked, viewBodies)
+import Klar.Table.ColumnLogic exposing (findColumn, visibleColumns)
+import Klar.Table.Config exposing (configure, locale, onRetry, settings)
+import Klar.Table.DomIds exposing (scrollDomId)
+import Klar.Table.Footer exposing (viewFoot, viewFooter)
+import Klar.Table.Header exposing (viewHead)
+import Klar.Table.Identity exposing (isJust)
+import Klar.Table.Layout exposing (activeRowHidden, activeRowRequested, hasFocusableContent, isTreegrid, scrollVars, tableMinWidth, viewColgroup)
+import Klar.Table.Processing exposing (process)
+import Klar.Table.Selection exposing (selectionTotal)
+import Klar.Table.State exposing (page, pageSize)
 import Klar.Table.Texts as Texts exposing (Texts)
-import Klar.Table.Toolbar exposing (activeFilterCount, densityComfortable, densityCompact, densityNormal, describeDraft, hasToolbar, hasTools, resetFiltersButton, viewColumnsMenu, viewDensity, viewFilterSummary, viewSearch, viewToolbar, withAppReset)
-import Klar.Table.Types exposing (Align(..), Attribute(..), Column(..), ColumnAttribute(..), ColumnConfig, ColumnId(..), Config, Ctx, Data, DataStatus(..), Direction(..), Draft(..), Filter(..), FilterKind(..), Footer(..), Model, MoneyTotal, Msg(..), Picked(..), Popup(..), Query, RowInfo, Rows(..), Selection(..), SortBy(..), Source(..), State(..))
-import Klar.Table.Update exposing (afterClear, commit, focus, focusFirst, nextSort, schedule, scrollThenFocus, scrollTo, step, update)
-import Klar.Table.Window exposing (defaultVirtualHeight, headPx, pageWindow, rowPx, virtualGeometry, virtualWindow)
-import Klar.Tag as Tag
-import Klar.TextInput as TextInput
-import Klar.Theme as Theme exposing (Density(..), Tone)
-import Process
-import Set exposing (Set)
-import Task
+import Klar.Table.Toolbar exposing (viewToolbar)
+import Klar.Table.Types exposing (Attribute(..), Column(..), Ctx, DataStatus(..), Direction(..), Msg(..), State(..))
+import Klar.Table.Window exposing (virtualGeometry)
 
 
 {-| Draws the table: toolbar, header, rows, totals row and pagination. `toMsg`

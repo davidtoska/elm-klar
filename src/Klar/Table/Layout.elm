@@ -8,10 +8,10 @@ import Html exposing (Html)
 import Html.Attributes as Attr
 import Json.Decode as Decode exposing (Decoder)
 import Klar.Internal as Internal
-import Klar.Table.ColumnLogic exposing (exportValue, findColumn, hasFooter, isShown, isSortable, sortKeyOf, sortLevel, visibleColumns)
-import Klar.Table.DomIds exposing (bulkDomId, detailDomId, filterInputId, popupDomId, popupSuffix, rowDomId, scrollDomId, triggerDomId)
-import Klar.Table.Types exposing (Align(..), Attribute(..), Column(..), ColumnAttribute(..), ColumnConfig, ColumnId(..), Config, Ctx, Data, DataStatus(..), Direction(..), Draft(..), Filter(..), FilterKind(..), Footer(..), Model, MoneyTotal, Msg(..), Picked(..), Popup(..), Query, RowInfo, Rows(..), Selection(..), SortBy(..), Source(..), State(..))
-import Klar.Table.Window exposing (defaultVirtualHeight, headPx, pageWindow, rowPx, virtualGeometry, virtualWindow)
+import Klar.Table.ColumnLogic exposing (isSortable)
+import Klar.Table.DomIds exposing (rowDomId, scrollDomId)
+import Klar.Table.Types exposing (Align(..), ColumnConfig, Ctx, DataStatus(..), FilterKind(..), Msg(..))
+import Klar.Table.Window exposing (defaultVirtualHeight)
 
 
 selectWidth : Int

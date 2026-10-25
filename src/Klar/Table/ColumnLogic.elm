@@ -6,7 +6,7 @@ module Klar.Table.ColumnLogic exposing (..)
 import Dict exposing (Dict)
 import Klar.Locale as Locale exposing (Locale)
 import Klar.Table.Sort as Sorting
-import Klar.Table.Types exposing (Align(..), Attribute(..), Column(..), ColumnAttribute(..), ColumnConfig, ColumnId(..), Config, Ctx, Data, DataStatus(..), Direction(..), Draft(..), Filter(..), FilterKind(..), Footer(..), Model, MoneyTotal, Msg(..), Picked(..), Popup(..), Query, RowInfo, Rows(..), Selection(..), SortBy(..), Source(..), State(..))
+import Klar.Table.Types exposing (ColumnConfig, Direction(..), Model, SortBy(..))
 
 
 sortLevel : Locale -> Direction -> ColumnConfig row msg -> Maybe (Sorting.Level row)

@@ -6,13 +6,13 @@ module Klar.Table.Bulk exposing (..)
 import Html exposing (Html)
 import Html.Attributes as Attr
 import Html.Events as Events
-import Json.Decode as Decode exposing (Decoder)
+import Json.Decode as Decode
 import Klar.Button as Button
 import Klar.Internal as Internal
-import Klar.Table.DomIds exposing (bulkDomId, detailDomId, filterInputId, popupDomId, popupSuffix, rowDomId, scrollDomId, triggerDomId)
-import Klar.Table.Export exposing (csvSeparatorOf, exportOptions, viewExportMenu)
-import Klar.Table.Selection exposing (clearSelection, deselect, dropAllMatching, dropAllMatchingOf, everyRowCanBeSelected, isLongClientTable, isPicked, isSelected, matchingSelectionState, pick, rowIsDisabled, select, selectableCount, selectableKeys, selectedCount, selectedIds, selection, selectionTotal, setSelectedIds)
-import Klar.Table.Types exposing (Align(..), Attribute(..), Column(..), ColumnAttribute(..), ColumnConfig, ColumnId(..), Config, Ctx, Data, DataStatus(..), Direction(..), Draft(..), Filter(..), FilterKind(..), Footer(..), Model, MoneyTotal, Msg(..), Picked(..), Popup(..), Query, RowInfo, Rows(..), Selection(..), SortBy(..), Source(..), State(..))
+import Klar.Table.DomIds exposing (bulkDomId)
+import Klar.Table.Export exposing (viewExportMenu)
+import Klar.Table.Selection exposing (everyRowCanBeSelected, isPicked, selectableCount, selectableKeys, selectionTotal)
+import Klar.Table.Types exposing (Ctx, Msg(..), Picked(..), Popup(..))
 import Set exposing (Set)
 
 

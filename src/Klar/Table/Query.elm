@@ -5,7 +5,7 @@ module Klar.Table.Query exposing (..)
 
 import Json.Decode as Decode exposing (Decoder)
 import Json.Encode as Encode
-import Klar.Table.Types exposing (Align(..), Attribute(..), Column(..), ColumnAttribute(..), ColumnConfig, ColumnId(..), Config, Ctx, Data, DataStatus(..), Direction(..), Draft(..), Filter(..), FilterKind(..), Footer(..), Model, MoneyTotal, Msg(..), Picked(..), Popup(..), Query, RowInfo, Rows(..), Selection(..), SortBy(..), Source(..), State(..))
+import Klar.Table.Types exposing (ColumnId(..), Direction(..), Filter(..), Query)
 
 
 {-| A query as JSON, to keep it where the application keeps its things (a saved

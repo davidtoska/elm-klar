@@ -12,10 +12,10 @@ import Klar.Icon as Icon
 import Klar.Internal as Internal
 import Klar.Locale as Locale exposing (Locale)
 import Klar.Money as Money exposing (Money)
-import Klar.Table.Numeric exposing (formatNumber, majorAmount, moneyTotals, plainDecimal)
+import Klar.Table.Numeric exposing (majorAmount, plainDecimal)
 import Klar.Table.Texts as Texts exposing (Texts)
-import Klar.Table.Types exposing (Align(..), Attribute(..), Column(..), ColumnAttribute(..), ColumnConfig, ColumnId(..), Config, Ctx, Data, DataStatus(..), Direction(..), Draft(..), Filter(..), FilterKind(..), Footer(..), Model, MoneyTotal, Msg(..), Picked(..), Popup(..), Query, RowInfo, Rows(..), Selection(..), SortBy(..), Source(..), State(..))
-import Klar.Theme as Theme exposing (Density(..), Tone)
+import Klar.Table.Types exposing (Align(..), Column(..), ColumnAttribute(..), ColumnConfig, ColumnId(..), FilterKind(..), Footer(..), SortBy(..))
+import Klar.Theme as Theme exposing (Tone)
 
 
 baseColumn : String -> String -> (Locale -> row -> String) -> ColumnConfig row msg

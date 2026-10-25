@@ -8,8 +8,8 @@ import Html.Attributes as Attr
 import Html.Events as Events
 import Json.Decode as Decode exposing (Decoder)
 import Klar.Internal as Internal
-import Klar.Table.DomIds exposing (bulkDomId, detailDomId, filterInputId, popupDomId, popupSuffix, rowDomId, scrollDomId, triggerDomId)
-import Klar.Table.Types exposing (Align(..), Attribute(..), Column(..), ColumnAttribute(..), ColumnConfig, ColumnId(..), Config, Ctx, Data, DataStatus(..), Direction(..), Draft(..), Filter(..), FilterKind(..), Footer(..), Model, MoneyTotal, Msg(..), Picked(..), Popup(..), Query, RowInfo, Rows(..), Selection(..), SortBy(..), Source(..), State(..))
+import Klar.Table.DomIds exposing (popupDomId)
+import Klar.Table.Types exposing (Ctx, Msg(..), Popup(..))
 
 
 {-| The popup recipe: a click-away layer, Escape closes and gives focus back

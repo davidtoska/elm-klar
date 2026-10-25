@@ -18,14 +18,14 @@ import Klar.Internal.Window as Window
 import Klar.Menu as Menu
 import Klar.Search as Search
 import Klar.Skeleton as Skeleton
-import Klar.Table.DomIds exposing (bulkDomId, detailDomId, filterInputId, popupDomId, popupSuffix, rowDomId, scrollDomId, triggerDomId)
-import Klar.Table.Identity exposing (idsOf, isJust, keysBetween, keysOf, lookup, toggled)
-import Klar.Table.Keyboard exposing (ignoreControls, rangeKeys, rangeMsg, rowContextMenu, rowKeyMsg, rowKeys, startsOnControl)
-import Klar.Table.Layout exposing (activeRowHidden, activeRowRequested, alignClass, dataCellClasses, expandWidth, fixedWidth, flexibleMinWidth, flexibleShare, gridPart, hasFocusableContent, headerWidth, isFiltered, isTreegrid, menuWidth, pinLeft, pinStyle, scrollVars, selectWidth, systemCells, systemPinStyle, tableMinWidth, usableFilter, viewColgroup)
-import Klar.Table.Selection exposing (clearSelection, deselect, dropAllMatching, dropAllMatchingOf, everyRowCanBeSelected, isLongClientTable, isPicked, isSelected, matchingSelectionState, pick, rowIsDisabled, select, selectableCount, selectableKeys, selectedCount, selectedIds, selection, selectionTotal, setSelectedIds)
-import Klar.Table.Toolbar exposing (activeFilterCount, densityComfortable, densityCompact, densityNormal, describeDraft, hasToolbar, hasTools, resetFiltersButton, viewColumnsMenu, viewDensity, viewFilterSummary, viewSearch, viewToolbar, withAppReset)
-import Klar.Table.Types exposing (Align(..), Attribute(..), Column(..), ColumnAttribute(..), ColumnConfig, ColumnId(..), Config, Ctx, Data, DataStatus(..), Direction(..), Draft(..), Filter(..), FilterKind(..), Footer(..), Model, MoneyTotal, Msg(..), Picked(..), Popup(..), Query, RowInfo, Rows(..), Selection(..), SortBy(..), Source(..), State(..))
-import Klar.Table.Window exposing (defaultVirtualHeight, headPx, pageWindow, rowPx, virtualGeometry, virtualWindow)
+import Klar.Table.DomIds exposing (detailDomId, rowDomId, scrollDomId)
+import Klar.Table.Identity exposing (isJust)
+import Klar.Table.Keyboard exposing (ignoreControls, rangeMsg, rowContextMenu, rowKeys, startsOnControl)
+import Klar.Table.Layout exposing (dataCellClasses, gridPart, isFiltered, isTreegrid, pinLeft, pinStyle, selectWidth, systemCells, systemPinStyle)
+import Klar.Table.Selection exposing (isPicked, rowIsDisabled)
+import Klar.Table.Toolbar exposing (resetFiltersButton)
+import Klar.Table.Types exposing (ColumnConfig, Ctx, DataStatus(..), Msg(..))
+import Klar.Table.Window exposing (virtualWindow)
 import Set exposing (Set)
 
 

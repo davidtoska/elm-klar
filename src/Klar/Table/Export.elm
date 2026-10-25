@@ -6,19 +6,19 @@ module Klar.Table.Export exposing (..)
 import Html exposing (Html)
 import Html.Attributes as Attr
 import Html.Events as Events
-import Json.Decode as Decode exposing (Decoder)
+import Json.Decode as Decode
 import Klar.Button as Button
 import Klar.Icon as Icon
 import Klar.Internal as Internal
 import Klar.Locale as Locale exposing (Locale)
-import Klar.Remote as Remote exposing (Problem, Remote)
+import Klar.Remote as Remote exposing (Remote)
 import Klar.Table.CsvRows exposing (csvText, withSuffix)
-import Klar.Table.DomIds exposing (bulkDomId, detailDomId, filterInputId, popupDomId, popupSuffix, rowDomId, scrollDomId, triggerDomId)
-import Klar.Table.Popup exposing (focusLeft, isInside, outsideClick, viewPopup)
-import Klar.Table.Processing exposing (keepMatching, process, processClient, sortLevels, sortRows)
-import Klar.Table.Rows exposing (prepareRows, rowsArray, sourceArray, sourceList, usablePrepared)
-import Klar.Table.Selection exposing (clearSelection, deselect, dropAllMatching, dropAllMatchingOf, everyRowCanBeSelected, isLongClientTable, isPicked, isSelected, matchingSelectionState, pick, rowIsDisabled, select, selectableCount, selectableKeys, selectedCount, selectedIds, selection, selectionTotal, setSelectedIds)
-import Klar.Table.Types exposing (Align(..), Attribute(..), Column(..), ColumnAttribute(..), ColumnConfig, ColumnId(..), Config, Ctx, Data, DataStatus(..), Direction(..), Draft(..), Filter(..), FilterKind(..), Footer(..), Model, MoneyTotal, Msg(..), Picked(..), Popup(..), Query, RowInfo, Rows(..), Selection(..), SortBy(..), Source(..), State(..))
+import Klar.Table.DomIds exposing (popupDomId, triggerDomId)
+import Klar.Table.Popup exposing (viewPopup)
+import Klar.Table.Processing exposing (sortRows)
+import Klar.Table.Rows exposing (sourceList)
+import Klar.Table.Selection exposing (isPicked, selectionTotal)
+import Klar.Table.Types exposing (Ctx, DataStatus(..), Msg(..), Popup(..))
 
 
 {-| The export menu, in the toolbar (`ExportPopup`) or in the bulk action bar

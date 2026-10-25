@@ -5,10 +5,10 @@ module Klar.Table.Keyboard exposing (..)
 
 import Json.Decode as Decode exposing (Decoder)
 import Klar.Internal.Window as Window
-import Klar.Table.DomIds exposing (bulkDomId, detailDomId, filterInputId, popupDomId, popupSuffix, rowDomId, scrollDomId, triggerDomId)
-import Klar.Table.Identity exposing (idsOf, isJust, keysBetween, keysOf, lookup, toggled)
-import Klar.Table.Selection exposing (clearSelection, deselect, dropAllMatching, dropAllMatchingOf, everyRowCanBeSelected, isLongClientTable, isPicked, isSelected, matchingSelectionState, pick, rowIsDisabled, select, selectableCount, selectableKeys, selectedCount, selectedIds, selection, selectionTotal, setSelectedIds)
-import Klar.Table.Types exposing (Align(..), Attribute(..), Column(..), ColumnAttribute(..), ColumnConfig, ColumnId(..), Config, Ctx, Data, DataStatus(..), Direction(..), Draft(..), Filter(..), FilterKind(..), Footer(..), Model, MoneyTotal, Msg(..), Picked(..), Popup(..), Query, RowInfo, Rows(..), Selection(..), SortBy(..), Source(..), State(..))
+import Klar.Table.DomIds exposing (rowDomId)
+import Klar.Table.Identity exposing (isJust, keysBetween)
+import Klar.Table.Selection exposing (isLongClientTable, selectableKeys)
+import Klar.Table.Types exposing (Ctx, Msg(..), RowInfo)
 
 
 {-| The keys a Shift range runs over, in the order of the table: the rows of the

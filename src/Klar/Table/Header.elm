@@ -6,16 +6,16 @@ module Klar.Table.Header exposing (..)
 import Html exposing (Html)
 import Html.Attributes as Attr
 import Html.Events as Events
-import Json.Decode as Decode exposing (Decoder)
+import Json.Decode as Decode
 import Klar.Checkbox as Checkbox
 import Klar.Icon as Icon
 import Klar.Internal as Internal
-import Klar.Table.ColumnLogic exposing (exportValue, findColumn, hasFooter, isShown, isSortable, sortKeyOf, sortLevel, visibleColumns)
-import Klar.Table.HeaderFilters exposing (filterFocusTargets, filterValues, loadedRows, rangeDecimals, viewChoiceFilter, viewFilterButton, viewFilterContent)
-import Klar.Table.Identity exposing (idsOf, isJust, keysBetween, keysOf, lookup, toggled)
-import Klar.Table.Layout exposing (activeRowHidden, activeRowRequested, alignClass, dataCellClasses, expandWidth, fixedWidth, flexibleMinWidth, flexibleShare, gridPart, hasFocusableContent, headerWidth, isFiltered, isTreegrid, menuWidth, pinLeft, pinStyle, scrollVars, selectWidth, systemCells, systemPinStyle, tableMinWidth, usableFilter, viewColgroup)
-import Klar.Table.Selection exposing (clearSelection, deselect, dropAllMatching, dropAllMatchingOf, everyRowCanBeSelected, isLongClientTable, isPicked, isSelected, matchingSelectionState, pick, rowIsDisabled, select, selectableCount, selectableKeys, selectedCount, selectedIds, selection, selectionTotal, setSelectedIds)
-import Klar.Table.Types exposing (Align(..), Attribute(..), Column(..), ColumnAttribute(..), ColumnConfig, ColumnId(..), Config, Ctx, Data, DataStatus(..), Direction(..), Draft(..), Filter(..), FilterKind(..), Footer(..), Model, MoneyTotal, Msg(..), Picked(..), Popup(..), Query, RowInfo, Rows(..), Selection(..), SortBy(..), Source(..), State(..))
+import Klar.Table.ColumnLogic exposing (isSortable)
+import Klar.Table.HeaderFilters exposing (viewFilterButton)
+import Klar.Table.Identity exposing (lookup)
+import Klar.Table.Layout exposing (alignClass, gridPart, pinLeft, selectWidth, systemPinStyle, usableFilter)
+import Klar.Table.Selection exposing (isLongClientTable, isPicked, matchingSelectionState, selectableKeys)
+import Klar.Table.Types exposing (Align(..), ColumnConfig, Ctx, DataStatus(..), Direction(..), Msg(..), Popup(..))
 
 
 viewHead : Ctx row msg -> Html msg

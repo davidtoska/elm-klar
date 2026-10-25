@@ -28,9 +28,10 @@ Execution notes for resuming a long run:
 - All logic groups through Processing are complete. The second pipeline (84947)
   stopped on syntax in the new ColumnLogic test; its second validation passed.
   The resumed pipeline (6175) completed Rows, Config, Window, Update and Processing.
-  CsvRows is complete. Rendering pipeline 11692 runs Popup, Layout, Keyboard,
-  Export, Bulk, HeaderFilters, Header, Toolbar, Body and Footer. Inspect its active
-  result before further edits. Completion hashes are appended below.
+  All extraction groups are complete. Final View/import cleanup validation (24312)
+  passed: 11,373 tests, byte-identical docs, all 22 DOM roots identical, all 312
+  original declarations unchanged internally, acyclic imports and size target met.
+  Next: commit final code and REPORT.md; only then start Chart.
 - After that: CsvRows, Popup, Layout, Keyboard, Export, Bulk, HeaderFilters, Header,
   Toolbar, Body, Footer, then rename remaining Core composition to View and clean
   imports. Recheck dependencies before each move; Toolbar depends on HeaderFilters.
@@ -107,6 +108,7 @@ Execution notes for resuming a long run:
 - Processing: format, full check, byte-identical docs and 22 identical table roots passed.
 - Commit ad3e39e: Processing complete.
 - Next: inspect the remaining dependency groups before the next move.
+- Next: final View/import cleanup validation, source/dependency/size audit, REPORT.md.
 
 - CsvRows: format, full check, byte-identical docs and 22 identical table roots passed.
 - Commit 07c2796: CsvRows complete.
@@ -149,3 +151,7 @@ Execution notes for resuming a long run:
 - Next: Footer.
 
 - Footer: format, full check, byte-identical docs and 22 identical table roots passed.
+- Commit 853877c: Footer complete.
+- Next: inspect the remaining dependency groups before the next move.
+- Final View/import cleanup passed all required checks; View is 374 lines.
+- Next: final code commit, source/dependency/size report, report commit.

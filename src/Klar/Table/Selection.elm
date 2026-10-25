@@ -4,8 +4,8 @@ module Klar.Table.Selection exposing (..)
 -}
 
 import Klar.Ids as Ids exposing (Ids)
-import Klar.Table.Identity exposing (idsOf, isJust, keysBetween, keysOf, lookup, toggled)
-import Klar.Table.Types exposing (Align(..), Attribute(..), Column(..), ColumnAttribute(..), ColumnConfig, ColumnId(..), Config, Ctx, Data, DataStatus(..), Direction(..), Draft(..), Filter(..), FilterKind(..), Footer(..), Model, MoneyTotal, Msg(..), Picked(..), Popup(..), Query, RowInfo, Rows(..), Selection(..), SortBy(..), Source(..), State(..))
+import Klar.Table.Identity exposing (idsOf, isJust, keysOf)
+import Klar.Table.Types exposing (Config, Ctx, Picked(..), Selection(..), State(..))
 import Set exposing (Set)
 
 

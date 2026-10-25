@@ -5,9 +5,9 @@ module Klar.Table.Window exposing (..)
 
 import Klar.Internal.Window as Window
 import Klar.Pagination as Pagination
-import Klar.Table.ColumnLogic exposing (exportValue, findColumn, hasFooter, isShown, isSortable, sortKeyOf, sortLevel, visibleColumns)
-import Klar.Table.Types exposing (Align(..), Attribute(..), Column(..), ColumnAttribute(..), ColumnConfig, ColumnId(..), Config, Ctx, Data, DataStatus(..), Direction(..), Draft(..), Filter(..), FilterKind(..), Footer(..), Model, MoneyTotal, Msg(..), Picked(..), Popup(..), Query, RowInfo, Rows(..), Selection(..), SortBy(..), Source(..), State(..))
-import Klar.Theme as Theme exposing (Density(..), Tone)
+import Klar.Table.ColumnLogic exposing (hasFooter)
+import Klar.Table.Types exposing (Column(..), Config, Model)
+import Klar.Theme as Theme exposing (Density(..))
 
 
 {-| The rows of a table that scrolls are one height, the one of its density

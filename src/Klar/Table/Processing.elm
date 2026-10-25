@@ -7,17 +7,17 @@ import Array exposing (Array)
 import Dict exposing (Dict)
 import Klar.Internal.Window as Window
 import Klar.Locale as Locale exposing (Locale)
-import Klar.Remote as Remote exposing (Problem, Remote)
-import Klar.Table.ColumnLogic exposing (exportValue, findColumn, hasFooter, isShown, isSortable, sortKeyOf, sortLevel, visibleColumns)
-import Klar.Table.Columns exposing (actions, alignCenter, alignRight, alwaysVisible, badge, baseColumn, bool, build, cell, custom, date, exportAs, filterOptions, filterRange, filterSelect, filterText, filterValue, float, footer, footerAverage, footerSum, hiddenByDefault, hint, includeInSearch, int, maybeDate, minWidth, money, noTooltip, notExported, notSearchable, pinned, sortDate, sortMaybeNumber, sortNumber, sortText, sortWith, status, text, unsortable, width, wrap)
-import Klar.Table.Filter exposing (activeDrafts, canonicalChoice, choiceLabels, choiceOf, choicesOf, filterTest, fold, localChoice, parseNumber, searchTest, searchText, searchWords, toDraft, toFilter, withinRange)
+import Klar.Remote as Remote exposing (Remote)
+import Klar.Table.ColumnLogic exposing (findColumn, isSortable, sortKeyOf, sortLevel)
+import Klar.Table.Columns exposing (status)
+import Klar.Table.Filter exposing (filterTest, searchTest, searchWords)
 import Klar.Table.Index as Index exposing (Index)
-import Klar.Table.Numeric exposing (formatNumber, majorAmount, moneyTotals, plainDecimal)
-import Klar.Table.Rows exposing (prepareRows, rowsArray, sourceArray, sourceList, usablePrepared)
+import Klar.Table.Numeric exposing (moneyTotals)
+import Klar.Table.Rows exposing (sourceArray, sourceList, usablePrepared)
 import Klar.Table.Sort as Sorting
-import Klar.Table.State exposing (clearFilters, collapse, collapseAll, columnId, columnName, density, expand, expandedIds, filters, init, isColumnVisible, isExpanded, page, pageSize, query, search, setColumnVisible, setDensity, setExpandedIds, setFilter, setPage, setPageSize, setQuery, setSearch, setSort, settled, sort, toggle)
-import Klar.Table.Types exposing (Align(..), Attribute(..), Column(..), ColumnAttribute(..), ColumnConfig, ColumnId(..), Config, Ctx, Data, DataStatus(..), Direction(..), Draft(..), Filter(..), FilterKind(..), Footer(..), Model, MoneyTotal, Msg(..), Picked(..), Popup(..), Query, RowInfo, Rows(..), Selection(..), SortBy(..), Source(..), State(..))
-import Klar.Table.Window exposing (defaultVirtualHeight, headPx, pageWindow, rowPx, virtualGeometry, virtualWindow)
+import Klar.Table.State exposing (page)
+import Klar.Table.Types exposing (ColumnConfig, Config, Data, DataStatus(..), Direction(..), Model, Rows(..), SortBy(..), Source(..))
+import Klar.Table.Window exposing (pageWindow, virtualGeometry, virtualWindow)
 
 
 {-| What to show: in client mode the rows after outside filter, column
