@@ -321,11 +321,13 @@ columns next to two narrow tiles. It is at least 1 and never more than the colum
 the grid, so `columnSpan 4` in a grid of `columns 3` takes the whole row. A responsive
 grid (`minColumn`) changes its number of columns with the width, so there every
 element takes one column. Give it to the layout that is the child of the grid, around
-a card if the cell is a card:
+a card if the cell is a card, or to a grid inside the grid (a block of tiles over two
+columns; its own `columns` are for what is inside it):
 
     Layout.grid [ Layout.columns 3 ]
         [ Layout.stack [ Layout.columnSpan 2 ] [ salesChartCard ]
         , ordersStatCard
+        , Layout.grid [ Layout.columnSpan 2, Layout.columns 2 ] [ revenueTile, marginTile ]
         ]
 
 -}
@@ -412,7 +414,7 @@ stack attributes children =
         config =
             configure attributes
     in
-    Html.div (commonAttributes "klar-stack" [] config) children
+    Html.div (commonAttributes "klar-stack" [] [] config) children
 
 
 {-| Lays the children out next to each other, centered vertically unless you say
@@ -427,7 +429,7 @@ row attributes children =
         config =
             configure attributes
     in
-    Html.div (commonAttributes "klar-row" [] config) children
+    Html.div (commonAttributes "klar-row" [] [] config) children
 
 
 {-| Lays the children out in a CSS grid. Use `columns n` for a fixed number of
@@ -456,14 +458,23 @@ grid attributes children =
 
                 ( Nothing, Nothing ) ->
                     "repeat(auto-fit, minmax(min(240px, 100%), 1fr))"
+
+        -- How many columns a `columnSpan` inside may take. A class and not a custom
+        -- property on the grid itself: a grid inside a grid would hide the count of
+        -- the grid it sits in from its own `columnSpan`. The stylesheet has a rule for
+        -- 1 to 24 columns; a responsive grid counts as one.
+        spanLimit =
+            case config.columns of
+                Just n ->
+                    "klar-grid--cols-" ++ String.fromInt (min 24 n)
+
+                Nothing ->
+                    "klar-grid--cols-1"
     in
     Html.div
         (commonAttributes "klar-grid"
-            [ ( "--klar-grid-template", template )
-
-            -- the number of columns that a `columnSpan` inside is clamped to
-            , ( "--klar-grid-cols", String.fromInt (Maybe.withDefault 1 config.columns) )
-            ]
+            [ spanLimit ]
+            [ ( "--klar-grid-template", template ) ]
             config
         )
         children
@@ -497,7 +508,7 @@ container attributes children =
         config =
             configure attributes
     in
-    Html.div (commonAttributes "klar-container" [] config) children
+    Html.div (commonAttributes "klar-container" [] [] config) children
 
 
 {-| A thin horizontal line (an `hr` element) across the full width.
@@ -540,8 +551,8 @@ dividerVertical =
 -- INTERNAL
 
 
-commonAttributes : String -> List ( String, String ) -> Config -> List (Html.Attribute msg)
-commonAttributes block extra config =
+commonAttributes : String -> List String -> List ( String, String ) -> Config -> List (Html.Attribute msg)
+commonAttributes block extraClasses extra config =
     let
         scrolls =
             config.scroll || config.maxHeight /= Nothing
@@ -572,58 +583,60 @@ commonAttributes block extra config =
                     ]
     in
     [ Internal.cls
-        [ block
-        , if config.align /= "" then
-            block ++ "--align-" ++ config.align
+        (block
+            :: extraClasses
+            ++ [ if config.align /= "" then
+                    block ++ "--align-" ++ config.align
 
-          else
-            ""
-        , if config.justify /= "" then
-            block ++ "--justify-" ++ config.justify
+                 else
+                    ""
+               , if config.justify /= "" then
+                    block ++ "--justify-" ++ config.justify
 
-          else
-            ""
-        , if config.wrap then
-            block ++ "--wrap"
+                 else
+                    ""
+               , if config.wrap then
+                    block ++ "--wrap"
 
-          else
-            ""
-        , if config.fill then
-            "klar-fill"
+                 else
+                    ""
+               , if config.fill then
+                    "klar-fill"
 
-          else
-            ""
-        , if config.grow then
-            "klar-grow"
+                 else
+                    ""
+               , if config.grow then
+                    "klar-grow"
 
-          else
-            ""
-        , if config.columnSpan /= Nothing then
-            "klar-span"
+                 else
+                    ""
+               , if config.columnSpan /= Nothing then
+                    "klar-span"
 
-          else
-            ""
-        , if config.width /= Nothing then
-            "klar-fixed-w"
+                 else
+                    ""
+               , if config.width /= Nothing then
+                    "klar-fixed-w"
 
-          else
-            ""
-        , if config.fillRest then
-            "klar-fill-rest"
+                 else
+                    ""
+               , if config.fillRest then
+                    "klar-fill-rest"
 
-          else
-            ""
-        , if config.padding > 0 then
-            "klar-padded"
+                 else
+                    ""
+               , if config.padding > 0 then
+                    "klar-padded"
 
-          else
-            ""
-        , if scrolls then
-            "klar-scroll"
+                 else
+                    ""
+               , if scrolls then
+                    "klar-scroll"
 
-          else
-            ""
-        ]
+                 else
+                    ""
+               ]
+        )
     , Internal.styleVars declarations
 
     -- A scroll area must be reachable with the keyboard, or its content cannot

@@ -30,8 +30,11 @@ with `headingLevel`, so that the title fits the outline of the page (see
 the body, for tables and lists that go edge to edge; `accent`, `sunken` and
 `raised` change the look.
 
-A card with an `id` and a title is a named region: its title is what a screen reader
-says for it, so a person can jump from card to card on a dashboard.
+A card with an `id` and a title is a named region: a landmark that screen readers
+list with the other landmarks of the page, named by its title, so a person can jump
+from card to card on a dashboard. Give an `id` to the few cards that are the main
+parts of a page, not to every card: twelve landmarks are as hard to use as none. A
+card needs no id for focus; focus goes to its body (`RemoteView.id` below).
 
 A card that shows one piece of remote data takes its body from
 [Klar.RemoteView](Klar-RemoteView): the loading skeleton, the failure with a
@@ -39,7 +42,7 @@ retry, and old or refreshing data, without a `case` of your own. Give the body a
 `id` and move focus to it when the retry starts, because the "Try again" button that
 had the focus is replaced by the skeleton:
 
-    -- view
+    -- view: `settings` gives the time zone of "Old data from 14:05", `locale` the language
     Card.view [ Card.title "Order 1042" ]
         (RemoteView.view
             [ RemoteView.id "order-body"
@@ -208,8 +211,10 @@ accent value =
     Attribute (\config -> { config | accent = Just value })
 
 
-{-| The DOM id of the card. With a title, it also makes the card a named region: the
-title gets the id `<id>-title` and the card points at it with `aria-labelledby`.
+{-| The DOM id of the card. With a title, it also makes the card a named region, a
+landmark of the page: the title gets the id `<id>-title` and the card points at it
+with `aria-labelledby`. So give it only to the main cards of a page, the ones a person
+jumps between; a card does not need an id to be scrolled to or focused inside.
 -}
 id : String -> Attribute msg
 id value =

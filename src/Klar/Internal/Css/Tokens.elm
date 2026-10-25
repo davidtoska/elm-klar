@@ -53,7 +53,7 @@ css =
   --klar-amber-100: #ffecc2;
   --klar-amber-500: #d98a0b;
   --klar-amber-600: #9a5f06;
-  --klar-amber-700: #8f5806;
+  --klar-amber-700: #7a4a04;
 
   --klar-red-50: #fdf0ee;
   --klar-red-100: #fadad6;

@@ -119,12 +119,15 @@ focusable =
     Selector.attribute (Attr.tabindex 0)
 
 
-{-| The value of the `style` attribute that `Layout.grid` writes for a template and
-a number of columns (the bound of a `columnSpan` inside), with the default gap.
+{-| The `style` attribute that `Layout.grid` writes for a template, with the default
+gap, and the class that bounds a `columnSpan` inside it to a number of columns.
 -}
 gridStyle : String -> Int -> Selector
 gridStyle template cols =
-    attr "style" ("--klar-grid-template:" ++ template ++ ";--klar-grid-cols:" ++ String.fromInt cols ++ ";--klar-gap:var(--klar-space-3)")
+    Selector.all
+        [ attr "style" ("--klar-grid-template:" ++ template ++ ";--klar-gap:var(--klar-space-3)")
+        , Selector.class ("klar-grid--cols-" ++ String.fromInt cols)
+        ]
 
 
 
@@ -218,7 +221,7 @@ grid starts with its template.
 maxHeightStyle : String -> String
 maxHeightStyle name =
     if name == "grid" then
-        "--klar-grid-template:repeat(auto-fit, minmax(min(240px, 100%), 1fr));--klar-grid-cols:1;--klar-gap:var(--klar-space-3);--klar-max-h:120px"
+        "--klar-grid-template:repeat(auto-fit, minmax(min(240px, 100%), 1fr));--klar-gap:var(--klar-space-3);--klar-max-h:120px"
 
     else
         "--klar-gap:var(--klar-space-3);--klar-max-h:120px"

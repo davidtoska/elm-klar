@@ -204,13 +204,45 @@ css =
 .klar-fill { width: 100%; }
 .klar-grow { flex: 1 1 0; min-width: 0; }
 .klar-fixed-w { flex: 0 0 var(--klar-fixed-w); width: var(--klar-fixed-w); max-width: 100%; min-width: 0; }
-/* Layout.columnSpan: never more columns than the grid has (--klar-grid-cols, set by the grid). */
-.klar-span { grid-column: span min(var(--klar-span, 1), var(--klar-grid-cols, 1)); min-width: 0; }
+/* Layout.columnSpan: never more columns than the grid it sits in has. The grid gives the
+   count to its children (--klar-span-max), not to itself, so a grid inside a grid spans
+   the columns of the outer one; a responsive grid is klar-grid--cols-1. */
+.klar-span { grid-column: span min(var(--klar-span, 1), var(--klar-span-max, 1)); min-width: 0; }
+.klar-grid--cols-1 > * { --klar-span-max: 1; }
+.klar-grid--cols-2 > * { --klar-span-max: 2; }
+.klar-grid--cols-3 > * { --klar-span-max: 3; }
+.klar-grid--cols-4 > * { --klar-span-max: 4; }
+.klar-grid--cols-5 > * { --klar-span-max: 5; }
+.klar-grid--cols-6 > * { --klar-span-max: 6; }
+.klar-grid--cols-7 > * { --klar-span-max: 7; }
+.klar-grid--cols-8 > * { --klar-span-max: 8; }
+.klar-grid--cols-9 > * { --klar-span-max: 9; }
+.klar-grid--cols-10 > * { --klar-span-max: 10; }
+.klar-grid--cols-11 > * { --klar-span-max: 11; }
+.klar-grid--cols-12 > * { --klar-span-max: 12; }
+.klar-grid--cols-13 > * { --klar-span-max: 13; }
+.klar-grid--cols-14 > * { --klar-span-max: 14; }
+.klar-grid--cols-15 > * { --klar-span-max: 15; }
+.klar-grid--cols-16 > * { --klar-span-max: 16; }
+.klar-grid--cols-17 > * { --klar-span-max: 17; }
+.klar-grid--cols-18 > * { --klar-span-max: 18; }
+.klar-grid--cols-19 > * { --klar-span-max: 19; }
+.klar-grid--cols-20 > * { --klar-span-max: 20; }
+.klar-grid--cols-21 > * { --klar-span-max: 21; }
+.klar-grid--cols-22 > * { --klar-span-max: 22; }
+.klar-grid--cols-23 > * { --klar-span-max: 23; }
+.klar-grid--cols-24 > * { --klar-span-max: 24; }
 .klar-fill-rest { flex: 1 1 auto; min-height: 0; }
 /* A container with fillRest hands the height on to a fillRest stack inside it. */
 .klar-container.klar-fill-rest { display: flex; flex-direction: column; }
 .klar-padded { padding: var(--klar-pad, 0); }
 .klar-spacer { flex: 1 1 auto; }
+
+/* Layout.dividerVertical (.klar-divider-v, Base.elm) is a background, which forced
+   colors removes: there it is a border. */
+@media (forced-colors: active) {
+  .klar-divider-v { background: none; border-inline-start: 1px solid CanvasText; }
+}
 
 .klar-container {
   width: 100%;
