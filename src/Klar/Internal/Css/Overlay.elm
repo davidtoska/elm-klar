@@ -888,6 +888,22 @@ html:has(.klar-modal-lock) {
   cursor: default;
 }
 
+.klar-palette__item--disabled {
+  cursor: not-allowed;
+}
+
+.klar-palette__item--disabled .klar-palette__label,
+.klar-palette__item--disabled .klar-palette__icon {
+  color: var(--klar-text-muted);
+}
+
+@media (forced-colors: active) {
+  .klar-palette__item--disabled .klar-palette__label,
+  .klar-palette__item--disabled .klar-palette__icon {
+    color: GrayText;
+  }
+}
+
 .klar-palette__icon {
   display: flex;
   flex: none;

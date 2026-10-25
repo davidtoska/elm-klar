@@ -2,7 +2,7 @@ module Klar.CommandPalette exposing
     ( view
     , State, init, Msg, update
     , open, close, isOpen, openedFrom, query, setQuery
-    , Item, item, withDescription, withIcon, withShortcut, withKeywords, withCommand, withId
+    , Item, item, withDescription, withIcon, withShortcut, withKeywords, withCommand, withId, withDisabled
     , argument
     , Section, section, remote, onRetry, withEmptyText
     , Attribute, sections, recent, placeholder, ariaLabel, emptyText, platform, locale, settings
@@ -144,7 +144,7 @@ extra words it is found by. The palette keeps track of the highlighted item by
 identity, so a result that arrives above it does not move the highlight. Give
 items with identical labels a `withId`.
 
-@docs Item, item, withDescription, withIcon, withShortcut, withKeywords, withCommand, withId
+@docs Item, item, withDescription, withIcon, withShortcut, withKeywords, withCommand, withId, withDisabled
 
 
 ## Command words
@@ -532,16 +532,20 @@ it sends when picked. Make one with `item` and add details with the `with...`
 functions.
 -}
 type Item msg
-    = Item
-        { id : Maybe String
-        , label : String
-        , description : Maybe String
-        , icon : Maybe Icon
-        , shortcut : Maybe Shortcut.Keys
-        , keywords : List String
-        , commands : List String
-        , onSelect : msg
-        }
+    = Item (ItemData msg)
+
+
+type alias ItemData msg =
+    { id : Maybe String
+    , label : String
+    , description : Maybe String
+    , icon : Maybe Icon
+    , shortcut : Maybe Shortcut.Keys
+    , keywords : List String
+    , commands : List String
+    , disabled : Maybe String
+    , onSelect : msg
+    }
 
 
 {-| A command or a piece of content. The first argument is the label that is
@@ -560,6 +564,7 @@ item text msg =
         , shortcut = Nothing
         , keywords = []
         , commands = []
+        , disabled = Nothing
         , onSelect = msg
         }
 
@@ -683,7 +688,26 @@ withId value =
     mapItem (\data -> { data | id = Just value })
 
 
-mapItem : ({ id : Maybe String, label : String, description : Maybe String, icon : Maybe Icon, shortcut : Maybe Shortcut.Keys, keywords : List String, commands : List String, onSelect : msg } -> { id : Maybe String, label : String, description : Maybe String, icon : Maybe Icon, shortcut : Maybe Shortcut.Keys, keywords : List String, commands : List String, onSelect : msg }) -> Item msg -> Item msg
+{-| An item that cannot run now, with the reason in place of its description:
+the user still finds the command and learns why it is not there yet. The arrow
+keys skip it, `Enter` and a click do nothing, and a screen reader hears it as
+unavailable (`aria-disabled`).
+
+    CommandPalette.item "Export the selection" ExportSelection
+        |> CommandPalette.withDisabled "Select some rows first"
+
+-}
+withDisabled : String -> Item msg -> Item msg
+withDisabled reason =
+    mapItem (\data -> { data | disabled = Just reason })
+
+
+isEnabled : Item msg -> Bool
+isEnabled (Item data) =
+    data.disabled == Nothing
+
+
+mapItem : (ItemData msg -> ItemData msg) -> Item msg -> Item msg
 mapItem change (Item data) =
     Item (change data)
 
@@ -1229,18 +1253,38 @@ viewPalette toMsg attributes onTop (State state) =
             count =
                 List.length entries
 
+            -- the entries that can run: a disabled item is never highlighted
+            usable =
+                List.filter (\entry -> isEnabled entry.item) entries
+
+            usableCount =
+                List.length usable
+
             activeEntry =
                 case state.active of
                     Just key ->
-                        case List.filter (\entry -> entry.key == key) entries of
+                        case List.filter (\entry -> entry.key == key) usable of
                             found :: _ ->
                                 Just found
 
                             [] ->
-                                List.head entries
+                                List.head usable
 
                     Nothing ->
-                        List.head entries
+                        List.head usable
+
+            -- where the highlighted entry is among the ones that can run
+            activePosition =
+                case activeEntry of
+                    Just current ->
+                        usable
+                            |> List.indexedMap Tuple.pair
+                            |> List.filter (\( _, entry ) -> entry.key == current.key)
+                            |> List.head
+                            |> Maybe.map Tuple.first
+
+                    Nothing ->
+                        Nothing
 
             anyLoading =
                 List.any (\block -> block.busy || List.any isLoadingRow block.rows) blocks
@@ -1270,10 +1314,10 @@ viewPalette toMsg attributes onTop (State state) =
                     |> List.head
 
             moveTo delta =
-                case activeEntry of
-                    Just current ->
-                        entries
-                            |> List.drop (modBy count (current.index + delta))
+                case activePosition of
+                    Just position ->
+                        usable
+                            |> List.drop (modBy usableCount (position + delta))
                             |> List.head
                             |> Maybe.map (\target -> toMsg (Highlight { key = target.key, top = target.revealTop, bottom = target.top + itemHeight + resultsPadding }))
 
@@ -1281,10 +1325,10 @@ viewPalette toMsg attributes onTop (State state) =
                         Nothing
 
             moveClamped delta =
-                case activeEntry of
-                    Just current ->
-                        entries
-                            |> List.drop (clamp 0 (count - 1) (current.index + delta))
+                case activePosition of
+                    Just position ->
+                        usable
+                            |> List.drop (clamp 0 (usableCount - 1) (position + delta))
                             |> List.head
                             |> Maybe.map (\target -> toMsg (Highlight { key = target.key, top = target.revealTop, bottom = target.top + itemHeight + resultsPadding }))
 
@@ -1715,38 +1759,67 @@ viewEntry toMsg config state words isActive placed =
             -- and gives focus back, and then bubbles to the outer one, which sends
             -- the application's message: a message that moves focus (it opens a
             -- drawer) comes last and wins.
+            let
+                disabled =
+                    data.disabled /= Nothing
+            in
             Html.div
-                [ Internal.cls [ "klar-palette__row" ]
-                , Attr.id (optionId state.id placed.index)
-                , Attr.attribute "role" "option"
-                , Attr.attribute "aria-selected"
+                ([ Internal.cls [ "klar-palette__row" ]
+                 , Attr.id (optionId state.id placed.index)
+                 , Attr.attribute "role" "option"
+                 , Attr.attribute "aria-selected"
                     (if isActive then
                         "true"
 
                      else
                         "false"
                     )
-                , Events.onClick data.onSelect
-                ]
+                 ]
+                    ++ (if disabled then
+                            -- seen and found, but it runs nothing and stays open
+                            [ Attr.attribute "aria-disabled" "true" ]
+
+                        else
+                            [ Events.onClick data.onSelect ]
+                       )
+                )
                 [ Html.div
-                    [ Internal.cls
+                    ([ Internal.cls
                         [ "klar-palette__item"
                         , if isActive then
                             "klar-palette__item--active"
 
                           else
                             ""
+                        , if disabled then
+                            "klar-palette__item--disabled"
+
+                          else
+                            ""
                         ]
-                    , Events.onClick (toMsg Picked)
-                    , Events.on "mousemove" (movedDecoder (toMsg (Hover placed.key)))
-                    ]
+                     ]
+                        ++ (if disabled then
+                                []
+
+                            else
+                                [ Events.onClick (toMsg Picked)
+                                , Events.on "mousemove" (movedDecoder (toMsg (Hover placed.key)))
+                                ]
+                           )
+                    )
                     [ Html.span [ Internal.cls [ "klar-palette__icon" ] ]
                         [ Internal.viewMaybe Icon.view data.icon ]
                     , Html.span [ Internal.cls [ "klar-palette__text" ] ]
                         [ Html.span [ Internal.cls [ "klar-palette__label", "klar-truncate" ] ] (Search.highlight words data.label)
                         , Internal.viewMaybe
                             (\text -> Html.span [ Internal.cls [ "klar-palette__description", "klar-truncate" ] ] [ Html.text text ])
-                            data.description
+                            (case data.disabled of
+                                Just reason ->
+                                    Just reason
+
+                                Nothing ->
+                                    data.description
+                            )
                         ]
                     , Internal.viewMaybe (viewShortcut config) data.shortcut
                     ]

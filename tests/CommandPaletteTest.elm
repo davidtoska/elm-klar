@@ -237,6 +237,98 @@ suite =
                         |> Query.find [ Selector.class "klar-palette__keys" ]
                         |> Query.has [ Selector.text "Control plus K" ]
             ]
+        , describe "a disabled item"
+            (let
+                exportItem =
+                    CommandPalette.item "Export the selection" Go
+                        |> CommandPalette.withDisabled "Select some rows first"
+
+                drawn =
+                    draw [ CommandPalette.sections [ CommandPalette.section "Actions" [ exportItem, newOrder ] ] ] (opened "")
+             in
+             [ test "is shown with its reason and marked unavailable" <|
+                \_ ->
+                    drawn
+                        |> Query.find [ Selector.id "palette-option-0" ]
+                        |> Expect.all
+                            [ Query.has [ Selector.attribute (Html.Attributes.attribute "aria-disabled" "true") ]
+                            , Query.has [ Selector.text "Select some rows first" ]
+                            ]
+             , test "is never highlighted: the first item that can run is" <|
+                \_ ->
+                    drawn
+                        |> Query.find [ Selector.id "palette-input" ]
+                        |> Query.has [ Selector.attribute (Html.Attributes.attribute "aria-activedescendant" "palette-option-1") ]
+             , test "a click on it runs nothing" <|
+                \_ ->
+                    drawn
+                        |> Query.find [ Selector.id "palette-option-0" ]
+                        |> Event.simulate Event.click
+                        |> Event.toResult
+                        |> Expect.err
+             , test "the arrow keys skip it" <|
+                \_ ->
+                    case
+                        drawn
+                            |> Query.find [ Selector.class "klar-palette__panel" ]
+                            |> Event.simulate (keyDown "ArrowDown")
+                            |> Event.toResult
+                    of
+                        Ok (Palette inner) ->
+                            draw [ CommandPalette.sections [ CommandPalette.section "Actions" [ exportItem, newOrder ] ] ]
+                                (Tuple.first (CommandPalette.update inner (opened "")))
+                                |> Query.find [ Selector.id "palette-input" ]
+                                |> Query.has [ Selector.attribute (Html.Attributes.attribute "aria-activedescendant" "palette-option-1") ]
+
+                        _ ->
+                            Expect.fail "the palette did not answer the arrow"
+             ]
+            )
+        , describe "ranking and the keys"
+            [ test "a match on the label ranks above a match on a keyword" <|
+                \_ ->
+                    draw
+                        [ CommandPalette.sections
+                            [ CommandPalette.section "Actions"
+                                [ CommandPalette.item "New order" Go |> CommandPalette.withKeywords [ "invoice" ]
+                                , CommandPalette.item "Invoices" Go
+                                ]
+                            ]
+                        ]
+                        (opened "invoice")
+                        |> Query.find [ Selector.id "palette-option-0" ]
+                        |> Query.hasNot [ Selector.text "New order" ]
+            , test "the recent items show only while the query is empty" <|
+                \_ ->
+                    let
+                        withRecent text =
+                            draw [ CommandPalette.recent [ newOrder ], CommandPalette.sections [ CommandPalette.section "Actions" [ goToOrder ] ] ] (opened text)
+                    in
+                    Expect.all
+                        [ \_ -> withRecent "" |> Query.has [ Selector.text "Recent" ]
+                        , \_ -> withRecent "go" |> Query.hasNot [ Selector.text "Recent" ]
+                        ]
+                        ()
+            , test "ArrowUp on the first item wraps around to the last" <|
+                \_ ->
+                    let
+                        attributes =
+                            [ CommandPalette.sections [ CommandPalette.section "Actions" [ newOrder, goToOrder ] ] ]
+                    in
+                    case
+                        draw attributes (opened "")
+                            |> Query.find [ Selector.class "klar-palette__panel" ]
+                            |> Event.simulate (keyDown "ArrowUp")
+                            |> Event.toResult
+                    of
+                        Ok (Palette inner) ->
+                            draw attributes (Tuple.first (CommandPalette.update inner (opened "")))
+                                |> Query.find [ Selector.id "palette-input" ]
+                                |> Query.has [ Selector.attribute (Html.Attributes.attribute "aria-activedescendant" "palette-option-1") ]
+
+                        _ ->
+                            Expect.fail "the palette did not answer the arrow"
+            ]
         , describe "focus stays in the search box"
             [ test "a press on the frame of the palette keeps focus where it is" <|
                 \_ ->
@@ -289,6 +381,19 @@ typed text state =
                     _ ->
                         Err "not a message of the palette"
             )
+
+
+keyDown : String -> ( String, Encode.Value )
+keyDown key =
+    Event.custom "keydown"
+        (Encode.object
+            [ ( "key", Encode.string key )
+            , ( "ctrlKey", Encode.bool False )
+            , ( "metaKey", Encode.bool False )
+            , ( "shiftKey", Encode.bool False )
+            , ( "altKey", Encode.bool False )
+            ]
+        )
 
 
 mouseDownOn : String -> ( String, Encode.Value )

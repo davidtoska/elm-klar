@@ -2035,6 +2035,10 @@ paletteSections model =
         , command "Download export" Icon.download Nothing [ "csv", "excel" ] (PaletteRan "Download export")
         , command "Print overview" Icon.print (Just (Shortcut.mod (Shortcut.char 'p'))) [ "pdf" ] (PaletteRan "Print overview")
         , command "Show a notification" Icon.bell (Just (Shortcut.shift (Shortcut.char 't'))) [ "toast", "message" ] (PushToast Info)
+
+        -- found, but it cannot run now: the reason stands in place of the description
+        , command "Archive the selected orders" Icon.archive Nothing [ "selection" ] (PaletteRan "Archive")
+            |> CommandPalette.withDisabled "Select some orders first"
         ]
     , CommandPalette.section "Help"
         [ command "Show keyboard shortcuts" Icon.keyboard (Just (Shortcut.char '?')) [ "shortcuts", "keys" ] OpenHelp

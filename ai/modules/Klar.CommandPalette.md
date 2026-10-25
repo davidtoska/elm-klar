@@ -35,6 +35,7 @@ withShortcut : Shortcut.Keys -> Item msg -> Item msg
 withKeywords : List String -> Item msg -> Item msg
 withCommand : String -> Item msg -> Item msg
 withId : String -> Item msg -> Item msg
+withDisabled : String -> Item msg -> Item msg
 
 -- Command words
 argument : List (Item msg) -> State -> String
@@ -397,6 +398,20 @@ withId : String -> Item msg -> Item msg
 
 A stable identity, for items with the same label (two customers called "Ada
 Lovelace"). It keeps the highlight on the right item when the results change.
+
+### `withDisabled`
+
+```elm
+withDisabled : String -> Item msg -> Item msg
+```
+
+An item that cannot run now, with the reason in place of its description:
+the user still finds the command and learns why it is not there yet. The arrow
+keys skip it, `Enter` and a click do nothing, and a screen reader hears it as
+unavailable (`aria-disabled`).
+
+    CommandPalette.item "Export the selection" ExportSelection
+        |> CommandPalette.withDisabled "Select some rows first"
 
 ### Command words
 
