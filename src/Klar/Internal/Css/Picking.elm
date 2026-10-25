@@ -304,6 +304,13 @@ css =
   font-size: var(--klar-text-xs);
 }
 
+/* Up, down, top and bottom inside "Chosen" (in the order of moving). */
+.klar-transfer__rearrange {
+  display: inline-flex;
+  flex: none;
+  gap: var(--klar-space-1);
+}
+
 /* Both lists have the same height, with rows or without: the rows the field
    shows, of the row height the Elm code works with (it sets both). */
 .klar-transfer__body {

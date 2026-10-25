@@ -354,7 +354,11 @@ movedOrder : Order
 
 The chosen ids are kept in the order in which the user moved them, the newest
 last: that order is the value, and `setValues` keeps the order it is given. Use it
-when the order means something, such as the columns of an export.
+when the order means something, such as the columns of an export. The user can
+also rearrange "Chosen": the buttons in its header move the marked items (the
+highlighted one when none is marked) up, down, to the top or to the bottom, and
+Alt+ArrowUp and Alt+ArrowDown in the list do the same; the new place is announced
+("Moved to place 2 of 7").
 
 ### `order`
 

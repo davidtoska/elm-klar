@@ -515,6 +515,7 @@ type Msg id
     | ClearTyped Int
     | FocusList Side
     | FocusFilter Side
+    | Rearrange Lists.Placement (Env id)
     | Warm (Env id)
     | ListMsg Side VirtualList.Msg
     | NoOp
@@ -693,6 +694,9 @@ advance msg data0 =
         FocusFilter side ->
             ( data0, Internal.focus (filterId data0.id side) NoOp )
 
+        Rearrange placement env ->
+            rearrange placement env (ensure env data0)
+
         Warm env ->
             -- the first look at the field (the pointer or the focus comes in)
             -- works the lists out once, so that no later draw has to
@@ -707,6 +711,67 @@ advance msg data0 =
 
         NoOp ->
             ( data0, Cmd.none )
+
+
+{-| Moves the marked items of "Chosen" (the highlighted one when none is marked)
+up, down, to the top or to the bottom, in the order of moving only. The highlight
+stays on its item, and the new place is announced.
+-}
+rearrange : Lists.Placement -> Env id -> Data id -> ( Data id, Cmd (Msg id) )
+rearrange placement env data =
+    let
+        keys =
+            case shownMarked ChosenSide data of
+                [] ->
+                    cursorIndex ChosenSide data
+                        |> Maybe.andThen (\i -> Array.get i (rowsOf ChosenSide data))
+                        |> Maybe.map (\row -> [ row.key ])
+                        |> Maybe.withDefault []
+
+                marked ->
+                    marked
+
+        keySet =
+            Set.fromList keys
+    in
+    if env.order /= Lists.MovedOrder || List.isEmpty keys then
+        ( data, Cmd.none )
+
+    else
+        let
+            moved =
+                rebuild env { data | chosen = Lists.reorder placement keySet data.chosen }
+
+            positions =
+                positionsOf ChosenSide moved
+
+            firstMoved =
+                moved.chosen
+                    |> List.filter (\c -> Set.member c.key keySet)
+                    |> List.head
+                    |> Maybe.andThen (\c -> Dict.get c.key positions)
+
+            announced =
+                case firstMoved of
+                    Just i ->
+                        { moved
+                            | announcement =
+                                Just
+                                    { text = (Texts.texts env.locale).movedToPlace (i + 1) (Array.length (rowsOf ChosenSide moved))
+                                    , tick = moved.ticks + 1
+                                    }
+                            , ticks = moved.ticks + 1
+                        }
+
+                    Nothing ->
+                        moved
+        in
+        case cursorIndex ChosenSide announced of
+            Just i ->
+                cursorTo env ChosenSide i announced
+
+            Nothing ->
+                ( announced, Cmd.none )
 
 
 rowIsEnabled : PaneRow id -> Bool
@@ -1260,7 +1325,11 @@ sourceOrder =
 
 {-| The chosen ids are kept in the order in which the user moved them, the newest
 last: that order is the value, and `setValues` keeps the order it is given. Use it
-when the order means something, such as the columns of an export.
+when the order means something, such as the columns of an export. The user can
+also rearrange "Chosen": the buttons in its header move the marked items (the
+highlighted one when none is marked) up, down, to the top or to the bottom, and
+Alt+ArrowUp and Alt+ArrowDown in the list do the same; the new place is announced
+("Moved to place 2 of 7").
 -}
 movedOrder : Order
 movedOrder =
@@ -1701,9 +1770,19 @@ viewPane toMsg config t env data interactive side =
             , ( "Mod+Shift+" ++ toward, toMsg (Key side env TransferAll) )
             ]
 
+        -- in the order of moving, Alt with the arrows moves items inside "Chosen"
+        rearranging =
+            if side == ChosenSide && config.order == Lists.MovedOrder then
+                [ ( "Alt+ArrowUp", toMsg (Rearrange Lists.Up env) )
+                , ( "Alt+ArrowDown", toMsg (Rearrange Lists.Down env) )
+                ]
+
+            else
+                []
+
         keys =
             if interactive then
-                View.onTriggerKeys (navigation ++ changes) (Just (\char -> toMsg (Typed side env char)))
+                View.onTriggerKeys (navigation ++ changes ++ rearranging) (Just (\char -> toMsg (Typed side env char)))
 
             else if not config.disabled then
                 View.onTriggerKeys navigation (Just (\char -> toMsg (Typed side env char)))
@@ -1805,6 +1884,11 @@ viewPane toMsg config t env data interactive side =
                 ]
             , Html.span [ Internal.cls [ "klar-transfer__title" ] ] [ Html.text title ]
             , Html.span [ Internal.cls [ "klar-transfer__count", "klar-tabular" ] ] [ Html.text count ]
+            , if side == ChosenSide && config.order == Lists.MovedOrder then
+                viewRearrange toMsg t env interactive (shownCount > 0)
+
+              else
+                Html.text ""
             ]
         , Html.div [ Internal.cls [ "klar-select__search", "klar-transfer__filter" ] ]
             [ Html.span [ Internal.cls [ "klar-select__search-icon" ] ] [ Icon.view Icon.search ]
@@ -1841,6 +1925,31 @@ viewPane toMsg config t env data interactive side =
                 Html.text ""
             ]
         , Html.div [ Internal.cls [ "klar-transfer__body" ] ] [ body ]
+        ]
+
+
+{-| The buttons that move the marked items (or the highlighted one) inside
+"Chosen", in the order of moving.
+-}
+viewRearrange : (Msg id -> msg) -> Texts -> Env id -> Bool -> Bool -> Html msg
+viewRearrange toMsg t env interactive available =
+    let
+        button icon labelText placement =
+            Button.iconOnly
+                [ Button.small
+                , Button.ghost
+                , Button.ariaDisabled (not (interactive && available))
+                , Button.onClick (toMsg (Rearrange placement env))
+                , Button.htmlAttrs [ Internal.onMouseDownPrevent (toMsg NoOp) ]
+                ]
+                icon
+                labelText
+    in
+    Html.span [ Internal.cls [ "klar-transfer__rearrange" ] ]
+        [ button Icon.chevronsUp t.moveToTop Lists.ToTop
+        , button Icon.chevronUp t.moveUp Lists.Up
+        , button Icon.chevronDown t.moveDown Lists.Down
+        , button Icon.chevronsDown t.moveToBottom Lists.ToBottom
         ]
 
 

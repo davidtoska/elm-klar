@@ -915,6 +915,86 @@ orderTests =
         , test "setValues keeps the order it is given until the lists are next worked out" <|
             \_ ->
                 Expect.equal [ 5, 1 ] (Transfer.values (Transfer.setValues ids [ 5, 1 ] field))
+        , test "reorder moves a block one place, to the top or to the bottom, and an item at the edge stays" <|
+            \_ ->
+                let
+                    chosen keys =
+                        List.map (\k -> { key = k, id = 0, label = Nothing }) keys
+
+                    order placement marked keys =
+                        Lists.reorder placement (Set.fromList marked) (chosen keys) |> List.map .key
+                in
+                Expect.equal
+                    [ [ "b", "c", "a", "d" ], [ "a", "d", "b", "c" ], [ "a", "b", "c" ], [ "c", "a", "b" ], [ "a", "b", "c" ] ]
+                    [ order Lists.Up [ "b", "c" ] [ "a", "b", "c", "d" ]
+                    , order Lists.Down [ "b", "c" ] [ "a", "b", "c", "d" ]
+                    , order Lists.Up [ "a", "b" ] [ "a", "c", "b" ]
+                    , order Lists.ToTop [ "c" ] [ "a", "b", "c" ]
+                    , order Lists.Down [ "c" ] [ "a", "b", "c" ]
+                    ]
+        , fuzz2 (Fuzz.list (Fuzz.intRange 0 9)) (Fuzz.list (Fuzz.intRange 0 9)) "reorder loses and adds nothing" <|
+            \items marks ->
+                let
+                    keys =
+                        items |> List.map String.fromInt |> Set.fromList |> Set.toList
+
+                    chosen =
+                        List.map (\k -> { key = k, id = 0, label = Nothing }) keys
+
+                    marked =
+                        Set.fromList (List.map String.fromInt marks)
+                in
+                Expect.equal [ keys, keys, keys, keys ]
+                    (List.map (\placement -> Lists.reorder placement marked chosen |> List.map .key |> List.sort)
+                        [ Lists.Up, Lists.Down, Lists.ToTop, Lists.ToBottom ]
+                    )
+        , test "in the order of moving, Alt+ArrowUp moves the highlighted item up in Chosen and says where it went" <|
+            \_ ->
+                let
+                    moved =
+                        [ Transfer.order Transfer.movedOrder ]
+
+                    there =
+                        field
+                            |> fireOn moved [ Selector.id "products-a-2" ] Event.doubleClick
+                            |> fireOn moved [ Selector.id "products-a-0" ] Event.doubleClick
+                            |> fireOn moved [ Selector.id "products-a-0" ] Event.doubleClick
+
+                    atEnd =
+                        fireOn moved [ Selector.id "products-chosen" ] (Drive.key "End") there
+
+                    up =
+                        fireOn moved [ Selector.id "products-chosen" ] (Drive.altKey "ArrowUp") atEnd
+                in
+                Expect.all
+                    [ \_ -> Expect.equal [ 3, 1, 2 ] (Transfer.values there)
+                    , \_ -> Expect.equal [ 3, 2, 1 ] (Transfer.values up)
+                    , \_ -> Expect.equal True (Drive.has [ attr "role" "status", Selector.containing [ Selector.text "Moved to place 2 of 3" ] ] (html moved up))
+                    , \_ -> Expect.equal True (Drive.has [ Selector.id "products-chosen", attr "aria-activedescendant" "products-c-1" ] (html moved up))
+                    ]
+                    ()
+        , test "the buttons of Chosen move the marked items, and only in the order of moving" <|
+            \_ ->
+                let
+                    moved =
+                        [ Transfer.order Transfer.movedOrder ]
+
+                    there =
+                        field
+                            |> fireOn moved [ Selector.id "products-a-2" ] Event.doubleClick
+                            |> fireOn moved [ Selector.id "products-a-0" ] Event.doubleClick
+                            |> fireOn moved [ Selector.id "products-a-0" ] Event.doubleClick
+                            |> fireOn moved [ Selector.id "products-c-2" ] Event.click
+
+                    top =
+                        fireOn moved [ attr "aria-label" "Move to the top" ] Event.click there
+                in
+                Expect.all
+                    [ \_ -> Expect.equal [ 2, 3, 1 ] (Transfer.values top)
+                    , \_ -> Expect.equal True (Drive.has [ attr "aria-label" "Move down" ] (html moved field))
+                    , \_ -> Expect.equal False (Drive.has [ attr "aria-label" "Move down" ] (html [] field))
+                    ]
+                    ()
         ]
 
 

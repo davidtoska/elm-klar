@@ -3,6 +3,7 @@ module Klar.Transfer.Lists exposing
     , Item
     , Order(..)
     , PaneRow
+    , Placement(..)
     , Source
     , availableRows
     , buildSource
@@ -12,6 +13,7 @@ module Klar.Transfer.Lists exposing
     , moveIn
     , normalize
     , removeFrom
+    , reorder
     , typeahead
     )
 
@@ -266,6 +268,57 @@ removeFrom source keys chosen =
             List.partition (\c -> not (Set.member c.key keys) || locked c) chosen
     in
     ( kept, List.map .key removed )
+
+
+{-| Where the user moves items inside "Chosen" (in the order of moving).
+-}
+type Placement
+    = Up
+    | Down
+    | ToTop
+    | ToBottom
+
+
+{-| Moves the chosen items with these keys: one place up or down (each item jumps
+over the one before or after it that is not moving, so a block keeps its order and
+an item at the edge stays), or to the top or the bottom. The result has the same
+items in another order: nothing is lost or added.
+-}
+reorder : Placement -> Set String -> List (Chosen id) -> List (Chosen id)
+reorder placement keys chosen =
+    let
+        ( moving, staying ) =
+            List.partition (\c -> Set.member c.key keys) chosen
+    in
+    case placement of
+        ToTop ->
+            moving ++ staying
+
+        ToBottom ->
+            staying ++ moving
+
+        Up ->
+            stepUp keys chosen []
+
+        Down ->
+            List.reverse (stepUp keys (List.reverse chosen) [])
+
+
+stepUp : Set String -> List (Chosen id) -> List (Chosen id) -> List (Chosen id)
+stepUp keys list done =
+    case list of
+        first :: second :: rest ->
+            if not (Set.member first.key keys) && Set.member second.key keys then
+                stepUp keys (first :: rest) (second :: done)
+
+            else
+                stepUp keys (second :: rest) (first :: done)
+
+        [ last ] ->
+            List.reverse (last :: done)
+
+        [] ->
+            List.reverse done
 
 
 {-| Type-ahead: the row to move to when the user has typed `buffer` since the last
