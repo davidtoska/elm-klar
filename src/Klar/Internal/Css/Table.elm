@@ -732,13 +732,6 @@ css =
   to { transform: translateX(400%); }
 }
 
-@media (prefers-reduced-motion: reduce) {
-  .klar-table__progress::after {
-    width: 100%;
-    opacity: 0.5;
-    animation: none;
-  }
-}
 
 /* ---- Footer row (totals) and footer bar --------------------------------- */
 

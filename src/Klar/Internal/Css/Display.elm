@@ -293,11 +293,6 @@ css =
   to { transform: rotate(360deg); }
 }
 
-@media (prefers-reduced-motion: reduce) {
-  .klar-progress--striped .klar-progress__bar { animation: none; }
-  .klar-progress--indeterminate .klar-progress__bar { animation-duration: 3.2s; }
-  .klar-progress--indeterminate .klar-progress__segment { --_wave: 3.2s; }
-}
 
 /* Ring: a conic-gradient arc masked into a ring, text in the middle. */
 

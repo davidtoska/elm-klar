@@ -492,12 +492,6 @@ css =
   width: 100%;
 }
 
-/* The spinner keeps turning, slower (it says "working"); the shimmering
-   placeholders hold still. */
-@media (prefers-reduced-motion: reduce) {
-  .klar-skeleton { animation: none; }
-  .klar-spinner { animation-duration: 1.6s; }
-}
 
 /* ---- Badge ----------------------------------------------------------- */
 

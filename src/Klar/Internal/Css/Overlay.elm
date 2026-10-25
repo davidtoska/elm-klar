@@ -481,15 +481,6 @@ html:has(.klar-modal-lock) {
   font-size: var(--klar-text-sm);
 }
 
-@media (prefers-reduced-motion: reduce) {
-  .klar-toast,
-  .klar-modal__backdrop,
-  .klar-modal__dialog,
-  .klar-palette__backdrop,
-  .klar-palette__panel {
-    animation: none;
-  }
-}
 
 /* ---- Popover --------------------------------------------------------- */
 
