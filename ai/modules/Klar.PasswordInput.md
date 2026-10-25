@@ -431,8 +431,11 @@ is what `strengthMeter` shows. Length counts most, as current advice (NIST SP
   - 4 strong: at least 16 characters of three kinds, 12 of all four, or 24 of
     any kind
 
-A common password inside a longer one (`password`, `qwerty`, `letmein` ... and
-the usual Norwegian ones) counts for nothing: the password is rated as if the
+A password counts as at most twice as long as its number of different
+characters, so a repeated block or one letter again and again
+(`aaaaaaaaaaaaaaab`, `abcabcabcabcabcabc`, `Aa1!Aa1!Aa1!Aa1!`) is not made strong
+by its length. A common password inside a longer one (`password`, `qwerty`,
+`letmein` ... and the usual Norwegian ones) counts for nothing: the password is rated as if the
 word were not there, and one that is mostly that word is weak. The meter has no
 locale, so the English and the Norwegian entries always count. The list is
 short, as is every other pattern the meter knows: it is a guide for the user,

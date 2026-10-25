@@ -112,7 +112,8 @@ The `String` given to `init` is the DOM id of the text input, so there is no
   - **Duplicates** (ignoring case), tags that fail `validate` and tags over
     `maxTags` are refused with a message under the field, and their text stays in
     the field (all of it, also after a paste) so that it can be corrected and
-    added with Enter.
+    added with Enter. Typing in that text does not split it again at the commas
+    it holds: Enter, leaving the field or a new comma does.
   - Leaving the field adds the text that is still being typed
     (`keepDraftOnBlur` keeps it as text instead).
   - A click anywhere in the field puts the cursor in the text input.

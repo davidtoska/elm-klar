@@ -1295,10 +1295,10 @@
         "view",
         "init",
         "update",
-        "text",
+        "value",
         "committed",
         "isPending",
-        "setText",
+        "setValue",
         "clear"
       ],
       "related": [

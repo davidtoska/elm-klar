@@ -20,12 +20,12 @@ init : String -> State
 update : Msg -> State -> ( State, Cmd Msg )
 
 -- Reading the search
-text : State -> String
+value : State -> String
 committed : State -> String
 isPending : State -> Bool
 
 -- Changing the search from the application
-setText : String -> State -> State
+setValue : String -> State -> State
 clear : State -> State
 
 -- Timing
@@ -111,11 +111,11 @@ Quick path: `init`, `update`, `view`, `committed`
         ]
         model.search
 
-**Debounce without ports.** The state holds two texts: `text`, what is in the
+**Debounce without ports.** The state holds two texts: `value`, what is in the
 field right now, and `committed`, the text the application should search for.
 Every keystroke starts a short timer (`debounce`, 300 ms) and remembers a
 counter; when the timer fires only the last keystroke is still current, and
-only then is `committed` set to `text`, without the spaces at its ends (so a
+only then is `committed` set to `value`, without the spaces at its ends (so a
 space typed at the end starts no new search). Enter commits at once, and the
 clear button (or Escape) empties and commits at once. The application starts a
 search when `committed` differs from before `update`. The timer is a `Cmd`
@@ -221,10 +221,10 @@ is dropped, typed text is never committed (Enter still commits).
 
 ## Reading the search
 
-### `text`
+### `value`
 
 ```elm
-text : State -> String
+value : State -> String
 ```
 
 What is in the field right now, including text that is not committed yet.
@@ -235,7 +235,7 @@ What is in the field right now, including text that is not committed yet.
 committed : State -> String
 ```
 
-The text to search for: `text` after the user paused (or pressed Enter),
+The text to search for: `value` after the user paused (or pressed Enter),
 without the spaces at its ends. Compare it before and after `update` to know
 when to start a search.
 
@@ -250,10 +250,10 @@ has typed something and the pause is not over yet.
 
 ## Changing the search from the application
 
-### `setText`
+### `setValue`
 
 ```elm
-setText : String -> State -> State
+setValue : String -> State -> State
 ```
 
 Puts a text in the field and commits it at once, for example a search

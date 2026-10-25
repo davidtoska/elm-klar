@@ -481,11 +481,11 @@ counterTests =
         , test "a short field is not near its limit before the user types, only at the last character or two" <|
             \_ ->
                 let
-                    near limit n =
+                    near limit n expectation =
                         TextInput.view [ TextInput.id "x", TextInput.value (textOf n), TextInput.maxLength limit ]
                             |> Query.fromHtml
                             |> Query.findAll [ Selector.class "klar-counter--near" ]
-                            |> Query.count
+                            |> Query.count expectation
                 in
                 Expect.all
                     [ \_ -> near 4 0 (Expect.equal 0)

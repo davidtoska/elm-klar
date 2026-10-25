@@ -327,8 +327,9 @@ maxLength : Int -> Attribute msg
 ```
 
 Shows a counter such as `12/500` under the field, at the end of the line
-with the hint. The counter turns amber when the limit is near (10 characters or
-a tenth of the limit left, whichever is more) and red when the text is longer,
+with the hint. The counter turns amber when the limit is near (a tenth of the
+limit left, or a fifth up to 10 characters, whichever is more: 50 of 500, 10 of
+60, 2 of 10) and red when the text is longer,
 and the field is then marked invalid (`aria-invalid`). Nothing is cut: a longer
 text that is typed or pasted stays, so check the length yourself when the form
 is sent (`Validate.maxLength`). Screen readers hear "12 of 500 characters" with

@@ -535,7 +535,9 @@ Reads an amount the way a person writes it, in a currency. It reads like
 [`NumberInput.parseIn`](Klar.NumberInput.md#parsein): `,` and `.` are both a decimal
 separator, spaces and no-break spaces are ignored, and `1.234,56` and `1,234.56` are
 both 1234.56. The language decides what a lone comma before three digits means:
-`1,234` is 1234 in English and 1.234 in Norwegian.
+`1,234` is 1234 in English and 1.234 in Norwegian; a lone point between groups of
+three digits is a thousands separator in Norwegian (`10.000` is ten thousand) and
+a decimal point in English.
 
 On top of that it takes away the code and the symbol of the currency (`NOK 1 234`,
 `1 234,50 kr`, `$100` in a field for USD), a leading `-`, `−` or `+`, parentheses for
