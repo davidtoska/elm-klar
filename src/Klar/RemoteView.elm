@@ -197,21 +197,12 @@ body attributes data toBody =
     in
     case settled of
         Remote.Loaded value ->
-            case freshness of
-                Freshness.Fresh ->
-                    toBody value
-
-                _ ->
-                    [ Html.div
-                        [ Internal.cls [ "klar-remote-body", Freshness.className freshness ]
-                        , Freshness.busyAttr freshness
-                        ]
-                        (Freshness.notice
-                            { locale = config.locale, settings = config.settings, onRetry = config.onRetry, inline = False }
-                            freshness
-                            :: toBody value
-                        )
-                    ]
+            [ Freshness.wrap
+                { locale = config.locale, settings = config.settings, onRetry = config.onRetry, inline = False }
+                [ Internal.cls [ "klar-remote-body" ] ]
+                freshness
+                (toBody value)
+            ]
 
         Remote.Failed problem ->
             [ ErrorState.view

@@ -310,7 +310,9 @@ with a problem.
 See `loadRequests` for how to find out when to fetch. A lazy node always has an
 arrow. When it is open the tree shows a spinner row while the children load, the
 problem with a retry button when they failed (`onRetry`), and "No items" when
-the list is empty.
+the list is empty. Children that are `Kept` after a failed refresh get a small
+marker on their branch, which a screen reader does not announce (a tree with many
+branches would speak once per branch): show `Alert.stale` once on the page.
 
 -}
 lazy : Ids id -> id -> String -> Remote (List (Node id)) -> Node id

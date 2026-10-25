@@ -700,20 +700,11 @@ remote attributes toRow data =
                 framed (emptyView config)
 
             else
-                case freshness of
-                    Freshness.Fresh ->
-                        list attributes (List.map toRow items)
-
-                    _ ->
-                        Html.div
-                            [ Internal.cls [ "klar-list-fresh", Freshness.className freshness ]
-                            , Freshness.busyAttr freshness
-                            ]
-                            [ Freshness.notice
-                                { locale = config.locale, settings = config.settings, onRetry = config.onRetry, inline = False }
-                                freshness
-                            , list attributes (List.map toRow items)
-                            ]
+                Freshness.wrap
+                    { locale = config.locale, settings = config.settings, onRetry = config.onRetry, inline = False }
+                    [ Internal.cls [ "klar-list-fresh" ] ]
+                    freshness
+                    [ list attributes (List.map toRow items) ]
 
         ( settled, _ ) ->
             remoteWithout config framed settled

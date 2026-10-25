@@ -2,7 +2,7 @@ module FreshnessTest exposing (suite)
 
 {-| The marker of old and refreshing data that every data component draws
 (`Klar.Internal.Freshness`): the same elements in every state, a live region that is
-always there, the reason in text, and a retry button that a popup can hold.
+always there, the reason in text, and a retry button in the Tab order.
 -}
 
 import Expect
@@ -21,7 +21,6 @@ import Time
 
 type Msg
     = Retry
-    | Keep
 
 
 config : Bool -> Freshness.Config Msg
@@ -46,9 +45,9 @@ states =
     [ ( "fresh", Fresh ), ( "refreshing", Refreshing ), ( "old", old False ), ( "old and retrying", old True ) ]
 
 
-wrapped : Freshness.Place Msg -> Bool -> Freshness -> Query.Single Msg
-wrapped place inline freshness =
-    Freshness.wrap place (config inline) [ Attr.class "klar-list-fresh" ] freshness [ Html.input [ Attr.id "row-1" ] [] ]
+wrapped : Bool -> Freshness -> Query.Single Msg
+wrapped inline freshness =
+    Freshness.wrap (config inline) [ Attr.class "klar-list-fresh" ] freshness [ Html.input [ Attr.id "row-1" ] [] ]
         |> Query.fromHtml
 
 
@@ -65,7 +64,7 @@ suite =
                 (\( name, freshness ) ->
                     test name <|
                         \_ ->
-                            wrapped Freshness.InPage False freshness
+                            wrapped False freshness
                                 |> Expect.all
                                     [ Query.has [ Selector.tag "div", Selector.class "klar-fresh", Selector.class "klar-list-fresh" ]
                                     , Query.children [] >> Query.count (Expect.equal 2)
@@ -79,32 +78,38 @@ suite =
         , describe "the live region"
             [ test "is there and silent while the data is fresh" <|
                 \_ ->
-                    wrapped Freshness.InPage False Fresh
+                    wrapped False Fresh
                         |> Query.find [ status ]
                         |> Query.has [ Selector.class "klar-sr-only", Selector.exactText "" ]
             , test "is silent while a refresh is on its way (aria-busy says it)" <|
                 \_ ->
-                    wrapped Freshness.InPage False Refreshing
+                    wrapped False Refreshing
                         |> Expect.all
                             [ Query.find [ status ] >> Query.has [ Selector.exactText "" ]
                             , Query.has [ Selector.attribute (Attr.attribute "aria-busy" "true"), Selector.class "klar-refreshing" ]
                             ]
             , test "says how old the data is and why when a refresh fails" <|
                 \_ ->
-                    wrapped Freshness.InPage False (old False)
+                    wrapped False (old False)
                         |> Query.find [ status ]
                         |> Query.has [ Selector.exactText "Old data from 14:05 UTC. Refresh failed: Can't reach the service." ]
+            , test "a title of the application that ends a sentence gets no second full stop" <|
+                \_ ->
+                    Freshness.announcement Locale.en
+                        Settings.default
+                        (Stale { problem = Remote.problem Remote.network |> Remote.withTitle "The warehouse is offline.", at = Nothing, refreshing = False })
+                        |> Expect.equal "Old data. Refresh failed: The warehouse is offline."
             , test "in Norwegian" <|
                 \_ ->
                     Freshness.announcement Locale.nb Settings.default (old False)
                         |> Expect.equal "Gamle data fra kl. 14:05 UTC. Oppdateringen feilet: Ingen kontakt med tjenesten."
             , test "an inline marker (a tile, a branch) is not a live region" <|
-                \_ -> wrapped Freshness.InPage True (old False) |> Query.hasNot [ status ]
+                \_ -> wrapped True (old False) |> Query.hasNot [ status ]
             ]
         , describe "the marker"
             [ test "says the reason in text, not only in a title" <|
                 \_ ->
-                    wrapped Freshness.InPage False (old False)
+                    wrapped False (old False)
                         |> Query.find [ Selector.class "klar-stale__reason" ]
                         |> Expect.all
                             [ Query.has [ Selector.text "Refresh failed: Can't reach the service" ]
@@ -112,21 +117,21 @@ suite =
                             ]
             , test "an inline marker keeps the reason for screen readers" <|
                 \_ ->
-                    wrapped Freshness.InPage True (old False)
+                    wrapped True (old False)
                         |> Query.find [ Selector.class "klar-stale__reason" ]
                         |> Query.has [ Selector.class "klar-sr-only", Selector.text "Can't reach the service" ]
             , test "is not drawn for fresh or refreshing data" <|
                 \_ ->
                     Expect.all
-                        [ \_ -> wrapped Freshness.InPage False Fresh |> Query.hasNot [ Selector.class "klar-stale" ]
-                        , \_ -> wrapped Freshness.InPage False Refreshing |> Query.hasNot [ Selector.class "klar-stale" ]
+                        [ \_ -> wrapped False Fresh |> Query.hasNot [ Selector.class "klar-stale" ]
+                        , \_ -> wrapped False Refreshing |> Query.hasNot [ Selector.class "klar-stale" ]
                         ]
                         ()
-            , test "notice is the same slot on its own" <|
+            , test "notice is the same slot on its own, a div (it holds the marker, a div)" <|
                 \_ ->
                     Freshness.notice (config False) Fresh
                         |> Query.fromHtml
-                        |> Expect.all [ Query.has [ Selector.class "klar-fresh__slot" ], Query.find [ status ] >> Query.has [ Selector.exactText "" ] ]
+                        |> Expect.all [ Query.has [ Selector.tag "div", Selector.class "klar-fresh__slot" ], Query.find [ status ] >> Query.has [ Selector.exactText "" ] ]
             ]
         , describe "region"
             [ test "is the root with the id, which focus can reach from a retry" <|
@@ -155,30 +160,21 @@ suite =
         , describe "the retry button"
             [ test "in the page it is in the Tab order" <|
                 \_ ->
-                    wrapped Freshness.InPage False (old False)
+                    wrapped False (old False)
                         |> Query.find [ Selector.tag "button" ]
                         |> Expect.all
                             [ Query.has [ Selector.text "Try again" ]
                             , Query.hasNot [ Selector.attribute (Attr.tabindex -1) ]
                             , Event.simulate Event.click >> Event.expect Retry
                             ]
-            , test "in a popup it is out of the Tab order and a press keeps the focus where it is" <|
-                \_ ->
-                    wrapped (Freshness.InPopup Keep) False (old False)
-                        |> Query.find [ Selector.tag "button" ]
-                        |> Expect.all
-                            [ Query.has [ Selector.attribute (Attr.tabindex -1) ]
-                            , Event.simulate Event.mouseDown >> Event.expect Keep
-                            , Event.simulate Event.click >> Event.expect Retry
-                            ]
             , test "is busy while the retry is on its way" <|
                 \_ ->
-                    wrapped Freshness.InPage False (old True)
+                    wrapped False (old True)
                         |> Query.find [ Selector.tag "button" ]
                         |> Query.has [ Selector.attribute (Attr.attribute "aria-busy" "true") ]
             , test "is not drawn for a problem that retrying cannot fix" <|
                 \_ ->
-                    Freshness.wrap Freshness.InPage
+                    Freshness.wrap
                         (config False)
                         []
                         (Stale { problem = Remote.problem Remote.forbidden, at = Nothing, refreshing = False })

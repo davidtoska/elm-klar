@@ -1,6 +1,6 @@
 module Klar.Internal.Freshness exposing
     ( Freshness(..), settle, waiting
-    , Config, Place(..), region, wrap, notice, noticeIn, announcement
+    , Config, region, wrap, notice, announcement
     , busy, busyAttr, className, text
     )
 
@@ -15,7 +15,7 @@ its freshness:
 
     case Freshness.settle remote of
         ( Remote.Loaded rows, freshness ) ->
-            Freshness.wrap Freshness.InPage
+            Freshness.wrap
                 { locale = config.locale, settings = config.settings, onRetry = config.onRetry, inline = False }
                 [ Internal.cls [ "klar-list-fresh" ] ]
                 freshness
@@ -30,8 +30,15 @@ where it is. Its first child is a slot that is always there, with a polite live
 region whose text changes when the data turns old, which a screen reader announces
 (a live region that is inserted together with its text is often not announced).
 
-A small inline marker (a tile, a branch of a tree) is not a live region: a page with
-many of them would speak once per tile. The page says it once (`Alert.stale`).
+A small inline marker (`inline = True`: a `Klar.Stat` tile, a lazy branch of
+`Klar.Tree`) is not a live region, because a page with many of them would speak once
+per tile: such a component announces nothing, and the page that shows it says it once
+with `Alert.stale`.
+
+In a popup that closes on Tab (a select, a picker), a retry button is out of reach of
+the keyboard: Tab closes the popup and the button with it. Such a popup gives the
+keyboard its own way to retry, a row of its own list that the arrow keys reach;
+the marker cannot draw that row for it.
 
 
 # Settle
@@ -41,7 +48,7 @@ many of them would speak once per tile. The page says it once (`Alert.stale`).
 
 # Draw
 
-@docs Config, Place, region, wrap, notice, noticeIn, announcement
+@docs Config, region, wrap, notice, announcement
 
 
 # Parts
@@ -131,18 +138,6 @@ type alias Config msg =
     }
 
 
-{-| Where the marker is drawn. `InPage`: its retry button is a button like any
-other. `InPopup keep`: in a popup whose keyboard focus stays in its search box or on
-its trigger (a select, a picker), and whose Tab leaves the popup. There the retry
-button is out of the Tab order (so Tab does not land on a button that is about to
-go away with the popup), and a press on it keeps the focus where it is; `keep` is
-the component's message that does nothing.
--}
-type Place msg
-    = InPage
-    | InPopup msg
-
-
 {-| The content of a component with its freshness around it: a `div` with the
 given attributes (the component's own classes go here), dimmed and `aria-busy`
 while a refresh is on its way, whose first child is the slot of the marker and
@@ -150,20 +145,24 @@ whose other children are the content. The elements are the same in every state, 
 a refresh that starts or ends keeps the content, and the focus in it. Draw it in the
 `Loaded` state whatever the freshness, not only when the data is old.
 -}
-wrap : Place msg -> Config msg -> List (Html.Attribute msg) -> Freshness -> List (Html msg) -> Html msg
-wrap place config attributes freshness content =
+wrap : Config msg -> List (Html.Attribute msg) -> Freshness -> List (Html msg) -> Html msg
+wrap config attributes freshness content =
     Html.div
         (Internal.cls [ "klar-fresh", className freshness ]
             :: busyAttr freshness
             :: attributes
         )
-        (slot place config freshness :: content)
+        (notice config freshness :: content)
 
 
 {-| The root of a component that shows remote data, the same element in every state
 (loading, failed, data): it carries the component's id and `tabindex` -1, so that
 `Klar.focus id` after a Try again, whose button goes away with the failure, lands on
-the component and not on `body`. Its first child is a polite live region that is
+the component and not on `body`. For a component that has an id and a retry that
+goes away; a component without an id uses `wrap` alone. A root with `tabindex` -1
+also takes the focus from a mouse press on a part of it that is not a control
+(without a ring: the ring of Base is for the keyboard), and a screen reader that
+lands on it reads it whole. Its first child is a polite live region that is
 always there, with the text the component gives for the state (`"Loading events"`
 while loading, `""` once the data is there), so the change is announced; a live region
 that comes in together with its text often is not. The component's own classes and
@@ -197,39 +196,14 @@ region id attributes spoken children =
         )
 
 
-{-| The marker in the page on its own, for a component that draws the box around its
-content itself: the same slot that `wrap` puts first, in every state.
+{-| The marker on its own, for a component that draws the box around its content
+itself: the same slot that `wrap` puts first. Draw it in every state of the data
+(also when it is fresh, where it is an empty live region), so the live region is
+there before its text changes.
 -}
 notice : Config msg -> Freshness -> Html msg
-notice =
-    noticeIn InPage
-
-
-{-| The marker on its own, in the page or in a popup (see `Place`).
--}
-noticeIn : Place msg -> Config msg -> Freshness -> Html msg
-noticeIn =
-    slot
-
-
-{-| What the live region of the marker says: "Old data from 14:05. Refresh failed:
-Can't reach the service." for old data, and nothing for fresh or refreshing data (a
-refresh says it with `aria-busy`). For a component that has a live region of its
-own, which should say it instead of a second one.
--}
-announcement : Locale -> Settings -> Freshness -> String
-announcement locale settings freshness =
-    case freshness of
-        Stale value ->
-            text locale settings value.at ++ ". " ++ failedText locale value.problem ++ "."
-
-        _ ->
-            ""
-
-
-slot : Place msg -> Config msg -> Freshness -> Html msg
-slot place config freshness =
-    Html.span [ Internal.cls [ "klar-fresh__slot" ] ]
+notice config freshness =
+    Html.div [ Internal.cls [ "klar-fresh__slot" ] ]
         [ if config.inline then
             Html.text ""
 
@@ -241,15 +215,46 @@ slot place config freshness =
                 [ Html.text (announcement config.locale config.settings freshness) ]
         , case freshness of
             Stale value ->
-                marker place config value
+                marker config value
 
             _ ->
                 Html.text ""
         ]
 
 
-marker : Place msg -> Config msg -> { problem : Problem, at : Maybe Time.Posix, refreshing : Bool } -> Html msg
-marker place config value =
+{-| What the live region of the marker says: "Old data from 14:05. Refresh failed:
+Can't reach the service." for old data, and nothing for fresh or refreshing data (a
+refresh says it with `aria-busy`). For a component that has a live region of its
+own, which should say it instead of a second one.
+-}
+announcement : Locale -> Settings -> Freshness -> String
+announcement locale settings freshness =
+    case freshness of
+        Stale value ->
+            sentence (text locale settings value.at) ++ " " ++ sentence (failedText locale value.problem)
+
+        _ ->
+            ""
+
+
+{-| A text that ends with a full stop, unless it ends with one already (or with
+another mark that ends a sentence, as a title the application gives may).
+-}
+sentence : String -> String
+sentence raw =
+    let
+        trimmed =
+            String.trimRight raw
+    in
+    if List.any (\mark -> String.endsWith mark trimmed) [ ".", "!", "?", "…" ] then
+        trimmed
+
+    else
+        trimmed ++ "."
+
+
+marker : Config msg -> { problem : Problem, at : Maybe Time.Posix, refreshing : Bool } -> Html msg
+marker config value =
     let
         full =
             case value.at of
@@ -292,12 +297,6 @@ marker place config value =
                         , Button.icon Icon.refresh
                         , Button.loading value.refreshing
                         , Button.onClick msg
-                        , case place of
-                            InPage ->
-                                Button.htmlAttrs []
-
-                            InPopup keep ->
-                                Button.htmlAttrs [ Attr.tabindex -1, Internal.onMouseDownPrevent keep ]
                         ]
                         (Locale.pick config.locale { nb = "Prøv igjen", en = "Try again" })
                     ]
