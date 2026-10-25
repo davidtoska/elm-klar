@@ -372,6 +372,27 @@ activeDescendantTests =
                         [ Query.find search >> Query.has [ Selector.attribute (Attr.attribute "aria-activedescendant" "country-opt-0") ]
                         , Query.has [ Selector.id "country-opt-0" ]
                         ]
+        , test "Select.open from code highlights and centres the chosen option once focus arrives" <|
+            \_ ->
+                let
+                    opened =
+                        Select.init "country" |> Select.setValue (Just "c150") |> Select.open |> Tuple.first
+                in
+                selectView [ Select.options countries ] opened
+                    |> Query.fromHtml
+                    |> Query.find search
+                    |> Event.simulate Event.focus
+                    |> Event.toResult
+                    |> Result.map
+                        (\msg ->
+                            selectView [ Select.options countries ] (selectAfter [ msg ] opened)
+                                |> Query.fromHtml
+                                |> Expect.all
+                                    [ Query.find search >> Query.has [ Selector.attribute (Attr.attribute "aria-activedescendant" "country-opt-149") ]
+                                    , Query.has [ Selector.id "country-opt-149" ]
+                                    ]
+                        )
+                    |> Result.withDefault (Expect.fail "the search box sent nothing on focus")
         , test "after the wheel scrolled the highlighted row away, it names nothing" <|
             \_ ->
                 case scrolledFar of

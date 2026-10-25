@@ -159,6 +159,7 @@ type State id
         , list : VirtualList.State
         , cache : Maybe (Popup.Cache id)
         , said : Maybe Said
+        , fromCode : Bool
         }
 
 
@@ -200,6 +201,7 @@ init id =
         , list = VirtualList.init (listboxId id)
         , cache = Nothing
         , said = Nothing
+        , fromCode = False
         }
 
 
@@ -294,7 +296,7 @@ for example from a button of your own. Map the command like the one from
 -}
 open : State id -> ( State id, Cmd (Msg id) )
 open (State state) =
-    ( State { state | open = True, query = "", searched = "", highlighted = Nothing, list = VirtualList.reset state.list }
+    ( State { state | open = True, query = "", searched = "", highlighted = Nothing, list = VirtualList.reset state.list, fromCode = True }
     , Internal.focus (searchId state.id) NoOp
     )
 
@@ -431,6 +433,7 @@ type Msg id
     | SelectAllMatched (Popup.Env id) (Maybe Int)
     | ClearAll
     | FocusSearch
+    | SearchFocused (Popup.Env id)
     | ListMsg VirtualList.Msg
     | Settle Int
     | NoOp
@@ -620,6 +623,15 @@ update msg ((State state) as current) =
               else
                 Internal.focus state.id NoOp
             )
+
+        SearchFocused env ->
+            -- A list opened from code (`open`) has not seen the options: keep
+            -- its rows now, as a click on the field does.
+            if state.open && state.fromCode then
+                ( State { state | fromCode = False, cache = Just (Popup.refresh state.cache env state.query) }, Cmd.none )
+
+            else
+                ( current, Cmd.none )
 
         FocusSearch ->
             ( current, Internal.focus (searchId state.id) NoOp )
@@ -1827,6 +1839,7 @@ viewPopup toMsg config t env (State state) =
                     else
                         Nothing
                 , onInput = QueryChanged env >> toMsg
+                , onFocus = toMsg (SearchFocused env)
                 , keys = keys
                 , loading = Remote.isLoading config.options
                 , loadingLabel = t.loading

@@ -1517,6 +1517,7 @@ viewSearch :
     , label : String
     , activeDescendant : Maybe String
     , onInput : String -> msg
+    , onFocus : msg
     , keys : Html.Attribute msg
     , loading : Bool
     , loadingLabel : String
@@ -1542,6 +1543,7 @@ viewSearch config =
             , Attr.attribute "autocomplete" "off"
             , Attr.spellcheck False
             , Events.onInput config.onInput
+            , Events.onFocus config.onFocus
             , config.keys
             ]
             []

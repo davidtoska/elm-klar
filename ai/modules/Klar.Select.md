@@ -309,8 +309,9 @@ open : State id -> ( State id, Cmd (Msg id) )
 ```
 
 Opens the list with an empty search and moves focus into its search box,
-for example from a button of your own. Map the command like the one from
-`update`.
+for example from a button of your own. When focus arrives, the list is the same as
+after a click on the field: the chosen option is highlighted and in the middle of
+the list. Map the command like the one from `update`.
 
     OpenCountry ->
         let

@@ -309,6 +309,7 @@ type State id
         , picked : Maybe (Option id)
         , list : VirtualList.State
         , cache : Maybe (Popup.Cache id)
+        , fromCode : Bool
         }
 
 
@@ -332,6 +333,7 @@ init id =
         , picked = Nothing
         , list = VirtualList.init (listboxId id)
         , cache = Nothing
+        , fromCode = False
         }
 
 
@@ -422,8 +424,9 @@ isOpen (State state) =
 
 
 {-| Opens the list with an empty search and moves focus into its search box,
-for example from a button of your own. Map the command like the one from
-`update`.
+for example from a button of your own. When focus arrives, the list is the same as
+after a click on the field: the chosen option is highlighted and in the middle of
+the list. Map the command like the one from `update`.
 
     OpenCountry ->
         let
@@ -435,7 +438,7 @@ for example from a button of your own. Map the command like the one from
 -}
 open : State id -> ( State id, Cmd (Msg id) )
 open (State state) =
-    ( State { state | open = True, query = "", searched = "", highlighted = Nothing, list = VirtualList.reset state.list }
+    ( State { state | open = True, query = "", searched = "", highlighted = Nothing, list = VirtualList.reset state.list, fromCode = True }
     , Internal.focus (searchId state.id) NoOp
     )
 
@@ -490,6 +493,7 @@ type Msg id
     | Create (Option id)
     | Clear
     | FocusSearch
+    | SearchFocused (Popup.Env id) Int
     | ListMsg VirtualList.Msg
     | Settle Int
     | NoOp
@@ -606,6 +610,17 @@ update msg ((State state) as current) =
 
         Clear ->
             ( State { state | value = Nothing, picked = Nothing }, Internal.focus state.id NoOp )
+
+        SearchFocused env rowsVisible ->
+            -- A list opened from code (`open`) has not seen the options. Now
+            -- that focus reached its search box, it does what a click on the
+            -- field does: the rows are kept, and the chosen option is
+            -- highlighted and in the middle of the list.
+            if state.open && state.fromCode && state.query == "" && state.highlighted == Nothing then
+                openWith env rowsVisible "" (State { state | open = False, fromCode = False })
+
+            else
+                ( State { state | fromCode = False }, Cmd.none )
 
         FocusSearch ->
             ( current, Internal.focus (searchId state.id) NoOp )
@@ -1520,6 +1535,7 @@ viewPopup toMsg config t env (State state) =
                     else
                         Nothing
                 , onInput = QueryChanged env >> toMsg
+                , onFocus = toMsg (SearchFocused env config.visibleRows)
                 , keys = keys
                 , loading = Remote.isLoading config.options
                 , loadingLabel = t.loading
