@@ -127,7 +127,7 @@ section locale model =
             )
         , Doc.example
             { title = "Inline, standalone, truncated and disabled"
-            , description = Just "Inline (the default) is underlined, for text. Standalone has no underline until the pointer is over it, for a cell or a list. Truncate cuts a long text with an ellipsis and keeps the whole text as the tooltip. A disabled link has no href, is not in the tab order, and is announced as unavailable; say why in a tooltip."
+            , description = Just "Inline (the default) is underlined, for text. Standalone has no underline until the pointer is over it, for a cell or a list. Truncate cuts a long text with an ellipsis and keeps the whole text as the tooltip. A disabled link has no href, stays in the tab order (so the tooltip that says why can be read from the keyboard), and is announced as unavailable."
             , code = Just looksCode
             }
             (Layout.stack [ Layout.gap 3 ]
@@ -144,6 +144,17 @@ section locale model =
                         (Link.internal "#links/long")
                         "Order 10001 for Harbor Supply, delivery to the warehouse in the north"
                     ]
+                ]
+            )
+        , Doc.example
+            { title = "A file to save"
+            , description = Just "Link.download puts a text of the application in the link (a data: address, encoded so that any character, an emoji or a line break, is safe) and the browser saves it under the file name instead of opening it. No server is asked. A button that looks like a button takes the same target: Button.href (Link.download ...)."
+            , code = Just downloadCode
+            }
+            (Layout.row [ Layout.gap 5, Layout.alignCenter, Layout.wrap ]
+                [ Link.view [ Link.icon Icon.download ]
+                    (Link.download { fileName = "orders.csv", mimeType = "text/csv", content = ordersCsv })
+                    "Download orders.csv"
                 ]
             )
         ]
@@ -250,6 +261,22 @@ case Link.external customer.website of
 Link.external "javascript:alert(1)"   -- Nothing
 Link.external "www.harbor.example"    -- Nothing: no scheme
 Link.external "HTTP://NORDIC.EXAMPLE" -- Just ...
+"""
+
+
+ordersCsv : String
+ordersCsv =
+    "id,customer,total\n10001,Harbor Supply,1240.50\n10002,Nordic Freight,88.00\n"
+
+
+downloadCode : String
+downloadCode =
+    """Link.view [ Link.icon Icon.download ]
+    (Link.download { fileName = "orders.csv", mimeType = "text/csv", content = ordersCsv })
+    "Download orders.csv"
+
+-- the same target on a button
+Button.view [ Button.icon Icon.download, Button.href (Link.download { fileName = "orders.csv", mimeType = "text/csv", content = ordersCsv }) ] "Export"
 """
 
 

@@ -451,15 +451,6 @@ css =
    Tooltip.wrap the wrap's own tip is the only one. */
 .klar-tip-wrap .klar-button--icon-only[data-tip]::after { display: none; }
 
-/* The keyboard shortcut of a button, after its label. */
-.klar-button__keys { display: inline-flex; margin-inline-start: var(--klar-space-1); }
-.klar-button--primary .klar-button__keys .klar-kbd,
-.klar-button--danger .klar-button__keys .klar-kbd {
-  border-color: color-mix(in srgb, var(--klar-white) 35%, transparent);
-  background: color-mix(in srgb, var(--klar-white) 16%, transparent);
-  color: inherit;
-}
-
 /* Windows high contrast replaces the colors of a button: focus, "on" and
    "unavailable" must not depend on a box-shadow, a background or an opacity. The
    frame of a toggle that is on is drawn inside the button (the outline is the

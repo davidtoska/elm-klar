@@ -121,7 +121,7 @@ update msg model =
 buttonGroupSection : Locale -> Model -> Html Msg
 buttonGroupSection _ model =
     Doc.section "Button group"
-        "Buttons that belong together, joined into one block with shared borders and only the outer corners rounded. The children are ordinary Button.view buttons, so nothing about them changes; the group adds the shape and a name for screen readers. It never wraps."
+        "Buttons that belong together, joined into one block with shared borders and only the outer corners rounded. The children are ordinary Button.view buttons, so nothing about them changes; the group adds the shape and a name for screen readers. It never wraps. ButtonGroup.disabled turns the whole group off (inert) for a group the user is not on; for one that turns off while the user may be on it, give each button Button.ariaDisabled, which keeps the focus."
         [ Doc.example
             { title = "Joined actions"
             , description = Just (lastText model.last)
@@ -310,7 +310,7 @@ toggleGroupSection _ model =
             String.fromInt (ordersWith (\s -> List.member s model.statuses)) ++ " of " ++ String.fromInt (List.length Sample.orders) ++ " orders"
     in
     Doc.section "Toggle group"
-        "A row of toggle buttons for choices that can be on or off. A group is either multiple (any number on) or single (none or one on; clicking the one that is on turns it off). Exactly one of a few views is a Klar.SegmentedControl. The ids are your own types, the label is required, and the message carries the whole new selection."
+        "A row of toggle buttons for choices that can be on or off. A group is either multiple (any number on) or single (none or one on; clicking the one that is on turns it off). Exactly one of a few views is a Klar.SegmentedControl. The ids are your own types, the name is ToggleGroup.label (with required and optionalText, as on the other fields), and the message carries the whole new selection. A disabled group or option stays in the tab order (aria-disabled), so an option that is turned off while the user is on it keeps the focus."
         [ Doc.example
             { title = "Many at once"
             , description = Just ("Selected: " ++ listOf styleName model.styles ++ ". Each button is a toggle button (aria-pressed). Tab moves between them, Space or Enter toggles. The icons need a text, which is the accessible name and the tooltip.")
@@ -340,12 +340,13 @@ toggleGroupSection _ model =
             )
         , Doc.example
             { title = "Days of the week: full width, hint and error"
-            , description = Just ("Selected: " ++ listOf weekdayName model.days ++ ". With no day selected the group shows an error, joined to it for screen readers. The list is always in the order of the buttons, whatever the order of the clicks.")
+            , description = Just ("Selected: " ++ listOf weekdayName model.days ++ ". The group is required (the mark after its label); with no day selected it shows an error, joined to it for screen readers. The list is always in the order of the buttons, whatever the order of the clicks.")
             , code = Just daysCode
             }
             (Layout.container [ Layout.maxWidth 520, Layout.alignStart ]
                 [ ToggleGroup.multiple
                     [ ToggleGroup.label "Shipping days"
+                    , ToggleGroup.required
                     , ToggleGroup.fullWidth
                     , ToggleGroup.hint "The days a shipment can leave the warehouse."
                     , ToggleGroup.errorMaybe
@@ -488,7 +489,9 @@ statusesCode =
 daysCode : String
 daysCode =
     """ToggleGroup.multiple
-    [ ToggleGroup.label "Shipping days", ToggleGroup.fullWidth
+    [ ToggleGroup.label "Shipping days"
+    , ToggleGroup.required
+    , ToggleGroup.fullWidth
     , ToggleGroup.hint "The days a shipment can leave the warehouse."
     , ToggleGroup.errorMaybe
         (if List.isEmpty model.days then
