@@ -2544,6 +2544,7 @@
       "stateful": true,
       "quickPath": [
         "init",
+        "setToday",
         "update",
         "view",
         "value"

@@ -47,6 +47,7 @@ type alias Inner =
     , cursor : Int
     , selection : Selection
     , hover : Maybe Date
+    , today : Maybe Date
     }
 
 
@@ -113,6 +114,7 @@ blank id selection =
         , cursor = 1
         , selection = selection
         , hover = Nothing
+        , today = Nothing
         }
 
 
@@ -166,14 +168,43 @@ anchor (State s) =
             Nothing
 
 
+setToday : Date -> State -> State
+setToday day (State s) =
+    State { s | today = Just day }
+
+
+{-| Where an untouched calendar starts, as far as the state knows: the month of
+today (`setToday`), or January 2000 without it. The view also moves it inside
+`min` and `max` (see `effective`), which the state does not know.
+-}
+started : Inner -> Inner
+started s =
+    if s.positioned then
+        s
+
+    else
+        let
+            day =
+                Util.clampTo (Just lowest) (Just highest) (Maybe.withDefault fallbackDate s.today)
+        in
+        { s | year = Date.year day, month = Date.month day, focus = day }
+
+
 visibleMonth : State -> { year : Int, month : Int }
-visibleMonth (State s) =
+visibleMonth (State raw) =
+    let
+        s =
+            started raw
+    in
     { year = s.year, month = s.month }
 
 
 visibleRange : State -> { from : Date, to : Date }
-visibleRange (State s) =
+visibleRange (State raw) =
     let
+        s =
+            started raw
+
         ( lastYear, lastMonth ) =
             Util.addMonthsTo (s.months - 1) ( s.year, s.month )
     in
@@ -184,7 +215,7 @@ visibleRange (State s) =
 
 focusedDay : State -> Date
 focusedDay (State s) =
-    s.focus
+    (started s).focus
 
 
 setValue : Maybe Date -> State -> State
@@ -250,8 +281,11 @@ showDate day (State s) =
 
 
 showMonth : Int -> Int -> State -> State
-showMonth year month (State s) =
+showMonth year month (State raw) =
     let
+        s =
+            started raw
+
         day =
             Basics.min (Date.day s.focus) (Date.daysInMonth year month)
     in
@@ -291,7 +325,7 @@ backInner s =
 
 focus : State -> Cmd Msg
 focus (State s) =
-    Internal.focus (focusTarget s) Noop
+    Internal.focus (focusTarget (started s)) Noop
 
 
 focusTarget : Inner -> String
@@ -760,6 +794,10 @@ silent =
     Attribute (\config -> { config | announce = False })
 
 
+{-| Today for a component that wraps a calendar and takes today as an attribute
+of its own (Klar.DatePicker, Klar.DateRangePicker): it wins over the `setToday`
+of the state. An application gives today with `setToday`.
+-}
 today : Date -> Attribute msg
 today day =
     Attribute (\config -> { config | today = Just day })
@@ -977,7 +1015,6 @@ type alias Ctx msg =
     , text : Strings
     , marks : Dict Int (List Marker)
     , span : Maybe Span
-    , busy : Bool
     }
 
 
@@ -997,9 +1034,20 @@ view toMsg attributes (State raw) =
         edges =
             limits given.min given.max
 
-        -- Every check below sees the limits with 0001-01-01 and 9999-12-31 in them.
+        -- Every check below sees the limits with 0001-01-01 and 9999-12-31 in
+        -- them, and today from the state unless a wrapping component gives it.
         config =
-            { given | min = Just edges.min, max = Just edges.max }
+            { given
+                | min = Just edges.min
+                , max = Just edges.max
+                , today =
+                    case given.today of
+                        Just _ ->
+                            given.today
+
+                        Nothing ->
+                            raw.today
+            }
 
         s =
             effective config raw
@@ -1017,7 +1065,6 @@ view toMsg attributes (State raw) =
             , text = strings config.locale
             , marks = markerIndex (visibleMarkers (Remote.withDefault [] config.marks) s)
             , span = selectionSpan s
-            , busy = Freshness.waiting config.marks || Freshness.busy config.freshness
             }
     in
     Html.div
@@ -1484,7 +1531,6 @@ viewGrid ctx year month titleId =
         , Attr.attribute "role" "grid"
         , Attr.attribute "aria-labelledby" titleId
         , Internal.attrIf isRange (Attr.attribute "aria-multiselectable" "true")
-        , Internal.attrIf ctx.busy (Attr.attribute "aria-busy" "true")
         , Popup.onKeys (dayKeys ctx)
         , if choosing then
             Events.onMouseLeave (ctx.toMsg (Hover Nothing))
@@ -1863,7 +1909,7 @@ viewMonths ctx year =
                 ]
                 [ Html.text (capitalize (Locale.monthLong config.locale m)) ]
     in
-    Html.div [ Internal.cls [ "klar-calendar__panel" ] ]
+    Html.div [ Internal.cls [ "klar-calendar__panel" ], Popup.onKeys [ ( "Escape", ctx.toMsg Back ) ] ]
         [ Html.div [ Internal.cls [ "klar-calendar__header" ] ]
             [ navButton
                 { id = s.id ++ "-prev"
@@ -1897,7 +1943,6 @@ viewMonths ctx year =
                 , ( "ArrowDown", ctx.toMsg (PanelStep 3) )
                 , ( "Home", ctx.toMsg (PanelEdge False) )
                 , ( "End", ctx.toMsg (PanelEdge True) )
-                , ( "Escape", ctx.toMsg Back )
                 ]
             ]
             (List.map pick (List.range 1 12))
@@ -1995,7 +2040,7 @@ viewYears ctx start =
                 ]
                 [ Html.text (String.fromInt y) ]
     in
-    Html.div [ Internal.cls [ "klar-calendar__panel" ] ]
+    Html.div [ Internal.cls [ "klar-calendar__panel" ], Popup.onKeys [ ( "Escape", ctx.toMsg Back ) ] ]
         [ Html.div [ Internal.cls [ "klar-calendar__header" ] ]
             [ navButton
                 { id = s.id ++ "-prev"
@@ -2031,7 +2076,6 @@ viewYears ctx start =
                 , ( "End", ctx.toMsg (PanelEdge True) )
                 , ( "PageUp", ctx.toMsg (PanelStep -pageSize) )
                 , ( "PageDown", ctx.toMsg (PanelStep pageSize) )
-                , ( "Escape", ctx.toMsg Back )
                 ]
             ]
             (List.map pick (List.range start (Basics.min (Date.year highest) (start + pageSize - 1))))

@@ -22,12 +22,14 @@ import Test exposing (Test, describe, test)
 import Test.Html.Event as Event
 import Test.Html.Query as Query
 import Test.Html.Selector as Selector
+import Time
 
 
 suite : Test
 suite =
     describe "Klar.Calendar"
         [ keyboardTests
+        , todayTests
         , pickTests
         , chooserTests
         , limitTests
@@ -118,12 +120,13 @@ press key shift attributes state =
         |> Result.andThen (step state)
 
 
-{-| A key press on the month or year chooser.
+{-| A key press on the month or year chooser: the panel holds the Escape of
+its heading buttons and its picks (a key the picks do not handle bubbles up).
 -}
 pressChooser : String -> Attrs -> Calendar.State -> Result String Calendar.State
 pressChooser key attributes state =
     render attributes state
-        |> Query.find [ Selector.class "klar-calendar__picks" ]
+        |> Query.find [ Selector.class "klar-calendar__panel" ]
         |> Event.simulate (keydown key False)
         |> Event.toResult
         |> Result.andThen (step state)
@@ -139,9 +142,11 @@ steps list state =
     List.foldl (\next result -> Result.andThen next result) (Ok state) list
 
 
+{-| An untouched calendar that knows today, as an application starts one.
+-}
 start : Calendar.State
 start =
-    Calendar.init "c" |> Calendar.showDate today
+    Calendar.init "c" |> Calendar.setToday today
 
 
 iso : Date -> String
@@ -157,7 +162,7 @@ keyboardTests : Test
 keyboardTests =
     let
         attributes =
-            [ Calendar.today today ]
+            []
 
         focusAfter keys =
             steps (List.map (\( key, shift ) -> press key shift attributes) keys) start
@@ -185,6 +190,64 @@ keyboardTests =
                 steps (List.repeat 5 (press "ArrowRight" False [ Calendar.max (date 2026 10 22) ])) start
                     |> Result.map (Calendar.focusedDay >> iso)
                     |> Expect.equal (Ok "2026-10-22")
+        ]
+
+
+
+-- TODAY
+
+
+todayTests : Test
+todayTests =
+    let
+        title state =
+            render [] state |> Query.find [ Selector.id "c-title-0" ]
+    in
+    describe "today in the state"
+        [ test "an untouched calendar shows the month of today, and the accessors say the same" <|
+            \_ ->
+                Expect.all
+                    [ \_ -> title start |> Query.has [ Selector.text "October\u{00A0}2026" ]
+                    , \_ -> Calendar.visibleMonth start |> Expect.equal { year = 2026, month = 10 }
+                    , \_ -> Calendar.visibleRange start |> Expect.equal { from = date 2026 10 1, to = date 2026 10 31 }
+                    , \_ -> Calendar.focusedDay start |> Expect.equal today
+                    , \_ -> render [] start |> Query.find [ Selector.id "c-d-2026-10-20" ] |> Query.has [ Selector.attribute (Html.Attributes.tabindex 0) ]
+                    ]
+                    ()
+        , test "without today both say January 2000" <|
+            \_ ->
+                Expect.all
+                    [ \_ -> title (Calendar.init "c") |> Query.has [ Selector.text "January\u{00A0}2000" ]
+                    , \_ -> Calendar.visibleMonth (Calendar.init "c") |> Expect.equal { year = 2000, month = 1 }
+                    ]
+                    ()
+        , test "today is marked" <|
+            \_ ->
+                render [] start
+                    |> Query.find [ Selector.id "c-d-2026-10-20" ]
+                    |> Query.has [ Selector.attribute (attr "aria-current" "date"), Selector.class "klar-calendar__day--today" ]
+        , test "setToday does not move a calendar that shows another month" <|
+            \_ ->
+                Calendar.init "c"
+                    |> Calendar.showDate (date 2027 3 5)
+                    |> Calendar.setToday today
+                    |> Calendar.visibleMonth
+                    |> Expect.equal { year = 2027, month = 3 }
+        , test "the first key press starts from today" <|
+            \_ ->
+                press "ArrowRight" False [] start
+                    |> Result.map (Calendar.focusedDay >> iso)
+                    |> Expect.equal (Ok "2026-10-21")
+        , test "the Today button takes the calendar back to the month of today" <|
+            \_ ->
+                steps [ press "PageDown" False [ Calendar.todayButton ], send Event.click "c-today" [ Calendar.todayButton ] ] start
+                    |> Result.map Calendar.visibleMonth
+                    |> Expect.equal (Ok { year = 2026, month = 10 })
+        , test "with min after today the view starts inside the limits" <|
+            \_ ->
+                render [ Calendar.min (date 2027 1 10) ] start
+                    |> Query.find [ Selector.id "c-title-0" ]
+                    |> Query.has [ Selector.text "January\u{00A0}2027" ]
         ]
 
 
@@ -246,6 +309,20 @@ chooserTests =
                 steps [ send Event.click "c-title-0" [], send Event.click "c-title-0" [], pressChooser "Escape" [] ] start
                     |> Result.map (\state -> render [] state |> Query.findAll [ Selector.class "klar-calendar__picks--months" ] |> Query.count (Expect.equal 1))
                     |> Result.withDefault (Expect.fail "no message")
+        , test "the heading buttons of a chooser are inside the panel that takes Escape" <|
+            \_ ->
+                steps [ send Event.click "c-title-0" [] ] start
+                    |> Result.map
+                        (\state ->
+                            render [] state
+                                |> Query.find [ Selector.class "klar-calendar__panel" ]
+                                |> Expect.all
+                                    [ Query.has [ Selector.id "c-prev" ]
+                                    , Query.has [ Selector.id "c-next" ]
+                                    , Query.has [ Selector.id "c-title-0" ]
+                                    ]
+                        )
+                    |> Result.withDefault (Expect.fail "no message")
         , test "the years come in pages of twenty that start at 1, 21 ... 2021" <|
             \_ ->
                 steps [ send Event.click "c-title-0" [], send Event.click "c-title-0" [] ] start
@@ -274,8 +351,8 @@ chooserTests =
                     |> Result.withDefault (Expect.fail "no message")
         , test "today's month is aria-current in the month chooser" <|
             \_ ->
-                steps [ send Event.click "c-title-0" [ Calendar.today today ] ] start
-                    |> Result.map (\state -> render [ Calendar.today today ] state |> Query.find [ Selector.id "c-m-10" ] |> Query.has [ Selector.attribute (attr "aria-current" "date") ])
+                steps [ send Event.click "c-title-0" [] ] start
+                    |> Result.map (\state -> render [] state |> Query.find [ Selector.id "c-m-10" ] |> Query.has [ Selector.attribute (attr "aria-current" "date") ])
                     |> Result.withDefault (Expect.fail "no message")
         ]
 
@@ -410,11 +487,11 @@ remoteTests =
                 render [ Calendar.markers marks ] start
                     |> Query.findAll [ Selector.id "c-marks" ]
                     |> Query.count (Expect.equal 0)
-        , test "loading: the grid is busy and the line says so" <|
+        , test "loading: the line says so, politely, and the grid is not held back as busy" <|
             \_ ->
                 Expect.all
-                    [ \_ -> render [ Calendar.remote Remote.Loading ] start |> Query.find [ Selector.class "klar-calendar__grid" ] |> Query.has [ Selector.attribute (attr "aria-busy" "true") ]
-                    , \_ -> status [ Calendar.remote Remote.Loading ] |> Query.has [ Selector.text "Loading" ]
+                    [ \_ -> render [ Calendar.remote Remote.Loading ] start |> Query.findAll [ Selector.attribute (attr "aria-busy" "true") ] |> Query.count (Expect.equal 0)
+                    , \_ -> status [ Calendar.remote Remote.Loading ] |> Query.has [ Selector.text "Loading", Selector.attribute (attr "aria-live" "polite") ]
                     ]
                     ()
         , test "loaded: the marks are drawn and nothing is busy" <|
@@ -441,19 +518,54 @@ remoteTests =
                 status [ Calendar.remote (Remote.Failed (Remote.problem Remote.network)) ]
                     |> Query.findAll [ Selector.id "c-retry" ]
                     |> Query.count (Expect.equal 0)
-        , test "refreshing: the marks stay, dimmed, and the grid is busy" <|
+        , test "refreshing: the marks stay, dimmed, and nothing is held back as busy" <|
             \_ ->
                 render [ Calendar.remote (Remote.refresh (Remote.Loaded marks)) ] start
                     |> Expect.all
                         [ Query.has [ Selector.class "klar-calendar--refreshing" ]
                         , Query.find [ Selector.id "c-d-2026-10-22" ] >> Query.has [ Selector.class "klar-calendar__dot" ]
-                        , Query.findAll [ Selector.attribute (attr "aria-busy" "true") ] >> Query.count (Expect.equal 1)
+                        , Query.findAll [ Selector.attribute (attr "aria-busy" "true") ] >> Query.count (Expect.equal 0)
                         ]
-        , test "the day buttons are the same in every state, so the focus survives" <|
+        , test "old marks after a failed refresh: the notice with a retry, and the dots stay" <|
             \_ ->
-                List.map
-                    (\data -> render [ Calendar.remote data ] start |> Query.findAll [ Selector.id "c-d-2026-10-22" ] |> Query.count (Expect.equal 1))
-                    [ Remote.Loading, Remote.Loaded marks, Remote.refresh (Remote.Loaded marks), Remote.Failed (Remote.problem Remote.network) ]
-                    |> List.map always
+                let
+                    stale =
+                        Remote.refreshWith (Remote.Loaded marks) (Err (Remote.problem Remote.network)) (Time.millisToPosix 0)
+
+                    attributes =
+                        [ Calendar.remote stale, Calendar.onRetry Retry ]
+                in
+                Expect.all
+                    [ \_ -> status attributes |> Query.findAll [ Selector.class "klar-stale" ] |> Query.count (Expect.equal 1)
+                    , \_ -> status attributes |> Query.has [ Selector.text "Old data" ]
+                    , \_ -> status attributes |> Query.find [ Selector.tag "button" ] |> Event.simulate Event.click |> Event.expect Retry
+                    , \_ -> render attributes start |> Query.find [ Selector.id "c-d-2026-10-22" ] |> Query.has [ Selector.class "klar-calendar__dot" ]
+                    ]
+                    ()
+        , test "the same elements around the days in every state, so the focus survives" <|
+            \_ ->
+                [ Remote.NotAsked
+                , Remote.Loading
+                , Remote.Loaded marks
+                , Remote.refresh (Remote.Loaded marks)
+                , Remote.Failed (Remote.problem Remote.network)
+                , Remote.refreshWith (Remote.Loaded marks) (Err (Remote.problem Remote.network)) (Time.millisToPosix 0)
+                ]
+                    |> List.map
+                        (\data ->
+                            let
+                                view =
+                                    render [ Calendar.remote data, Calendar.onRetry Retry ] start
+                            in
+                            \_ ->
+                                Expect.all
+                                    [ \_ -> view |> Query.findAll [ Selector.class "klar-calendar__grid" ] |> Query.count (Expect.equal 1)
+                                    , \_ -> view |> Query.findAll [ Selector.class "klar-calendar__day" ] |> Query.count (Expect.equal 42)
+                                    , \_ -> view |> Query.find [ Selector.class "klar-calendar__body" ] |> Query.children [ Selector.class "klar-calendar__months" ] |> Query.count (Expect.equal 1)
+                                    , \_ -> view |> Query.findAll [ Selector.id "c-marks" ] |> Query.count (Expect.equal 1)
+                                    , \_ -> view |> Query.find [ Selector.id "c-d-2026-10-20" ] |> Query.has [ Selector.attribute (Html.Attributes.tabindex 0) ]
+                                    ]
+                                    ()
+                        )
                     |> (\checks -> Expect.all checks ())
         ]

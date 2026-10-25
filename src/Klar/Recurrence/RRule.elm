@@ -1,4 +1,4 @@
-module Klar.Recurrence.RRule exposing (fromText, toText, withStart)
+module Klar.Recurrence.RRule exposing (fromText, fromTextFrom, toText, withStart)
 
 {-| Reading and writing the value of an iCalendar RRULE (RFC 5545, section
 3.3.10) for the rules `Klar.Recurrence` can express.
@@ -166,16 +166,30 @@ dayCode weekday =
 -- READING
 
 
-{-| Fills in the parts that RFC 5545 (3.3.10) takes from `DTSTART` when a rule
-leaves them out, so that the rule says its days itself: the weekday of a weekly
-rule, the day of the month of a monthly rule, and the month and day of a yearly
-rule (`FREQ=YEARLY` alone is how many calendars write "every year on this
-day"). A part that is there is never touched, and a yearly rule with a day but
-no month stays as it is (it means every month), for `fromText` to name. A text
-of several lines is left alone too.
+{-| Reads the value of an RRULE of a series that starts on a date: the parts the
+rule leaves out are taken from the start (see `withStart`), and a problem that
+comes from such a part says so (`StartDayNotInMonth` for `FREQ=YEARLY;BYMONTH=2`
+from a start on the 30th) instead of naming a part the text does not have.
 -}
-withStart : Date.Date -> String -> String
-withStart start text =
+fromTextFrom : Date.Date -> String -> Result Problem Spec
+fromTextFrom start text =
+    case fromText (withStart start text) of
+        Err (NoSuchDate month day) ->
+            if List.member "BYMONTHDAY" (partNames text) then
+                Err (NoSuchDate month day)
+
+            else
+                Err (StartDayNotInMonth month day)
+
+        result ->
+            result
+
+
+{-| The parts of the text of a rule as they come (without `RRULE:`), and the
+names of those parts in upper case.
+-}
+givenParts : String -> List String
+givenParts text =
     let
         trimmed =
             String.trim text
@@ -186,14 +200,40 @@ withStart start text =
 
             else
                 trimmed
+    in
+    String.split ";" body
+        |> List.map String.trim
+        |> List.filter (\part -> part /= "")
+
+
+partNames : String -> List String
+partNames text =
+    List.map keyOf (givenParts text)
+
+
+keyOf : String -> String
+keyOf part =
+    String.split "=" part |> List.head |> Maybe.withDefault part |> String.trim |> String.toUpper
+
+
+{-| Fills in the parts that RFC 5545 (3.3.10) takes from `DTSTART` when a rule
+leaves them out, so that the rule says its days itself: the weekday of a weekly
+rule, the day of the month of a monthly rule, and the month and day of a yearly
+rule (`FREQ=YEARLY` alone is how many calendars write "every year on this
+day"). A part that is there is never touched, and a yearly rule with a day but
+no month stays as it is (it means every month), for `fromText` to name. A text
+of several lines is left alone, and so is a rule with `BYSETPOS`, which picks
+from the days the rule itself names: its problem then names a part the text
+has, not one taken from the start.
+-}
+withStart : Date.Date -> String -> String
+withStart start text =
+    let
+        trimmed =
+            String.trim text
 
         given =
-            String.split ";" body
-                |> List.map String.trim
-                |> List.filter (\part -> part /= "")
-
-        keyOf part =
-            String.split "=" part |> List.head |> Maybe.withDefault part |> String.trim |> String.toUpper
+            givenParts text
 
         has name =
             List.any (\part -> keyOf part == name) given
@@ -239,7 +279,7 @@ withStart start text =
                 _ ->
                     []
     in
-    if List.isEmpty extra || String.contains "\n" trimmed then
+    if List.isEmpty extra || String.contains "\n" trimmed || has "BYSETPOS" then
         text
 
     else
@@ -363,7 +403,7 @@ frequencyOf : Dict String String -> Result Problem Frequency
 frequencyOf found =
     case Dict.get "FREQ" found of
         Nothing ->
-            Err (MissingPart "FREQ")
+            Err (MissingPart [ "FREQ" ])
 
         Just raw ->
             case String.toUpper raw of
@@ -410,7 +450,7 @@ endOf : Dict String String -> Result Problem End
 endOf found =
     case ( Dict.get "COUNT" found, Dict.get "UNTIL" found ) of
         ( Just _, Just _ ) ->
-            Err (Conflict "COUNT and UNTIL")
+            Err (Conflict "COUNT" "UNTIL")
 
         ( Just raw, Nothing ) ->
             case digits raw of
@@ -552,7 +592,7 @@ weeklyPattern : String -> Maybe String -> Result Problem Pattern
 weeklyPattern context byDay =
     case byDay of
         Nothing ->
-            Err (MissingPart "BYDAY")
+            Err (MissingPart [ "BYDAY" ])
 
         Just raw ->
             dayTokens raw
@@ -574,7 +614,7 @@ monthlyPattern byDay byMonthDay bySetPos =
             Err (Unsupported "BYMONTHDAY" (With "BYDAY"))
 
         ( Nothing, Nothing ) ->
-            Err (MissingPart "BYMONTHDAY or BYDAY")
+            Err (MissingPart [ "BYMONTHDAY", "BYDAY" ])
 
         ( Just raw, Nothing ) ->
             nthWeekdayOf "FREQ=MONTHLY" bySetPos raw
@@ -589,7 +629,7 @@ yearlyPattern : Maybe String -> Maybe String -> Maybe String -> Maybe String -> 
 yearlyPattern byMonth byDay byMonthDay bySetPos =
     case byMonth of
         Nothing ->
-            Err (MissingPart "BYMONTH")
+            Err (MissingPart [ "BYMONTH" ])
 
         Just rawMonth ->
             monthOf rawMonth
@@ -600,7 +640,7 @@ yearlyPattern byMonth byDay byMonthDay bySetPos =
                                 Err (Unsupported "BYMONTHDAY" (With "BYDAY"))
 
                             ( Nothing, Nothing ) ->
-                                Err (MissingPart "BYMONTHDAY or BYDAY")
+                                Err (MissingPart [ "BYMONTHDAY", "BYDAY" ])
 
                             ( Just raw, Nothing ) ->
                                 nthWeekdayOf "FREQ=YEARLY" bySetPos raw

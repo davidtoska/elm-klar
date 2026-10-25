@@ -866,7 +866,7 @@ fits the type of the calendar's attributes whatever their type parameters are.
 -}
 calendarAttributes config =
     List.filterMap identity
-        [ Maybe.map Calendar.today config.today
+        [ Maybe.map CalendarCore.today config.today
         , Maybe.map Calendar.min config.min
         , Maybe.map Calendar.max config.max
         , Just (Calendar.disabledWhen config.disabledWhen)

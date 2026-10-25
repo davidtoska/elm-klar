@@ -541,25 +541,29 @@ problemText locale problem =
                 , en = "The text is empty."
                 }
 
-        MissingPart name ->
+        MissingPart names ->
+            let
+                parts =
+                    String.join (Locale.pick locale { nb = " eller ", en = " or " }) names
+            in
             Locale.pick locale
                 { nb =
-                    name
+                    parts
                         ++ " mangler."
-                        ++ (if name == "FREQ" then
-                                ""
+                        ++ (if names == [ "BYMONTH" ] then
+                                " En årlig regel trenger måneden sin; for en dag i hver måned, skriv FREQ=MONTHLY."
 
                             else
-                                " En regel kjenner ikke startdatoen, så den må stå i teksten."
+                                ""
                            )
                 , en =
-                    name
+                    parts
                         ++ " is missing."
-                        ++ (if name == "FREQ" then
-                                ""
+                        ++ (if names == [ "BYMONTH" ] then
+                                " A yearly rule needs its month; for a day in every month, write FREQ=MONTHLY."
 
                             else
-                                " A rule does not know its start date, so it has to be in the text."
+                                ""
                            )
                 }
 
@@ -578,10 +582,16 @@ problemText locale problem =
         Unsupported part reason ->
             unsupportedText locale part reason
 
-        Conflict what ->
+        Conflict first second ->
             Locale.pick locale
-                { nb = what ++ " kan ikke brukes sammen."
-                , en = what ++ " cannot be used together."
+                { nb = first ++ " og " ++ second ++ " kan ikke brukes sammen."
+                , en = first ++ " and " ++ second ++ " cannot be used together."
+                }
+
+        StartDayNotInMonth month day ->
+            Locale.pick locale
+                { nb = "Regelen tar dagen fra startdatoen, og " ++ String.fromInt day ++ ". " ++ Locale.monthName locale month ++ " finnes ikke. Gi dagen med BYMONTHDAY."
+                , en = "The rule takes its day from the start date, and " ++ String.fromInt day ++ " " ++ Locale.monthName locale month ++ " does not exist. Give the day with BYMONTHDAY."
                 }
 
 

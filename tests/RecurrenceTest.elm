@@ -596,16 +596,16 @@ rruleRejects =
         , rejects "FREQ=HOURLY" (Unsupported "FREQ=HOURLY" Plain)
         , rejects "FREQ=SECONDLY;INTERVAL=5" (Unsupported "FREQ=SECONDLY" Plain)
         , rejects "FREQ=FORTNIGHTLY" (CannotRead "FREQ=FORTNIGHTLY")
-        , rejects "INTERVAL=2" (MissingPart "FREQ")
-        , rejects "FREQ=WEEKLY" (MissingPart "BYDAY")
-        , rejects "FREQ=MONTHLY" (MissingPart "BYMONTHDAY or BYDAY")
-        , rejects "FREQ=YEARLY" (MissingPart "BYMONTH")
-        , rejects "FREQ=YEARLY;BYMONTH=10" (MissingPart "BYMONTHDAY or BYDAY")
+        , rejects "INTERVAL=2" (MissingPart [ "FREQ" ])
+        , rejects "FREQ=WEEKLY" (MissingPart [ "BYDAY" ])
+        , rejects "FREQ=MONTHLY" (MissingPart [ "BYMONTHDAY", "BYDAY" ])
+        , rejects "FREQ=YEARLY" (MissingPart [ "BYMONTH" ])
+        , rejects "FREQ=YEARLY;BYMONTH=10" (MissingPart [ "BYMONTHDAY", "BYDAY" ])
         , rejects "FREQ=DAILY;INTERVAL=0" (IntervalTooSmall 0)
         , rejects "FREQ=DAILY;INTERVAL=-2" (CannotRead "INTERVAL=-2")
         , rejects "FREQ=DAILY;INTERVAL=x" (CannotRead "INTERVAL=x")
         , rejects "FREQ=DAILY;COUNT=0" (CountTooSmall 0)
-        , rejects "FREQ=DAILY;COUNT=3;UNTIL=20271231" (Conflict "COUNT and UNTIL")
+        , rejects "FREQ=DAILY;COUNT=3;UNTIL=20271231" (Conflict "COUNT" "UNTIL")
         , rejects "FREQ=DAILY;UNTIL=20271231T235959Z" (Unsupported "UNTIL=20271231T235959Z" UntilWithTime)
         , rejects "FREQ=DAILY;UNTIL=20271331" (CannotRead "UNTIL=20271331")
         , rejects "FREQ=DAILY;UNTIL=2027" (CannotRead "UNTIL=2027")
@@ -953,16 +953,23 @@ words =
                 , "FREQ=YEARLY;BYMONTH=1,2;BYMONTHDAY=1"
                 , "FREQ=DAILY\nCOUNT=3"
                 , "DTSTART:20261020T090000Z"
+                , "FREQ=DAILY;COUNT=3;UNTIL=20271231"
+                , "FREQ=MONTHLY;BYSETPOS=-1"
+                , "FREQ=YEARLY;BYMONTHDAY=15"
+                , "FREQ=YEARLY;BYMONTH=2;BYMONTHDAY=30"
+                , "FREQ=YEARLY;BYMONTH=2"
+                , "INTERVAL=2"
                 ]
                     |> List.filterMap
                         (\given ->
-                            case Recurrence.fromRRule anyStart given of
+                            -- the start is the 30th, so FREQ=YEARLY;BYMONTH=2 takes a day February never has
+                            case Recurrence.fromRRule { start = date 2026 10 30 } given of
                                 Err problem ->
                                     let
                                         said =
                                             Recurrence.problemText Locale.nb problem
                                     in
-                                    if List.any (\english -> String.contains english said) [ " with ", " only ", "give ", " the ", "several", "together", "interval above", "every " ] then
+                                    if List.any (\english -> String.contains english said) [ " with ", " only ", "give ", " the ", "several", "together", "interval above", "every ", " and ", " or ", " is ", "missing", "does not", "exist" ] then
                                         Just said
 
                                     else
@@ -1222,6 +1229,36 @@ partsFromTheStart =
                 Recurrence.fromRRule { start = date 2026 1 31 } "FREQ=MONTHLY"
                     |> Result.map (\rule -> Recurrence.next { start = date 2026 1 31, after = date 2026 1 31 } rule)
                     |> Expect.equal (Ok (Just (date 2026 3 31)))
+        , test "a day from the start that the month never has says where the day came from" <|
+            \_ ->
+                Recurrence.fromRRule { start = date 2026 10 30 } "FREQ=YEARLY;BYMONTH=2"
+                    |> Result.mapError (\problem -> ( Recurrence.problemText Locale.en problem, Recurrence.problemText Locale.nb problem ))
+                    |> Expect.equal
+                        (Err
+                            ( "The rule takes its day from the start date, and 30 February does not exist. Give the day with BYMONTHDAY."
+                            , "Regelen tar dagen fra startdatoen, og 30. februar finnes ikke. Gi dagen med BYMONTHDAY."
+                            )
+                        )
+        , test "a day the text gives itself is named as before" <|
+            \_ ->
+                Recurrence.fromRRule { start = date 2026 10 30 } "FREQ=YEARLY;BYMONTH=2;BYMONTHDAY=30"
+                    |> Result.mapError (Recurrence.problemText Locale.en)
+                    |> Expect.equal (Err "That date does not exist: 30 February.")
+        , test "a rule with BYSETPOS takes nothing from the start, so its problem names only parts it has" <|
+            \_ ->
+                Recurrence.fromRRule { start = date 2026 10 20 } "FREQ=MONTHLY;BYSETPOS=-1"
+                    |> Result.mapError (Recurrence.problemText Locale.en)
+                    |> Expect.equal (Err "BYMONTHDAY or BYDAY is missing.")
+        , test "and in Norwegian the alternatives are joined with 'eller'" <|
+            \_ ->
+                Recurrence.fromRRule { start = date 2026 10 20 } "FREQ=MONTHLY;BYSETPOS=-1"
+                    |> Result.mapError (Recurrence.problemText Locale.nb)
+                    |> Expect.equal (Err "BYMONTHDAY eller BYDAY mangler.")
+        , test "COUNT and UNTIL together, in both languages" <|
+            \_ ->
+                Recurrence.fromRRule anyStart "FREQ=DAILY;COUNT=3;UNTIL=20271231"
+                    |> Result.mapError (\problem -> ( Recurrence.problemText Locale.en problem, Recurrence.problemText Locale.nb problem ))
+                    |> Expect.equal (Err ( "COUNT and UNTIL cannot be used together.", "COUNT og UNTIL kan ikke brukes sammen." ))
         ]
 
 

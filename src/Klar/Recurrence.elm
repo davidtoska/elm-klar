@@ -851,6 +851,6 @@ unless it is Monday, because weeks are counted from Monday here.
 -}
 fromRRule : { start : Date } -> String -> Result Problem Rule
 fromRRule series text =
-    RRule.fromText (RRule.withStart series.start text)
+    RRule.fromTextFrom series.start text
         |> Result.map Rule
         |> Result.mapError Problem
