@@ -30,6 +30,7 @@ import Klar.Badge as Badge
 import Klar.Button as Button
 import Klar.Card as Card
 import Klar.DescriptionList as DescriptionList
+import Klar.EmptyState as EmptyState
 import Klar.Format as Format
 import Klar.Icon as Icon
 import Klar.Ids as Ids exposing (Ids)
@@ -174,7 +175,7 @@ update context msg backend model =
               -- where the next category is chosen.
               case Tree.focused Ids.string model.tree of
                 Just id ->
-                    Cmd.map TreeMsg (Tree.focusNode Ids.string model.tree id)
+                    Cmd.map TreeMsg (Tree.focusNode Ids.string id model.tree)
 
                 Nothing ->
                     Cmd.none
@@ -226,7 +227,7 @@ loaded context result model =
                             model.tree
 
                         else
-                            Tree.setExpanded Ids.string (List.map (\(Branch category _) -> category.id) categories) model.tree
+                            Tree.setExpandedIds Ids.string (List.map (\(Branch category _) -> category.id) categories) model.tree
                 }
 
         Err error ->
@@ -261,7 +262,7 @@ setCategory category model =
                     Tree.select Ids.string chosen.id model.tree
 
                 Nothing ->
-                    Tree.setSelected Ids.string [] model.tree
+                    Tree.setSelectedIds Ids.string [] model.tree
         , table = Table.setPage 1 model.table
     }
 
@@ -430,7 +431,7 @@ viewCategories context model =
                     , Tree.compact
                     , Tree.filterBox
                     , Tree.filterPlaceholder "Find a category ..."
-                    , Tree.emptyText "No categories"
+                    , Tree.emptyState [ EmptyState.title "No categories" ]
                     , Tree.maxHeight 520
                     ]
                     model.tree

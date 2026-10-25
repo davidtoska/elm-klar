@@ -9,6 +9,7 @@ import Dict exposing (Dict)
 import Html exposing (Html)
 import Html.Lazy
 import Klar.Button as Button
+import Klar.EmptyState as EmptyState
 import Klar.Icon as Icon
 import Klar.Ids as Ids exposing (Ids)
 import Klar.Layout as Layout
@@ -33,6 +34,7 @@ type alias Model =
     , categories : Tree.State String
     , permissions : Tree.State String
     , orders : Tree.State String
+    , failedTree : Tree.State String
     , retrying : Bool
     }
 
@@ -43,6 +45,7 @@ type Msg
     | PermissionsMsg Tree.Msg
     | OrdersMsg Tree.Msg
     | StateMsg Tree.Msg
+    | FailedTreeMsg Tree.Msg
     | ExpandAll
     | CollapseAll
     | LoadBranch String
@@ -56,16 +59,17 @@ init : Model
 init =
     { company =
         Tree.init "company-tree"
-            |> Tree.setExpanded Ids.string [ "acme", "rtm", "rtm-a" ]
+            |> Tree.setExpandedIds Ids.string [ "acme", "rtm", "rtm-a" ]
             |> Tree.select Ids.string "rtm-a2"
     , branches = Dict.empty
     , activated = Nothing
-    , categories = Tree.init "category-tree" |> Tree.setExpanded Ids.string [ "Hardware", "Hardware/Fasteners", "Hardware/Tools" ]
+    , categories = Tree.init "category-tree" |> Tree.setExpandedIds Ids.string [ "Hardware", "Hardware/Fasteners", "Hardware/Tools" ]
     , permissions =
         Tree.init "permission-tree"
-            |> Tree.setExpanded Ids.string [ "orders", "admin" ]
-            |> Tree.setChecked Ids.string [ "orders-read", "orders-create", "products-read" ]
+            |> Tree.setExpandedIds Ids.string [ "orders", "admin" ]
+            |> Tree.setCheckedIds Ids.string [ "orders-read", "orders-create", "products-read" ]
     , orders = Tree.init "order-tree"
+    , failedTree = Tree.init "tree-failed"
     , retrying = False
     }
 
@@ -82,9 +86,9 @@ update failing msg model =
                 ( tree, cmd ) =
                     Tree.update inner model.company
 
-                -- The message says which lazy nodes were just opened.
+                -- The new state says which lazy nodes asked for their children.
                 ( loading, loadCmd ) =
-                    startLoading failing (Tree.loadRequests Ids.string inner) { model | company = tree }
+                    startLoading failing (Tree.loadRequests Ids.string tree) { model | company = tree }
             in
             ( loading, Cmd.batch [ Cmd.map CompanyMsg cmd, loadCmd ] )
 
@@ -112,6 +116,14 @@ update failing msg model =
         StateMsg _ ->
             ( model, Cmd.none )
 
+        FailedTreeMsg inner ->
+            -- The tree moves the focus off "Try again" before it goes away.
+            let
+                ( tree, cmd ) =
+                    Tree.update inner model.failedTree
+            in
+            ( { model | failedTree = tree }, Cmd.map FailedTreeMsg cmd )
+
         ExpandAll ->
             -- The ids of the nodes do not depend on the language.
             ( { model | company = Tree.expandAll (companyNodes Locale.default model.branches) model.company }
@@ -122,13 +134,9 @@ update failing msg model =
             ( { model | company = Tree.collapseAll model.company }, Cmd.none )
 
         LoadBranch id ->
-            -- "Load" and "Try again" are replaced by the loading row: the focus
-            -- goes back to the node they belonged to.
-            let
-                ( loading, cmd ) =
-                    startLoading failing [ id ] model
-            in
-            ( loading, Cmd.batch [ cmd, Cmd.map CompanyMsg (Tree.focusNode Ids.string model.company id) ] )
+            -- "Try again" is replaced by the loading row; the tree has already
+            -- put the focus back on the node.
+            startLoading failing [ id ] model
 
         BranchLoaded id result ->
             ( { model | branches = Dict.insert id (Remote.fromResult result) model.branches }, Cmd.none )
@@ -205,23 +213,23 @@ companyExample locale model =
     in
     Doc.example
         { title = "Company structure with filter and lazy loading"
-        , description = Just "The filter keeps the ancestors of the matches and marks the matching text. “Suppliers” and “Product catalog” are fetched the first time they are opened: a spinner while it happens, and a short message with “Try again” when it fails (switch on “Simulate failures” at the top). The categories inside “Product catalog” are lazy nodes inside a lazy node. “Expand all” shows “Load” on the branches nobody has asked for yet. The filter only searches the nodes that are loaded."
+        , description = Just "The filter keeps the ancestors of the matches and marks the matching text. “Suppliers” and “Product catalog” are fetched the first time they are opened: a spinner while it happens, and a short message with “Try again” when it fails (switch on “Simulate failures” at the top). The categories inside “Product catalog” are lazy nodes inside a lazy node. “Expand all” opens the lazy branches too, and they ask for their children at once. The filter searches the labels, the descriptions and the keywords of the nodes that are loaded: “NL” finds Rotterdam by a keyword."
         , code = Just """Tree.view CompanyMsg
     [ Tree.ariaLabel "Company structure"
     , Tree.filterBox
     , Tree.onActivate Activated
-    , Tree.onRetry LoadBranch
-    , Tree.onLoadChildren LoadBranch
+    , Tree.onRetryChildren LoadBranch
     , Tree.maxHeight 440
     ]
     model.tree
     [ (Tree.branch Ids.string) "rtm" "Rotterdam Hub"
         [ (Tree.leaf Ids.string) "rtm-a1" "Bay A1" |> Tree.withCount 28 ]
         |> Tree.withIcon Icon.building
+        |> Tree.withKeywords [ "NL", "Netherlands" ]
     , (Tree.lazy Ids.string) "suppliers" "Suppliers" (lookup "suppliers" model.branches)
     ]
 
--- update: the message says which lazy nodes were just opened.
+-- update: the new state says which lazy nodes asked for their children.
 -- lookup, markLoading and fetch are yours: they read and write model.branches
 -- and send the request.
 CompanyMsg m ->
@@ -229,18 +237,16 @@ CompanyMsg m ->
         ( tree, cmd ) =
             Tree.update m model.tree
 
-        opened =
-            (Tree.loadRequests Ids.string) m
+        requests =
+            (Tree.loadRequests Ids.string) tree
     in
-    ( { model | tree = tree, branches = markLoading opened model.branches }
-    , Cmd.batch (Cmd.map CompanyMsg cmd :: List.map fetch opened)
+    ( { model | tree = tree, branches = markLoading requests model.branches }
+    , Cmd.batch (Cmd.map CompanyMsg cmd :: List.map fetch requests)
     )
 
--- "Try again" and "Load" are replaced by the loading row: put the focus back on the node
+-- "Try again": the tree puts the focus back on the node by itself
 LoadBranch id ->
-    ( { model | branches = markLoading [ id ] model.branches }
-    , Cmd.batch [ fetch id, Cmd.map CompanyMsg ((Tree.focusNode Ids.string) model.tree id) ]
-    )"""
+    ( { model | branches = markLoading [ id ] model.branches }, fetch id )"""
         }
         (Layout.stack [ Layout.gap 3 ]
             [ Layout.row [ Layout.gap 2, Layout.wrap, Layout.alignCenter ]
@@ -253,8 +259,7 @@ LoadBranch id ->
                 [ Tree.ariaLabel "Company structure"
                 , Tree.filterBox
                 , Tree.onActivate Activated
-                , Tree.onRetry LoadBranch
-                , Tree.onLoadChildren LoadBranch
+                , Tree.onRetryChildren LoadBranch
                 , Tree.maxHeight 440
                 , Tree.locale locale
                 ]
@@ -272,14 +277,14 @@ categoriesExample locale model =
         , description = Just "Click selects one, Ctrl+click adds or removes, Shift+click selects a range. From the keyboard: Space toggles, Shift+arrows extend. Disabled nodes cannot be selected."
         , code = Just """Tree.view CategoriesMsg [ Tree.multiSelect, Tree.ariaLabel "Categories" ] model.tree nodes
 
-(Tree.selected Ids.string) model.tree -- [ "Hardware/Fasteners/Bolts", "Hardware/Fasteners/Nuts" ]"""
+(Tree.selectedIds Ids.string) model.tree -- [ "Hardware/Fasteners/Bolts", "Hardware/Fasteners/Nuts" ]"""
         }
         (Layout.stack [ Layout.gap 3 ]
             [ Tree.view CategoriesMsg
                 [ Tree.multiSelect, Tree.ariaLabel "Categories", Tree.locale locale ]
                 model.categories
                 categoryNodes
-            , Text.caption ("Selected: " ++ names (List.map lastName (Tree.selected Ids.string model.categories)))
+            , Text.caption ("Selected: " ++ names (List.map lastName (Tree.selectedIds Ids.string model.categories)))
             ]
         )
 
@@ -288,17 +293,17 @@ permissionsExample : Locale -> Model -> Html Msg
 permissionsExample locale model =
     Doc.example
         { title = "Checkboxes with three states"
-        , description = Just "Checking a parent checks everything below it; a parent with some of its children checked shows a dash. Space toggles the check. The application reads the checked leaves with Tree.checked."
+        , description = Just "Checking a parent checks everything below it; a parent with some of its children checked shows a dash. Space toggles the check. The application reads the checked leaves with Tree.checkedIds."
         , code = Just """Tree.view PermissionsMsg [ Tree.checkboxes, Tree.ariaLabel "Permissions" ] model.tree permissions
 
-(Tree.checked Ids.string) model.tree -- [ "orders-read", "products-read" ]"""
+(Tree.checkedIds Ids.string) model.tree -- [ "orders-read", "products-read" ]"""
         }
         (Layout.stack [ Layout.gap 3 ]
             [ Tree.view PermissionsMsg
                 [ Tree.checkboxes, Tree.ariaLabel "Permissions", Tree.locale locale ]
                 model.permissions
                 permissions
-            , Text.caption ("Checked: " ++ names (Tree.checked Ids.string model.permissions))
+            , Text.caption ("Checked: " ++ names (Tree.checkedIds Ids.string model.permissions))
             ]
         )
 
@@ -312,7 +317,7 @@ ordersExample locale model =
 
 -- ids are unique in the whole tree: an order that is listed under its city and
 -- under "All orders" has two ids, "city-Oslo/ORD-10042" and "all/ORD-10042"
-(Tree.leaf Ids.string) ("all/" ++ order.id) order.customer |> Tree.withHint order.id"""
+(Tree.leaf Ids.string) ("all/" ++ order.id) order.customer |> Tree.withDescription order.id"""
         }
         (Html.Lazy.lazy2 orderTree locale model.orders)
 
@@ -338,17 +343,17 @@ statesExample : Locale -> Model -> Html Msg
 statesExample locale model =
     Doc.example
         { title = "Loading, failed and empty tree"
-        , description = Just "While loading, the tree shows a skeleton. A failure shows the problem with “Try again”: here the backend is down on purpose, so the tree loads for a moment and fails again. An empty list shows the text you give it."
-        , code = Just "Tree.viewRemote TreeMsg [ Tree.onReload Reload, Tree.emptyText \"No warehouses\" ] model.tree model.nodes"
+        , description = Just "While loading, the tree shows a skeleton. A failure shows the problem with “Try again”: here the backend is down on purpose, so the tree loads for a moment and fails again. Pressing it keeps the keyboard focus in the tree, which stays the same element in every state. An empty list shows the empty state you give it."
+        , code = Just "Tree.viewRemote TreeMsg [ Tree.onRetry Reload, Tree.emptyState [ EmptyState.title \"No warehouses\" ] ] model.tree model.nodes"
         }
         (Layout.grid [ Layout.minColumn 280, Layout.gap 5 ]
             [ Tree.viewRemote StateMsg [ Tree.locale locale ] (Tree.init "tree-loading") Remote.Loading
-            , Tree.viewRemote StateMsg
-                [ Tree.onReload Retry, Tree.locale locale ]
-                (Tree.init "tree-failed")
+            , Tree.viewRemote FailedTreeMsg
+                [ Tree.onRetry Retry, Tree.locale locale ]
+                model.failedTree
                 (Pretend.down locale model.retrying)
             , Tree.viewRemote StateMsg
-                [ Tree.emptyText "No warehouses registered", Tree.locale locale ]
+                [ Tree.emptyState [ EmptyState.title "No warehouses registered" ], Tree.locale locale ]
                 (Tree.init "tree-empty")
                 (Remote.Loaded [])
             ]
@@ -432,9 +437,10 @@ warehouses =
             , Tree.leaf Ids.string "rtm-b3" "Bay B3, returns" |> Tree.withBadge Danger "Closed" |> Tree.disabled
             ]
             |> Tree.withIcon Icon.folder
-        , Tree.leaf Ids.string "rtm-desk" "Returns desk" |> Tree.withIcon Icon.refresh |> Tree.withHint "24 hours"
+        , Tree.leaf Ids.string "rtm-desk" "Returns desk" |> Tree.withIcon Icon.refresh |> Tree.withDescription "24 hours"
         ]
         |> Tree.withIcon Icon.building
+        |> Tree.withKeywords [ "NL", "Netherlands" ]
     , Tree.branch Ids.string
         "ham"
         "Hamburg Central"
@@ -614,7 +620,7 @@ orderNodes : List (Tree.Node String)
 orderNodes =
     let
         orderLeaf prefix order =
-            Tree.leaf Ids.string (prefix ++ orderIdText order.id) order.customer |> Tree.withHint (orderIdText order.id)
+            Tree.leaf Ids.string (prefix ++ orderIdText order.id) order.customer |> Tree.withDescription (orderIdText order.id)
 
         city name =
             let

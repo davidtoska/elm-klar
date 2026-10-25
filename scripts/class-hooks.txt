@@ -53,6 +53,7 @@ klar-tabs__label
 klar-text
 klar-timepicker__box
 klar-timepicker__control
+klar-tree-autoload
 klar-tree__filter
 # Known gaps: a size, tone or density that the Elm code can emit (Internal.sizeSuffix,
 # toneSuffix, densitySuffix) and that has no rule, so it looks like the default.

@@ -453,7 +453,7 @@ viewStatuses model =
 viewRegions : Model -> Html Msg
 viewRegions model =
     Tree.viewRemote TreeMsg
-        [ Tree.ariaLabel "Regions", Tree.onReload (Retry RegionsPanel) ]
+        [ Tree.ariaLabel "Regions", Tree.onRetry (Retry RegionsPanel) ]
         model.tree
         (Remote.map (List.map toNode) model.regions)
 
