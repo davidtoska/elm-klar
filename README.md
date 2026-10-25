@@ -53,7 +53,7 @@ Klar works with Elm 0.19.x (developed and tested with 0.19.3). To use it before 
 is published, see "Getting Klar into a project" in [AI.md](AI.md).
 
 An AI that builds the application starts with [AI.md](AI.md): the mental model, the ten
-rules, which module to use for what, and six complete programs in
+rules, which module to use for what, and seven complete programs in
 [example/src/Examples/](example/src/Examples).
 
 ## A first program
@@ -143,17 +143,18 @@ every module has an example.
 | **Inputs** | `TextInput`, `TextArea`, `NumberInput`, `PasswordInput`, `SearchInput`, `TagInput`, `FileDrop`, `InlineEdit`, `Checkbox`, `CheckboxGroup`, `Radio`, `Switch`, `Slider`, `SegmentedControl`, `MaskedInput`, `Money`, `MoneyInput` |
 | **Choosing** | `Select`, `Select.Option`, `Ids` (your id type as text, once), `MultiSelect`, `Autocomplete`, `VirtualList`, `TreeSelect`, `Cascader`, `Transfer`, `Picking` |
 | **Date and time** | `Date`, `DatePicker`, `DateRangePicker`, `TimePicker`, `DateTimePicker`, `Calendar`, `Recurrence`, `RecurrencePicker` |
-| **Tables and lists** | `Table`, `Pagination`, `ListItem`, `Tree` |
+| **Tables and lists** | `Table`, `Pagination`, `ListItem`, `Tree`, `CardList`, `WorkQueue` |
 | **Overlays** | `Overlay`, `Modal`, `ConfirmDialog`, `Drawer`, `Toast`, `Popover`, `Tooltip`, `ContextMenu`, `CommandPalette`, `ShortcutHelp` |
 | **Navigation** | `AppShell`, `SideNav`, `PageHeader`, `Breadcrumbs`, `Tabs`, `Stepper` |
 | **Structure** | `Accordion`, `Toolbar`, `DescriptionList` |
 | **Arranging** | `Sortable`, `Splitter` |
 | **Pages and flow** | `StatusPage`, `BulkBar`, `LeaveGuard`, `History` |
-| **Text and change** | `Markdown`, `MarkdownEditor`, `Diff`, `Compare` |
+| **Text and change** | `Markdown`, `MarkdownEditor`, `Diff`, `Compare`, `AuditLog`, `ConflictResolver` |
 | **Access and approval** | `PermissionMatrix`, `ApprovalFlow` |
 | **Data display** | `Stat`, `Chart` (line, bar, donut, gauge, meter, sparkline), `Timeline`, `Avatar`, `JsonViewer` |
 | **Rules and filters** | `Rule`, `RuleBuilder`, `FilterBar`, `SavedViews`, `ServerList` (a server-side list with all three) |
 | **Data and utilities** | `Remote`, `RemoteView`, `Search`, `Format`, `Shortcut` |
+| **Persistent notifications** | `NotificationCenter` (unread filtering, explicit read and dismiss, loaded-item bulk actions) |
 
 All of them are under `Klar.`, for example `Klar.Table`. The API reference is on
 [package.elm-lang.org](https://package.elm-lang.org/packages/davidtoska/elm-klar/latest/).
@@ -176,9 +177,16 @@ operations console with a dashboard, orders (a server-mode table with a drawer
 editor), products, and a gallery with live examples of every component and state.
 Its backend is a dummy written in Elm, behind a request/response layer, with
 developer tools that make the pretend network fail so you can see how the interface
-behaves. Its Examples page opens six small complete applications (an inbox, an edit
-form, delete with confirmation, a dashboard, a multi-step flow, a command palette),
+behaves. Its Examples page opens seven small complete applications (an inbox, an edit
+form, delete with confirmation, a dashboard, a multi-step flow, a command palette and a review desk),
 each one Elm file in `example/src/Examples/`.
+
+The **Data workbench** gallery page connects five components in an order review desk:
+review a queue with j/k or arrow keys, select records as cards, resolve concurrent
+field edits, inspect audit diffs and manage notifications. The complete standalone
+program is [`ReviewDesk.elm`](example/src/Examples/ReviewDesk.elm), opened at
+`examples/review-desk.html` on the showcase server. Its controls exercise loading,
+failure, empty, refreshing and stale data for all five panels.
 
 ```bash
 npm install     # once; installs elm-test and elm-format, nothing else

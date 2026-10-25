@@ -34,6 +34,7 @@ One file per exposed module, generated from the doc comments by `npm run gen:ai-
 - [Klar.Progress](Klar.Progress.md): Progress: a linear bar, a bar divided into steps, and a ring.
 - [Klar.EmptyState](Klar.EmptyState.md): What to show when there is nothing to show: an empty list, no search results, a first-run screen.
 - [Klar.ErrorState](Klar.ErrorState.md): What to show when a request failed: a clear title, the reason, and a button to try again when trying again can help.
+- [Klar.NotificationCenter](Klar.NotificationCenter.md): Persistent notifications with an unread filter and explicit read and dismiss actions.
 ## Forms
 
 - [Klar.Form](Klar.Form.md): A form as one value: the text and choices of every field, which fields the user has left, what the server refused, the rows of a repeating group, the step the user is on, and whether anything has ...
@@ -89,6 +90,8 @@ One file per exposed module, generated from the doc comments by `npm run gen:ai-
 - [Klar.Pagination](Klar.Pagination.md): Page navigation for long lists and tables: the range shown ("1–25 of 3,000"), rows per page, first / previous / page numbers with ellipsis / next / last, and "Go to page".
 - [Klar.ListItem](Klar.ListItem.md): A dense list row, and the list that holds the rows.
 - [Klar.Tree](Klar.Tree.md): A tree view for hierarchies: regions and warehouses, folders, product categories, code lists.
+- [Klar.CardList](Klar.CardList.md): A responsive collection of records as compact cards, with labelled fields, selection and actions that remain ordinary keyboard controls.
+- [Klar.WorkQueue](Klar.WorkQueue.md): A keyboard-driven work list beside a detail pane, for processing one record at a time without losing the surrounding queue.
 ## Overlays
 
 - [Klar.Overlay](Klar.Overlay.md): The layer above the page: dialogs, drawers, the command palette, the shortcut sheet and the toasts.
@@ -130,6 +133,8 @@ One file per exposed module, generated from the doc comments by `npm run gen:ai-
 - [Klar.MarkdownEditor](Klar.MarkdownEditor.md): A text area for Markdown with a toolbar and a live preview: the editor of a note, a description, a comment, or the instruction to a language model.
 - [Klar.Diff](Klar.Diff.md): What changed between two versions of a text, of a JSON document or of a record, shown so that a person can see it and decide.
 - [Klar.Compare](Klar.Compare.md): Records side by side, with the differences marked: two or more products, two versions of an order, "your version" against "theirs".
+- [Klar.AuditLog](Klar.AuditLog.md): An immutable activity history with actors, exact times and expandable diffs.
+- [Klar.ConflictResolver](Klar.ConflictResolver.md): A three-way field merge that makes concurrent edits explicit and requires a decision for every conflicting value before the result can be applied.
 ## Access and approval
 
 - [Klar.PermissionMatrix](Klar.PermissionMatrix.md): A grid of roles and permissions that says what each role may do, and lets an administrator change it: the classic screen of an application with users.

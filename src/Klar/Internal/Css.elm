@@ -28,6 +28,7 @@ import Klar.Internal.Css.Stale as Stale
 import Klar.Internal.Css.Structured as Structured
 import Klar.Internal.Css.Table as Table
 import Klar.Internal.Css.Tokens as Tokens
+import Klar.Internal.Css.Workbench as Workbench
 
 
 {-| All rules of the library.
@@ -57,5 +58,6 @@ css =
         , Picking.css
         , Access.css
         , Recurrence.css
+        , Workbench.css
         , Density.css
         ]

@@ -861,6 +861,41 @@
       "reference": "ai/modules/Klar.ErrorState.md"
     },
     {
+      "name": "Klar.NotificationCenter",
+      "import": "import Klar.NotificationCenter as Notifications",
+      "group": "Status and feedback",
+      "purpose": "Persistent notifications with an unread filter and explicit read and dismiss actions.",
+      "whenToUse": "people need a durable inbox of notifications, alongside transient toasts.",
+      "whenNot": "feedback should disappear after a few seconds; use `Klar.Toast`.",
+      "state": [],
+      "msg": [],
+      "ids": [],
+      "stateful": false,
+      "quickPath": [],
+      "mainFunctions": [
+        "view",
+        "notification",
+        "id",
+        "unreadOnly",
+        "onOpen",
+        "onRead",
+        "onDismiss",
+        "onReadAll"
+      ],
+      "related": [],
+      "keywords": [
+        "notification center",
+        "notificationcenter",
+        "status and feedback",
+        "persistent",
+        "notifications",
+        "unread",
+        "filter",
+        "explicit"
+      ],
+      "reference": "ai/modules/Klar.NotificationCenter.md"
+    },
+    {
       "name": "Klar.Form",
       "import": "import Klar.Form as Form",
       "group": "Forms",
@@ -2824,6 +2859,83 @@
       "reference": "ai/modules/Klar.Tree.md"
     },
     {
+      "name": "Klar.CardList",
+      "import": "import Klar.CardList as CardList",
+      "group": "Tables and lists",
+      "purpose": "A responsive collection of records as compact cards, with labelled fields, selection and actions that remain ordinary keyboard controls.",
+      "whenToUse": "a product catalogue or overview needs cards that fit a narrow screen.",
+      "whenNot": "rows must be sorted, filtered or edited in columns; use `Klar.Table`.",
+      "state": [],
+      "msg": [],
+      "ids": [],
+      "stateful": false,
+      "quickPath": [],
+      "mainFunctions": [
+        "view",
+        "field",
+        "id",
+        "selection",
+        "onOpen",
+        "actions",
+        "onLoadMore",
+        "onRetry"
+      ],
+      "related": [],
+      "keywords": [
+        "card list",
+        "cardlist",
+        "tables and lists",
+        "responsive",
+        "collection",
+        "records",
+        "compact",
+        "cards"
+      ],
+      "reference": "ai/modules/Klar.CardList.md"
+    },
+    {
+      "name": "Klar.WorkQueue",
+      "import": "import Klar.WorkQueue as WorkQueue",
+      "group": "Tables and lists",
+      "purpose": "A keyboard-driven work list beside a detail pane, for processing one record at a time without losing the surrounding queue.",
+      "whenToUse": "a person works through cases, approvals or incoming orders one by one.",
+      "whenNot": "the main task is comparing rows and columns; use `Klar.Table`.",
+      "state": [
+        "State"
+      ],
+      "msg": [
+        "Msg"
+      ],
+      "ids": [],
+      "stateful": true,
+      "quickPath": [
+        "init",
+        "update",
+        "view",
+        "selected"
+      ],
+      "mainFunctions": [
+        "view",
+        "init",
+        "update",
+        "selected",
+        "setSelected",
+        "query"
+      ],
+      "related": [],
+      "keywords": [
+        "work queue",
+        "workqueue",
+        "tables and lists",
+        "keyboard",
+        "driven",
+        "beside",
+        "detail",
+        "processing"
+      ],
+      "reference": "ai/modules/Klar.WorkQueue.md"
+    },
+    {
       "name": "Klar.Overlay",
       "import": "import Klar.Overlay as Overlay",
       "group": "Overlays",
@@ -4113,6 +4225,82 @@
         "versions"
       ],
       "reference": "ai/modules/Klar.Compare.md"
+    },
+    {
+      "name": "Klar.AuditLog",
+      "import": "import Klar.AuditLog as AuditLog",
+      "group": "Text and change",
+      "purpose": "An immutable activity history with actors, exact times and expandable diffs.",
+      "whenToUse": "people need to trace who changed a record and inspect the change.",
+      "whenNot": "the events describe a schedule or milestones; use `Klar.Timeline`.",
+      "state": [],
+      "msg": [],
+      "ids": [],
+      "stateful": false,
+      "quickPath": [],
+      "mainFunctions": [
+        "view",
+        "entry",
+        "withDetail",
+        "withDiff"
+      ],
+      "related": [],
+      "keywords": [
+        "audit log",
+        "auditlog",
+        "text and change",
+        "immutable",
+        "activity",
+        "history",
+        "actors",
+        "exact"
+      ],
+      "reference": "ai/modules/Klar.AuditLog.md"
+    },
+    {
+      "name": "Klar.ConflictResolver",
+      "import": "import Klar.ConflictResolver as Conflict",
+      "group": "Text and change",
+      "purpose": "A three-way field merge that makes concurrent edits explicit and requires a decision for every conflicting value before the result can be applied.",
+      "whenToUse": "saving a record failed because someone else edited the same version.",
+      "whenNot": "a person only needs to inspect changes; use `Klar.Diff` or `Klar.Compare`.",
+      "state": [
+        "State"
+      ],
+      "msg": [
+        "Msg"
+      ],
+      "ids": [],
+      "stateful": true,
+      "quickPath": [
+        "field",
+        "init",
+        "update",
+        "view",
+        "resolved"
+      ],
+      "mainFunctions": [
+        "view",
+        "field",
+        "init",
+        "update",
+        "resolved",
+        "reset",
+        "onApply",
+        "saving"
+      ],
+      "related": [],
+      "keywords": [
+        "conflict resolver",
+        "conflictresolver",
+        "text and change",
+        "three",
+        "field",
+        "merge",
+        "concurrent",
+        "edits"
+      ],
+      "reference": "ai/modules/Klar.ConflictResolver.md"
     },
     {
       "name": "Klar.PermissionMatrix",

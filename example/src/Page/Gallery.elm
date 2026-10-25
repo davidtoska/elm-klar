@@ -38,6 +38,7 @@ import Page.Gallery.ServerLists as ServerLists
 import Page.Gallery.StaleData as StaleData
 import Page.Gallery.Structured as Structured
 import Page.Gallery.Tables as Tables
+import Page.Gallery.Workbench as Workbench
 
 
 
@@ -68,6 +69,7 @@ type alias Model =
     , recurring : Maybe Recurring.Model
     , staleData : Maybe StaleData.Model
     , serverLists : Maybe ServerLists.Model
+    , workbench : Maybe Workbench.Model
     }
 
 
@@ -96,6 +98,7 @@ init =
     , recurring = Nothing
     , staleData = Nothing
     , serverLists = Nothing
+    , workbench = Nothing
     }
 
 
@@ -127,6 +130,7 @@ type Msg
     | RecurringMsg Recurring.Msg
     | StaleDataMsg StaleData.Msg
     | ServerListsMsg ServerLists.Msg
+    | WorkbenchMsg Workbench.Msg
 
 
 {-| Creates the page for a section if it has not been visited yet. Call it when
@@ -203,6 +207,9 @@ ensure section model =
 
         Examples ->
             ( model, Cmd.none )
+
+        Workbench ->
+            create model.workbench Workbench.init (\page -> { model | workbench = page }) WorkbenchMsg model
 
 
 create : Maybe page -> ( page, Cmd pageMsg ) -> (Maybe page -> Model) -> (pageMsg -> Msg) -> Model -> ( Model, Cmd Msg )
@@ -286,6 +293,9 @@ update msg model =
 
         ServerListsMsg inner ->
             step model.serverLists (ServerLists.update inner) (\page -> { model | serverLists = page }) ServerListsMsg model
+
+        WorkbenchMsg inner ->
+            step model.workbench (Workbench.update inner) (\page -> { model | workbench = page }) WorkbenchMsg model
 
 
 {-| Runs a page's update on its model, if the page exists.
@@ -385,6 +395,9 @@ view settings locale maybeSection model =
                 Examples ->
                     Examples.view
 
+                Workbench ->
+                    show WorkbenchMsg (Workbench.view settings locale) model.workbench
+
 
 show : (pageMsg -> Msg) -> (page -> Html pageMsg) -> Maybe page -> Html Msg
 show toMsg viewPage maybePage =
@@ -478,6 +491,9 @@ subscriptions maybeSection model =
 
                 Examples ->
                     Sub.none
+
+                Workbench ->
+                    sub WorkbenchMsg Workbench.subscriptions model.workbench
 
 
 sub : (pageMsg -> Msg) -> (page -> Sub pageMsg) -> Maybe page -> Sub Msg

@@ -35,7 +35,8 @@
             "Klar.Skeleton",
             "Klar.Progress",
             "Klar.EmptyState",
-            "Klar.ErrorState"
+            "Klar.ErrorState",
+            "Klar.NotificationCenter"
         ],
         "Forms": [
             "Klar.Form",
@@ -90,7 +91,9 @@
             "Klar.Table",
             "Klar.Pagination",
             "Klar.ListItem",
-            "Klar.Tree"
+            "Klar.Tree",
+            "Klar.CardList",
+            "Klar.WorkQueue"
         ],
         "Overlays": [
             "Klar.Overlay",
@@ -131,7 +134,9 @@
             "Klar.Markdown",
             "Klar.MarkdownEditor",
             "Klar.Diff",
-            "Klar.Compare"
+            "Klar.Compare",
+            "Klar.AuditLog",
+            "Klar.ConflictResolver"
         ],
         "Access and approval": [
             "Klar.PermissionMatrix",

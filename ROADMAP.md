@@ -100,7 +100,7 @@ A component joins Klar only when it can say yes to all of these:
 
 Built so far: more than a hundred components, the form model, the overlay layer, the stale
 data state, server lists, one `Klar.Ids` per id type, ten themes with a light and a dark
-mode, the AI documentation (`AI.md`, `ai/`) and six example programs. Left before the freeze:
+mode, the AI documentation (`AI.md`, `ai/`) and seven example programs. Left before the freeze:
 
 | Item | Size |
 |---|---|
@@ -116,9 +116,12 @@ mode, the AI documentation (`AI.md`, `ai/`) and six example programs. Left befor
 | A naming pass over every module against the conventions in `CLAUDE.md` | M |
 
 Left for later on purpose, because they build on the overlay layer: Popconfirm, HoverCard,
-Tour, the notification centre, `Menubar` and `NavigationMenu`. Kanban, the comment thread,
-the audit log with diffs and the conflict resolver build on `Sortable`, `Markdown` and
-`Diff`.
+Tour, `Menubar` and `NavigationMenu`. Kanban and the comment thread build on `Sortable`
+and `Markdown`. Built ahead of the plan: `CardList`, `WorkQueue`, `AuditLog`,
+`ConflictResolver` and `NotificationCenter`, exercised together in the ReviewDesk
+example. The notification centre is an inline inbox that can also be placed in a
+drawer; a global bell remains an application concern. `CardList` has its own small
+field API; sharing columns with the table family remains future work.
 
 ## Technical rules
 

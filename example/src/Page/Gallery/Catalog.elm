@@ -41,11 +41,12 @@ type Section
     | Recurring
     | StaleData
     | ServerLists
+    | Workbench
 
 
 all : List Section
 all =
-    [ Examples, Foundations, Basics, Selects, Tables, Forms, FormModel, DateTime, Overlays, Navigation, DataDisplay, Rules, Arranging, Actions, Flow, Markdown, Review, Structured, Picking, Access, Recurring, StaleData, ServerLists ]
+    [ Examples, Foundations, Basics, Selects, Tables, Forms, FormModel, DateTime, Overlays, Navigation, DataDisplay, Rules, Arranging, Actions, Flow, Markdown, Review, Structured, Picking, Access, Recurring, StaleData, ServerLists, Workbench ]
 
 
 slug : Section -> String
@@ -119,6 +120,9 @@ slug section =
 
         Examples ->
             "examples"
+
+        Workbench ->
+            "workbench"
 
 
 fromSlug : String -> Maybe Section
@@ -198,6 +202,9 @@ title section =
         Examples ->
             "Examples"
 
+        Workbench ->
+            "Data workbench"
+
 
 icon : Section -> Icon
 icon section =
@@ -271,6 +278,9 @@ icon section =
         Examples ->
             Icon.layout
 
+        Workbench ->
+            Icon.clipboardCheck
+
 
 description : Section -> String
 description section =
@@ -342,7 +352,10 @@ description section =
             "A table, a filter bar and saved views over rows on a server, with no glue: tickets, page reset, saved views. Make the server slow, jumbled or failing."
 
         Examples ->
-            "Six complete applications for the common screens, each one Elm file: an inbox, an edit form, delete with confirmation, a dashboard, a multi-step flow, a command palette."
+            "Seven complete applications, each one Elm file: an inbox, an edit form, delete with confirmation, a dashboard, a multi-step flow, a command palette and a review desk."
+
+        Workbench ->
+            "Cards, keyboard work queues, three-way conflict resolution, audit diffs and persistent notifications."
 
 
 {-| The components shown on each page.
@@ -418,6 +431,9 @@ components section =
 
         Examples ->
             [ "Inbox", "Edit form", "Confirm delete", "Dashboard", "Multi-step flow", "Command palette" ]
+
+        Workbench ->
+            [ "CardList", "WorkQueue", "ConflictResolver", "AuditLog", "NotificationCenter" ]
 
 
 componentCount : Int
