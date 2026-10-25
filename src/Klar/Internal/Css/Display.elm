@@ -1853,6 +1853,17 @@ css =
 
 .klar-json__more:hover { text-decoration: underline; }
 
+/* "Show all" after a cut string: for the mouse; the keyboard uses Enter on the row. */
+.klar-json__expand {
+  margin-left: var(--klar-space-2);
+  font-family: var(--klar-font);
+  font-size: var(--klar-text-xs);
+  color: var(--klar-text-link);
+  cursor: pointer;
+}
+
+.klar-json__expand:hover { text-decoration: underline; }
+
 @media (forced-colors: active) {
   .klar-json__row:focus-visible,
   .klar-json__node:focus-visible > .klar-json__toggle {

@@ -312,7 +312,8 @@ row. The default is 100, and the value is kept between 5 and 5000.
 maxStringLength : Int -> Attribute msg
 ```
 
-Strings longer than this many characters are cut and end in "...". The
+Strings longer than this many characters are cut and end in "...", followed
+by "Show all": a click on it, or Enter on the row, shows the whole string. The
 tooltip has the start of the whole string (at most 4000 characters). The default
 is 140, and the value is kept between 10 and 5000.
 

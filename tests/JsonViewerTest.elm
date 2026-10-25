@@ -209,6 +209,42 @@ suite =
                         |> Result.andThen (press "/items" "Enter")
                         |> Result.map (JsonViewer.isExpanded "/items")
                         |> Expect.equal (Ok False)
+            , test "Enter on a cut string shows all of it, and again cuts it" <|
+                \_ ->
+                    let
+                        long =
+                            Encode.object [ ( "note", Encode.string (String.repeat 30 "abcdefg ") ) ]
+
+                        draw state =
+                            JsonViewer.view Viewer [ JsonViewer.maxStringLength 20 ] state long |> Query.fromHtml
+
+                        enter state =
+                            draw state
+                                |> Query.find [ Selector.attribute (Attr.attribute "role" "tree") ]
+                                |> Event.simulate (keyOn (rowId "/note") "Enter")
+                                |> Event.toResult
+                                |> Result.map (\msg -> step msg state)
+
+                        -- the row of the string gets the focus first
+                        start =
+                            draw (JsonViewer.init "v")
+                                |> Query.find [ Selector.id (rowId "/note") ]
+                                |> Event.simulate Event.focus
+                                |> Event.toResult
+                                |> Result.map (\msg -> step msg (JsonViewer.init "v"))
+                    in
+                    Expect.all
+                        [ \_ ->
+                            start
+                                |> Result.map (draw >> Query.has [ Selector.text "Show all" ])
+                                |> Result.withDefault (Expect.fail "no focus message")
+                        , \_ ->
+                            start
+                                |> Result.andThen enter
+                                |> Result.map (draw >> Query.has [ Selector.text "Show less" ])
+                                |> Result.withDefault (Expect.fail "no message")
+                        ]
+                        ()
             , test "a key from outside a row is left alone" <|
                 \_ ->
                     render (JsonViewer.init "v")

@@ -143,6 +143,9 @@ type State
         -- the row that is the tab stop: a path, or "+" and a path for the
         -- "Show more" row of that node
         , focused : Maybe String
+
+        -- the long strings that are shown in full
+        , fullStrings : Set String
         }
 
 
@@ -155,7 +158,7 @@ buttons, so it must be unique on the page.
 -}
 init : String -> State
 init id =
-    State { id = id, openDepth = 2, flipped = Set.empty, revealed = Dict.empty, focused = Nothing }
+    State { id = id, openDepth = 2, flipped = Set.empty, revealed = Dict.empty, focused = Nothing, fullStrings = Set.empty }
 
 
 {-| Is the node at this path open? The root is `""`, a child of the root is
@@ -298,6 +301,7 @@ type Msg
     | ShowMore String Int Int
     | FocusRow String
     | Focused String
+    | ToggleString String
     | Noop
 
 
@@ -348,6 +352,20 @@ update msg ((State state) as current) =
 
         Focused key ->
             ( State { state | focused = Just key }, Cmd.none )
+
+        ToggleString at ->
+            ( State
+                { state
+                    | fullStrings =
+                        if Set.member at state.fullStrings then
+                            Set.remove at state.fullStrings
+
+                        else
+                            Set.insert at state.fullStrings
+                    , focused = Just at
+                }
+            , Cmd.none
+            )
 
         Noop ->
             ( current, Cmd.none )
@@ -458,7 +476,8 @@ maxItems n =
     Attribute (\config -> { config | maxItems = clamp 5 5000 n })
 
 
-{-| Strings longer than this many characters are cut and end in "...". The
+{-| Strings longer than this many characters are cut and end in "...", followed
+by "Show all": a click on it, or Enter on the row, shows the whole string. The
 tooltip has the start of the whole string (at most 4000 characters). The default
 is 140, and the value is kept between 10 and 5000.
 -}
@@ -506,6 +525,8 @@ type alias Texts =
     , cannotShow : String
     , tooDeep : String
     , json : String
+    , showAll : String
+    , showLess : String
     }
 
 
@@ -523,6 +544,8 @@ texts loc =
     , cannotShow = pick "Verdien kan ikke vises." "The value cannot be shown."
     , tooDeep = pick "for dypt til å vises" "too deep to show"
     , json = "JSON"
+    , showAll = pick "Vis alt" "Show all"
+    , showLess = pick "Vis mindre" "Show less"
     }
 
 
@@ -699,6 +722,13 @@ rowsOf config state at depth parent node =
         JArray items ->
             container (List.indexedMap (\i child -> ( pathOf at (String.fromInt i), child )) items)
 
+        JString text ->
+            if String.length text > config.maxStringLength then
+                [ { key = at, parent = parent, firstChild = Nothing, expandable = False, open = False, showMore = Just (ToggleString at) } ]
+
+            else
+                leaf
+
         _ ->
             leaf
 
@@ -865,7 +895,11 @@ viewNode context at depth key isLast node =
     in
     case node of
         JString text ->
-            scalar (viewString context.config text)
+            let
+                (State state) =
+                    context.state
+            in
+            scalar (viewString context at (Set.member at state.fullStrings) text)
 
         JNumber number ->
             scalar (Html.span [ Internal.cls [ "klar-json__number" ] ] [ Html.text (numberText number) ])
@@ -1083,14 +1117,23 @@ viewContainer context at depth keyView colon comma brackets children =
             )
 
 
-viewString : Config -> String -> Html msg
-viewString config text =
+{-| A string. A long one is cut, with "Show all" after it: a click on it, or Enter
+on its row, shows the whole string (and "Show less" cuts it again).
+-}
+viewString : Context msg -> String -> Bool -> String -> Html msg
+viewString context at full text =
     let
+        config =
+            context.config
+
         tooLong =
             String.length text > config.maxStringLength
 
+        cut =
+            tooLong && not full
+
         shown =
-            if tooLong then
+            if cut then
                 safeLeft config.maxStringLength text ++ "..."
 
             else
@@ -1099,24 +1142,43 @@ viewString config text =
         encoded =
             Encode.encode 0 (Encode.string shown)
     in
-    Html.span
-        ([ Internal.cls
-            [ "klar-json__string"
-            , if tooLong then
-                "klar-json__string--cut"
+    Html.span []
+        [ Html.span
+            ([ Internal.cls
+                [ "klar-json__string"
+                , if cut then
+                    "klar-json__string--cut"
 
-              else
-                ""
-            ]
-         ]
-            ++ (if tooLong then
-                    [ Attr.title (safeLeft 4000 text) ]
+                  else
+                    ""
+                ]
+             ]
+                ++ (if cut then
+                        [ Attr.title (safeLeft 4000 text) ]
 
-                else
-                    []
-               )
-        )
-        [ Html.text encoded ]
+                    else
+                        []
+                   )
+            )
+            [ Html.text encoded ]
+        , if tooLong then
+            -- Not a button: the row is the control (Enter), this is for the mouse.
+            Html.span
+                [ Internal.cls [ "klar-json__expand" ]
+                , Events.onClick (context.toMsg (ToggleString at))
+                ]
+                [ Html.text
+                    (if full then
+                        context.t.showLess
+
+                     else
+                        context.t.showAll
+                    )
+                ]
+
+          else
+            Html.text ""
+        ]
 
 
 {-| `String.left` counts UTF-16 units: a cut must not leave the first half of an
