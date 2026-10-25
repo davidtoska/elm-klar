@@ -1284,7 +1284,7 @@ viewPopup ctx editing =
             Internal.noAttr
 
           else
-            Internal.onKeysPassive [ ( "Escape", ctx.toMsg Cancelled ) ]
+            Internal.onLayerKeys (ctx.toMsg Cancelled) []
         ]
         [ Html.div
             [ Internal.cls [ "klar-popup", "klar-filterbar__popup" ]

@@ -1359,7 +1359,7 @@ viewPopup ctx activeView =
     Html.div
         [ Internal.cls [ "klar-layer" ]
         , Events.onClick (ctx.toMsg Closed)
-        , Internal.onKeysPassive [ ( "Escape", escape ) ]
+        , Internal.onLayerKeys escape []
         ]
         [ Html.div
             [ Internal.cls

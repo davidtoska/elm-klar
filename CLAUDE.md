@@ -108,8 +108,8 @@ what they set (`placeholder`, `onInput`), bare names for flags (`required`), `Bo
 where the value comes from the model (`disabled`).
 
 **Form controls** embed `Field.Config` (`label`, `hint`, `error`, `errorMaybe`, `required`,
-`optionalText`, `labelHidden`, `id`) and wrap themselves with `Field.view` (or
-`Field.viewStable` when the control sends messages while the user types).
+`optionalText`, `labelHidden`, `id`) and wrap themselves with `Field.view`, which always
+draws the wrapper, so a control is never rebuilt when its first error or hint appears.
 
 **Stateful components**: opaque `State` and `Msg`, `init : String -> State` (the DOM id,
 unique on the page), `update : Msg -> State -> ( State, Cmd Msg )`,
