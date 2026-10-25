@@ -142,7 +142,8 @@ onCheck : (Bool -> msg) -> Attribute msg
 ```
 
 The message sent when the user toggles the box. It gets the new value,
-`True` for checked; store it and give it back with `checked`.
+`True` for checked; store it and give it back with `checked`. On a `readOnly`
+box a click is cancelled and this gets the value the box already has.
 
     Checkbox.onCheck NewsletterChanged
 
@@ -238,10 +239,14 @@ readOnly : Bool -> Attribute msg
 Shows the value without letting the user change it, for a record the user may
 read but not edit. Unlike `disabled` it is not dimmed, and Tab still reaches it,
 so a screen reader can read it ("Newsletter, checkbox, checked, read only"); a
-click or Space changes nothing and nothing is sent to `onCheck`. The box is then
-an element with `role="checkbox"`, `aria-checked` and `aria-readonly` instead of
-a native checkbox, with the same `id`. `disabled` wins over it. The default is
-`False`.
+click or Space changes nothing. With `onCheck` the box stays the same native
+checkbox with `aria-readonly`, so it keeps the focus when `readOnly` turns on or
+off (a box that locks itself once checked): the click is cancelled and `onCheck`
+gets the value the box already has, which an update that stores the value leaves
+as it is. Without `onCheck` the box is drawn as a button with `role="checkbox"`,
+`aria-checked` and `aria-readonly`, with the same `id`; give a box whose
+`readOnly` changes while it may have the focus an `onCheck`. `disabled` wins over
+it. The default is `False`.
 
 ### `tabIndex`
 

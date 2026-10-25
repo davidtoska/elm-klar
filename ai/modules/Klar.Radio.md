@@ -309,5 +309,6 @@ Shows the choice without letting the user change it, for a record the user
 may read but not edit. Unlike `disabled` it is not dimmed, and Tab still reaches
 the chosen option, so a screen reader can read it ("Express, radio button,
 checked"); the group has `aria-readonly`, and the other options cannot be chosen
-with the mouse or the arrow keys. Nothing is sent to `onChange`. The default is
-`False`.
+with the mouse or the arrow keys: they are disabled, so screen readers call them
+unavailable, but they are not dimmed. When nothing is chosen, Tab reaches the
+group itself. Nothing is sent to `onChange`. The default is `False`.

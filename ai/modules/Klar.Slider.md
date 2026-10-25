@@ -455,9 +455,14 @@ Shows the value without letting the user change it, for a record the user may
 read but not edit. Unlike `disabled` it is not dimmed, and Tab still reaches the
 thumb (each thumb of a range slider), so a screen reader reads the value
 ("Discount, slider, 15 %, read only"); neither the mouse nor the keyboard moves
-it, and nothing is sent. The thumb is then an element with `role="slider"` and
-`aria-readonly` instead of a native range input, with the same `id`. `disabled`
-wins over it. The default is `False`.
+it. With a handler (`onInput` or `onCommit`, `onRangeInput` or `onRangeCommit`)
+the thumb stays the same native range input with `aria-readonly`, so it keeps the
+focus when `readOnly` turns on or off: a key, click or touch that would move it is
+cancelled, and the handler gets the value the slider already has. Without a
+handler the thumb is drawn as an element with `role="slider"` and
+`aria-readonly`, with the same `id`. `disabled` wins over it. The default is
+`False`. A slider without a handler and without `readOnly` still moves when it is
+dragged, and then shows something the model does not say.
 
 ### `locale`
 

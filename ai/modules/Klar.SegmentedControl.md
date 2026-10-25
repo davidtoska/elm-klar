@@ -316,4 +316,6 @@ Shows the choice without letting the user change it, for example while a
 report is being made. Unlike `disabled` it is not dimmed, and Tab still reaches
 the chosen segment, so a screen reader can read it; the group has
 `aria-readonly`, and the other segments cannot be chosen with the mouse or the
-arrow keys. Nothing is sent to `onChange`. The default is `False`.
+arrow keys: they are disabled, so screen readers call them unavailable, but they
+are not dimmed. When no segment can take the focus, Tab reaches the group itself.
+Nothing is sent to `onChange`. The default is `False`.

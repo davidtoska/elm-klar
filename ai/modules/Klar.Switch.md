@@ -133,6 +133,20 @@ with `checked`.
 
     Switch.onCheck NotifyChecked
 
+While the switch is `loading` or `readOnly` a click or Space is cancelled and
+this gets the value the switch already has. An update that saves on every change
+compares first, so that it does not send the same save twice:
+
+    NotifyChecked value ->
+        if value == model.notify then
+            ( model, Cmd.none )
+
+        else
+            ( { model | notify = value, saving = True }, saveNotify value )
+
+A switch without `onCheck` still flips when it is clicked, and then shows
+something the model does not say: give it `onCheck` or `readOnly`.
+
 ### `loading`
 
 ```elm
@@ -240,10 +254,13 @@ readOnly : Bool -> Attribute msg
 Shows the setting without letting the user change it, for a user who may not
 change it. Unlike `disabled` it is not dimmed, and Tab still reaches it, so a
 screen reader can read it ("Email notifications, switch, on, read only"); a click
-or Space changes nothing and nothing is sent to `onCheck`. The switch is then an
-element with `role="switch"`, `aria-checked` and `aria-readonly` instead of a
-native checkbox, with the same `id`. `disabled` wins over it. The default is
-`False`.
+or Space changes nothing. With `onCheck` the switch stays the same native input
+with `aria-readonly`, so it keeps the focus when `readOnly` turns on or off (a
+setting the server locks after a save): the click is cancelled and `onCheck` gets
+the value the switch already has, as while `loading`. Without `onCheck` the track
+is drawn as a button with `role="switch"`, `aria-checked` and `aria-readonly`,
+with the same `id`; give a switch whose `readOnly` changes while it may have the
+focus an `onCheck`. `disabled` wins over it. The default is `False`.
 
 ### `id`
 
