@@ -996,22 +996,26 @@ css =
 /* ---- Checkbox -------------------------------------------------------- */
 
 .klar-check {
+  --_box: 16px;
   position: relative;
   display: inline-flex;
   align-items: flex-start;
   gap: 8px;
   cursor: pointer;
-  line-height: 16px;
+  line-height: var(--_box);
   -webkit-user-select: none;
   user-select: none;
 }
+
+.klar-check--sm { --_box: 14px; font-size: var(--klar-text-sm); }
+.klar-check--lg { --_box: 18px; font-size: var(--klar-text-lg); }
 
 .klar-check--bare { gap: 0; }
 
 .klar-check__input {
   position: absolute;
-  width: 16px;
-  height: 16px;
+  width: var(--_box);
+  height: var(--_box);
   margin: 0;
   opacity: 0;
   cursor: pointer;
@@ -1020,8 +1024,8 @@ css =
 .klar-check__box {
   position: relative;
   flex: none;
-  width: 16px;
-  height: 16px;
+  width: var(--_box);
+  height: var(--_box);
   background: var(--klar-surface);
   border: 1px solid var(--klar-gray-400);
   border-radius: var(--klar-radius-sm);
@@ -1047,16 +1051,16 @@ css =
   inset: 0;
   background: var(--klar-on-primary);
   opacity: 0;
-  -webkit-mask: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='3.2' stroke-linecap='round' stroke-linejoin='round'><polyline points='20 6 9 17 4 12'/></svg>") center / 12px no-repeat;
-  mask: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='3.2' stroke-linecap='round' stroke-linejoin='round'><polyline points='20 6 9 17 4 12'/></svg>") center / 12px no-repeat;
+  -webkit-mask: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='3.2' stroke-linecap='round' stroke-linejoin='round'><polyline points='20 6 9 17 4 12'/></svg>") center / calc(var(--_box) * 0.75) no-repeat;
+  mask: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='3.2' stroke-linecap='round' stroke-linejoin='round'><polyline points='20 6 9 17 4 12'/></svg>") center / calc(var(--_box) * 0.75) no-repeat;
 }
 
 .klar-check__input:checked + .klar-check__box::after { opacity: 1; }
 
 .klar-check--indeterminate .klar-check__box::after {
   opacity: 1;
-  -webkit-mask: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='3.2' stroke-linecap='round'><line x1='5' y1='12' x2='19' y2='12'/></svg>") center / 12px no-repeat;
-  mask: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='3.2' stroke-linecap='round'><line x1='5' y1='12' x2='19' y2='12'/></svg>") center / 12px no-repeat;
+  -webkit-mask: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='3.2' stroke-linecap='round'><line x1='5' y1='12' x2='19' y2='12'/></svg>") center / calc(var(--_box) * 0.75) no-repeat;
+  mask: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='3.2' stroke-linecap='round'><line x1='5' y1='12' x2='19' y2='12'/></svg>") center / calc(var(--_box) * 0.75) no-repeat;
 }
 
 .klar-check--invalid .klar-check__box,
@@ -1070,6 +1074,55 @@ css =
 .klar-check__label { color: var(--klar-text); }
 .klar-check__hint { font-size: var(--klar-text-sm); color: var(--klar-text-muted); line-height: 1.35; }
 .klar-check__error { font-size: var(--klar-text-sm); color: var(--klar-danger); line-height: 1.35; }
+
+/* Read only: the box itself is the checkbox (role=checkbox, aria-checked), so
+   it can be reached and read but nothing can change it. */
+.klar-check--readonly { cursor: default; }
+.klar-check--readonly:hover .klar-check__box[aria-checked="false"] { border-color: var(--klar-gray-400); }
+
+.klar-check__box[aria-checked="true"] {
+  background: var(--klar-primary);
+  border-color: var(--klar-primary);
+}
+
+.klar-check__box[aria-checked="true"]::after { opacity: 1; }
+
+.klar-check__box:focus-visible {
+  outline: none;
+  box-shadow: var(--klar-focus-ring);
+  border-color: var(--klar-focus-color);
+}
+
+/* Windows high contrast replaces backgrounds and removes shadows, which would
+   leave a checked, a mixed and an empty box looking the same and hide the focus
+   ring: the box keeps its own colors, all of them system colors. */
+@media (forced-colors: active) {
+  .klar-check {
+    --klar-primary: Highlight;
+    --klar-on-primary: HighlightText;
+    --klar-surface: Canvas;
+    --klar-gray-400: CanvasText;
+    --klar-danger: CanvasText;
+    --klar-focus-color: Highlight;
+  }
+
+  .klar-check--disabled {
+    --klar-primary: GrayText;
+    --klar-on-primary: Canvas;
+    --klar-gray-400: GrayText;
+  }
+
+  .klar-check__box { forced-color-adjust: none; }
+
+  .klar-check__input:focus-visible + .klar-check__box,
+  .klar-check__box:focus-visible {
+    box-shadow: none;
+    outline: 2px solid Highlight;
+    outline-offset: 2px;
+  }
+
+  .klar-check--invalid .klar-check__box { border-width: 2px; }
+}
 
 /* ---- Menu ------------------------------------------------------------ */
 

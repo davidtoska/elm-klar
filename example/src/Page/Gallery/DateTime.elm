@@ -847,9 +847,9 @@ calendars locale model =
                     [ Switch.view
                         [ Switch.id "schedule-outage"
                         , Switch.label "Simulate an outage"
-                        , Switch.description "Months that are asked for while it is on fail. Turn it off and press Try again."
+                        , Switch.hint "Months that are asked for while it is on fail. Turn it off and press Try again."
                         , Switch.checked model.outage
-                        , Switch.onToggle OutageToggled
+                        , Switch.onCheck OutageToggled
                         , Switch.locale locale
                         ]
                     , monthStatus locale model

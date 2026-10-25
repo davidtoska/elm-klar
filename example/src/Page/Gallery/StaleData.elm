@@ -415,16 +415,19 @@ controls : Model -> Html Msg
 controls model =
     Layout.row [ Layout.gap 4, Layout.wrap, Layout.alignCenter ]
         [ SegmentedControl.view
-            [ SegmentedControl.ariaLabel "State of the data"
+            [ SegmentedControl.label "State of the data"
+            , SegmentedControl.labelHidden
             , SegmentedControl.options (List.map (\( name, _, text ) -> SegmentedControl.option name text) modes)
-            , SegmentedControl.selected (Maybe.map modeValue model.mode)
-            , SegmentedControl.onSelect ModeChosen
+
+            -- while the data refreshes no preset matches, and no segment is chosen
+            , SegmentedControl.selected (Maybe.map modeValue model.mode |> Maybe.withDefault "")
+            , SegmentedControl.onChange ModeChosen
             ]
         , Button.view [ Button.icon Icon.refresh, Button.onClick Refresh ] "Refresh"
         , Switch.view
             [ Switch.label "Simulate failing refresh"
             , Switch.checked model.failing
-            , Switch.onToggle FailingToggled
+            , Switch.onCheck FailingToggled
             ]
         ]
 

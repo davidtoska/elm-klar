@@ -7,7 +7,9 @@ groups, switches, segmented controls and sliders.
 import Dict exposing (Dict)
 import Html exposing (Html)
 import Klar.Card as Card
+import Klar.Checkbox as Checkbox
 import Klar.CheckboxGroup as CheckboxGroup
+import Klar.Format as Format
 import Klar.Icon as Icon
 import Klar.Layout as Layout
 import Klar.Locale exposing (Locale)
@@ -26,38 +28,70 @@ import Task
 -- MODEL
 
 
-{-| The small examples only need to keep what the user does, so each choice is
-stored under the DOM id of its control.
+{-| The values of the main examples are types of their own, as in an
+application: the options carry them and the messages give them back.
+-}
+type Shipping
+    = Standard
+    | Express
+    | Freight
+    | Pickup
+
+
+type Layout
+    = ListLayout
+    | GridLayout
+    | ColumnsLayout
+
+
+type Extra
+    = GiftWrap
+    | PaperInvoice
+    | Insurance
+    | SameDay
+
+
+{-| The small examples only need to keep what the user does, so each of their
+choices is stored under the DOM id of its control.
 -}
 type alias Model =
-    { picks : Dict String String
+    { shipping : Maybe Shipping
+    , layout : Layout
+    , extras : List Extra
+    , picks : Dict String String
     , checks : Dict String (List String)
     , flags : Dict String Bool
     , levels : Dict String Float
+    , committed : Maybe Float
     , ranges : Dict String ( Float, Float )
     , saving : Bool
+    , readOnly : Bool
     }
 
 
 init : Model
 init =
-    { picks =
+    { shipping = Just Standard
+    , layout = ListLayout
+    , extras = [ GiftWrap ]
+    , picks =
         Dict.fromList
-            [ ( "radio-method", "standard" )
-            , ( "radio-long", "a" )
-            , ( "seg-view", "list" )
+            [ ( "radio-long", "a" )
             , ( "seg-period", "week" )
             , ( "seg-owner", "all" )
             , ( "seg-small", "b" )
             , ( "seg-large", "b" )
             , ( "seg-icons", "list" )
+            , ( "seg-error", "third" )
             , ( "seg-long", "all" )
+            , ( "radio-readonly", "express" )
+            , ( "seg-readonly", "month" )
             ]
     , checks =
         Dict.fromList
-            [ ( "checks-extras", [ "gift-wrap" ] )
-            , ( "checks-days", [ "mon", "tue" ] )
+            [ ( "checks-days", [ "mon", "tue" ] )
             , ( "checks-long", [ "manager" ] )
+            , ( "checks-readonly", [ "invoice" ] )
             ]
     , flags =
         Dict.fromList
@@ -66,21 +100,33 @@ init =
             , ( "sw-long", True )
             , ( "sw-setting-a", True )
             , ( "sw-setting-c", True )
+            , ( "check-readonly", True )
+            , ( "sw-readonly", True )
             ]
     , levels =
         Dict.fromList
             [ ( "slider-discount", 35 )
             , ( "slider-urgency", 50 )
             , ( "slider-service", 20 )
+            , ( "slider-price", 400 )
             ]
+    , committed = Nothing
     , ranges = Dict.fromList [ ( "range-quantity", ( 100, 350 ) ) ]
     , saving = False
+    , readOnly = True
     }
 
 
 pickOf : String -> Model -> Maybe String
 pickOf key model =
     Dict.get key model.picks
+
+
+{-| The choice of a segmented control, which always has one.
+-}
+segmentOf : String -> Model -> String
+segmentOf key model =
+    Dict.get key model.picks |> Maybe.withDefault ""
 
 
 checksOf : String -> Model -> List String
@@ -108,18 +154,32 @@ rangeOf key model =
 
 
 type Msg
-    = PickChanged String String
+    = ShippingChanged Shipping
+    | LayoutChanged Layout
+    | ExtrasChanged (List Extra)
+    | PickChanged String String
     | ChecksChanged String (List String)
     | FlagChanged String Bool
-    | SavingToggled Bool
+    | SavingChecked Bool
     | SavingDone
     | LevelChanged String Float
+    | PriceChosen Float
     | RangeChanged String Float Float
+    | ReadOnlyChecked Bool
 
 
 update : Msg -> Model -> ( Model, Cmd Msg )
 update msg model =
     case msg of
+        ShippingChanged shipping ->
+            ( { model | shipping = Just shipping }, Cmd.none )
+
+        LayoutChanged layout ->
+            ( { model | layout = layout }, Cmd.none )
+
+        ExtrasChanged extras ->
+            ( { model | extras = extras }, Cmd.none )
+
         PickChanged key value ->
             ( { model | picks = Dict.insert key value model.picks }, Cmd.none )
 
@@ -129,11 +189,16 @@ update msg model =
         FlagChanged key value ->
             ( { model | flags = Dict.insert key value model.flags }, Cmd.none )
 
-        SavingToggled value ->
-            -- the "server" answers after a second
-            ( { model | flags = Dict.insert "sw-saving" value model.flags, saving = True }
-            , Process.sleep 1200 |> Task.perform (\_ -> SavingDone)
-            )
+        SavingChecked value ->
+            if value == flagOf "sw-saving" model then
+                -- pressed again while the last change is being saved
+                ( model, Cmd.none )
+
+            else
+                -- the "server" answers after a second
+                ( { model | flags = Dict.insert "sw-saving" value model.flags, saving = True }
+                , Process.sleep 1200 |> Task.perform (\_ -> SavingDone)
+                )
 
         SavingDone ->
             ( { model | saving = False }, Cmd.none )
@@ -141,8 +206,14 @@ update msg model =
         LevelChanged key value ->
             ( { model | levels = Dict.insert key value model.levels }, Cmd.none )
 
+        PriceChosen value ->
+            ( { model | levels = Dict.insert "slider-price" value model.levels, committed = Just value }, Cmd.none )
+
         RangeChanged key low high ->
             ( { model | ranges = Dict.insert key ( low, high ) model.ranges }, Cmd.none )
+
+        ReadOnlyChecked value ->
+            ( { model | readOnly = value }, Cmd.none )
 
 
 
@@ -162,39 +233,76 @@ sections lang model =
 -- RADIO AND CHECKBOX GROUPS
 
 
+shippingName : Shipping -> String
+shippingName shipping =
+    case shipping of
+        Standard ->
+            "Standard"
+
+        Express ->
+            "Express"
+
+        Freight ->
+            "Freight"
+
+        Pickup ->
+            "Pick up in store"
+
+
+extraName : Extra -> String
+extraName extra =
+    case extra of
+        GiftWrap ->
+            "Gift wrap"
+
+        PaperInvoice ->
+            "Paper invoice"
+
+        Insurance ->
+            "Shipping insurance"
+
+        SameDay ->
+            "Same-day dispatch"
+
+
 choices : Locale -> Model -> Html Msg
 choices lang model =
     Doc.section "Radio buttons and checkbox groups"
-        "The radio group is a fieldset with the label as its legend. Tab enters the group, the arrow keys move and choose (the browser's own behavior) and Space chooses the focused option. The checkbox group has Tab between the boxes and Space toggles; \"Select all\" shows a dash when only some are chosen."
+        "The radio group is a fieldset with the label as its legend. Tab enters the group, the arrow keys move and choose (the browser's own behavior) and Space chooses the focused option. The checkbox group has Tab between the boxes and Space toggles; \"Select all\" shows a dash when only some are chosen. The values are the application's own types, compared with ==."
         [ Doc.example
             { title = "Radio group"
-            , description = Just "With a description, a disabled option, a horizontal layout and an error."
-            , code = Just """Radio.view
+            , description = Just "The values are a type of the application (Standard, Express ...). With a description, a disabled option, a horizontal layout and an error."
+            , code = Just """type Shipping = Standard | Express | Freight | Pickup
+
+Radio.view
     [ Radio.label "Shipping method"
     , Radio.id "shipping-method"
     , Radio.options
-        [ Radio.option "standard" "Standard"
-        , Radio.option "express" "Express" |> Radio.withDescription "Delivered the next working day."
-        , Radio.option "pickup" "Pick up in store" |> Radio.disabledOption
+        [ Radio.option Standard "Standard"
+        , Radio.option Express "Express" |> Radio.withDescription "Delivered the next working day."
+        , Radio.option Pickup "Pick up in store" |> Radio.disabledOption
         ]
-    , Radio.selected model.method
-    , Radio.onSelect MethodSelected
+    , Radio.selected model.shipping -- Maybe Shipping
+    , Radio.onChange ShippingChanged -- Shipping -> Msg
     ]"""
             }
             (grid 280
-                [ Radio.view
-                    [ Radio.label "Shipping method"
-                    , Radio.id "radio-method"
-                    , Radio.options
-                        [ Radio.option "standard" "Standard"
-                            |> Radio.withDescription "Three to five working days."
-                        , Radio.option "express" "Express"
-                            |> Radio.withDescription "Delivered the next working day if ordered before 2 pm."
-                        , Radio.option "freight" "Freight"
-                        , Radio.option "pickup" "Pick up in store" |> Radio.disabledOption
+                [ stack
+                    [ Radio.view
+                        [ Radio.label "Shipping method"
+                        , Radio.id "radio-method"
+                        , Radio.options
+                            [ Radio.option Standard "Standard"
+                                |> Radio.withDescription "Three to five working days."
+                            , Radio.option Express "Express"
+                                |> Radio.withDescription "Delivered the next working day if ordered before 2 pm."
+                            , Radio.option Freight "Freight"
+                            , Radio.option Pickup "Pick up in store" |> Radio.disabledOption
+                            ]
+                        , Radio.selected model.shipping
+                        , Radio.onChange ShippingChanged
                         ]
-                    , Radio.selected (pickOf "radio-method" model)
-                    , Radio.onSelect (PickChanged "radio-method")
+                    , readout ("Chosen: " ++ (model.shipping |> Maybe.map shippingName |> Maybe.withDefault "nothing"))
                     ]
                 , Radio.view
                     [ Radio.label "Preferred contact"
@@ -207,7 +315,7 @@ choices lang model =
                         , Radio.option "post" "Post"
                         ]
                     , Radio.selected (pickOf "radio-contact" model)
-                    , Radio.onSelect (PickChanged "radio-contact")
+                    , Radio.onChange (PickChanged "radio-contact")
                     ]
                 , Radio.view
                     [ Radio.label "Partial delivery"
@@ -225,7 +333,7 @@ choices lang model =
                         , Radio.option "no" "Not allowed"
                         ]
                     , Radio.selected (pickOf "radio-partial" model)
-                    , Radio.onSelect (PickChanged "radio-partial")
+                    , Radio.onChange (PickChanged "radio-partial")
                     ]
                 , Radio.view
                     [ Radio.label "Disabled group"
@@ -238,19 +346,19 @@ choices lang model =
             )
         , Doc.example
             { title = "Groups without an id"
-            , description = Just "Two groups have the same label and no id. The name of a group is made from the label and the values of its options, so they are two groups: choosing in one does not change the other. (Two groups with the same label and the same values need an id each.)"
+            , description = Just "Two groups have the same label and no id. The name of a group is made from the label and the texts of its options, so they are two groups: choosing in one does not change the other. (Two groups with the same label and the same texts need an id each.)"
             , code = Just """Radio.view
     [ Radio.label "Notification"
-    , Radio.options [ Radio.option "sms" "SMS", Radio.option "email" "Email" ]
+    , Radio.options [ Radio.option Sms "SMS", Radio.option Email "Email" ]
     , Radio.selected model.first
-    , Radio.onSelect FirstSelected
+    , Radio.onChange FirstChanged
     ]
 
 Radio.view
     [ Radio.label "Notification"
-    , Radio.options [ Radio.option "call" "Phone call", Radio.option "letter" "Letter" ]
+    , Radio.options [ Radio.option Call "Phone call", Radio.option Letter "Letter" ]
     , Radio.selected model.second
-    , Radio.onSelect SecondSelected
+    , Radio.onChange SecondChanged
     ]"""
             }
             (grid 280
@@ -258,52 +366,58 @@ Radio.view
                     [ Radio.label "Notification"
                     , Radio.options [ Radio.option "sms" "SMS", Radio.option "email" "Email" ]
                     , Radio.selected (pickOf "radio-noid-a" model)
-                    , Radio.onSelect (PickChanged "radio-noid-a")
+                    , Radio.onChange (PickChanged "radio-noid-a")
                     ]
                 , Radio.view
                     [ Radio.label "Notification"
                     , Radio.options [ Radio.option "call" "Phone call", Radio.option "letter" "Letter" ]
                     , Radio.selected (pickOf "radio-noid-b" model)
-                    , Radio.onSelect (PickChanged "radio-noid-b")
+                    , Radio.onChange (PickChanged "radio-noid-b")
                     ]
                 ]
             )
         , Doc.example
             { title = "Checkbox group"
-            , description = Just "\"Select all\" is tri-state, and its text can be changed with selectAllLabel. The selection comes back in the same order as the options."
-            , code = Just """CheckboxGroup.view
+            , description = Just "\"Select all\" is tri-state, and its text can be changed with selectAllLabel. The selection is a list of the application's own values, in the same order as the options."
+            , code = Just """type Extra = GiftWrap | PaperInvoice | Insurance | SameDay
+
+CheckboxGroup.view
     [ CheckboxGroup.label "Extras"
     , CheckboxGroup.options
-        [ CheckboxGroup.option "gift-wrap" "Gift wrap"
-        , CheckboxGroup.option "paper-invoice" "Paper invoice"
+        [ CheckboxGroup.option GiftWrap "Gift wrap"
+        , CheckboxGroup.option PaperInvoice "Paper invoice"
         ]
-    , CheckboxGroup.selected model.extras
-    , CheckboxGroup.onChange ExtrasChanged
+    , CheckboxGroup.selected model.extras -- List Extra
+    , CheckboxGroup.onChange ExtrasChanged -- List Extra -> Msg
     , CheckboxGroup.selectAll
     ]"""
             }
             (grid 280
-                [ CheckboxGroup.view
-                    [ CheckboxGroup.label "Extras"
-                    , CheckboxGroup.id "checks-extras"
-                    , CheckboxGroup.options
-                        [ CheckboxGroup.option "gift-wrap" "Gift wrap"
-                        , CheckboxGroup.option "paper-invoice" "Paper invoice"
-                        , CheckboxGroup.option "insurance" "Shipping insurance"
-                            |> CheckboxGroup.withDescription "Covers loss and damage up to $500."
-                        , CheckboxGroup.option "same-day" "Same-day dispatch" |> CheckboxGroup.disabledOption
+                [ stack
+                    [ CheckboxGroup.view
+                        [ CheckboxGroup.label "Extras"
+                        , CheckboxGroup.id "checks-extras"
+                        , CheckboxGroup.options
+                            [ CheckboxGroup.option GiftWrap (extraName GiftWrap)
+                            , CheckboxGroup.option PaperInvoice (extraName PaperInvoice)
+                            , CheckboxGroup.option Insurance (extraName Insurance)
+                                |> CheckboxGroup.withDescription "Covers loss and damage up to $500."
+                            , CheckboxGroup.option SameDay (extraName SameDay) |> CheckboxGroup.disabledOption
+                            ]
+                        , CheckboxGroup.selected model.extras
+                        , CheckboxGroup.onChange ExtrasChanged
+                        , CheckboxGroup.selectAll
+                        , CheckboxGroup.locale lang
                         ]
-                    , CheckboxGroup.selected (checksOf "checks-extras" model)
-                    , CheckboxGroup.onChange (ChecksChanged "checks-extras")
-                    , CheckboxGroup.selectAll
-                    , CheckboxGroup.locale lang
+                    , readout ("Chosen: " ++ String.join ", " (List.map extraName model.extras))
                     ]
                 , stack
                     [ CheckboxGroup.view
                         [ CheckboxGroup.label "Delivery days"
                         , CheckboxGroup.id "checks-days"
-                        , CheckboxGroup.hint "Horizontal layout."
+                        , CheckboxGroup.hint "Horizontal layout, small boxes."
                         , CheckboxGroup.horizontal
+                        , CheckboxGroup.size Small
                         , CheckboxGroup.options
                             [ CheckboxGroup.option "mon" "Mon"
                             , CheckboxGroup.option "tue" "Tue"
@@ -347,6 +461,87 @@ Radio.view
                 ]
             )
         , Doc.example
+            { title = "Read only"
+            , description = Just "For a record the user may read but not change. Unlike disabled, nothing is dimmed and Tab still reaches the controls (the chosen option of a group), so a screen reader reads the value with \"read only\"; a click, Space or an arrow key changes nothing. Turn it off to edit."
+            , code = Just """Radio.view [ Radio.label "Delivery", Radio.readOnly model.locked, ... ]
+CheckboxGroup.view [ CheckboxGroup.label "Documents", CheckboxGroup.readOnly model.locked, ... ]
+Checkbox.view [ Checkbox.label "Newsletter", Checkbox.readOnly model.locked, ... ]
+Switch.view [ Switch.label "Active", Switch.readOnly model.locked, ... ]
+SegmentedControl.view [ SegmentedControl.label "Period", SegmentedControl.readOnly model.locked, ... ]
+Slider.view [ Slider.label "Discount", Slider.readOnly model.locked, ... ]"""
+            }
+            (stack
+                [ Switch.view
+                    [ Switch.label "Read only"
+                    , Switch.id "readonly-toggle"
+                    , Switch.checked model.readOnly
+                    , Switch.onCheck ReadOnlyChecked
+                    , Switch.locale lang
+                    ]
+                , grid 240
+                    [ Radio.view
+                        [ Radio.label "Delivery"
+                        , Radio.id "radio-readonly"
+                        , Radio.readOnly model.readOnly
+                        , Radio.options
+                            [ Radio.option "standard" "Standard"
+                            , Radio.option "express" "Express"
+                            , Radio.option "pickup" "Pick up in store"
+                            ]
+                        , Radio.selected (pickOf "radio-readonly" model)
+                        , Radio.onChange (PickChanged "radio-readonly")
+                        ]
+                    , CheckboxGroup.view
+                        [ CheckboxGroup.label "Documents"
+                        , CheckboxGroup.id "checks-readonly"
+                        , CheckboxGroup.readOnly model.readOnly
+                        , CheckboxGroup.options
+                            [ CheckboxGroup.option "invoice" "Invoice"
+                            , CheckboxGroup.option "packing-list" "Packing list"
+                            ]
+                        , CheckboxGroup.selected (checksOf "checks-readonly" model)
+                        , CheckboxGroup.onChange (ChecksChanged "checks-readonly")
+                        , CheckboxGroup.locale lang
+                        ]
+                    , stack
+                        [ Checkbox.view
+                            [ Checkbox.label "Newsletter"
+                            , Checkbox.id "check-readonly"
+                            , Checkbox.readOnly model.readOnly
+                            , Checkbox.checked (flagOf "check-readonly" model)
+                            , Checkbox.onCheck (FlagChanged "check-readonly")
+                            ]
+                        , Switch.view
+                            [ Switch.label "Active customer"
+                            , Switch.id "sw-readonly"
+                            , Switch.readOnly model.readOnly
+                            , Switch.checked (flagOf "sw-readonly" model)
+                            , Switch.onCheck (FlagChanged "sw-readonly")
+                            , Switch.locale lang
+                            ]
+                        , Slider.view
+                            [ Slider.label "Discount"
+                            , Slider.id "slider-readonly"
+                            , Slider.readOnly model.readOnly
+                            , Slider.max 50
+                            , Slider.step 5
+                            , Slider.value (levelOf "slider-discount" model)
+                            , Slider.onInput (LevelChanged "slider-discount")
+                            , Slider.unit "%"
+                            ]
+                        , SegmentedControl.view
+                            [ SegmentedControl.label "Period"
+                            , SegmentedControl.id "seg-readonly"
+                            , SegmentedControl.readOnly model.readOnly
+                            , SegmentedControl.options (letters "Day" "Week" "Month")
+                            , SegmentedControl.selected (segmentOf "seg-readonly" model)
+                            , SegmentedControl.onChange (PickChanged "seg-readonly")
+                            ]
+                        ]
+                    ]
+                ]
+            )
+        , Doc.example
             { title = "Long texts in a narrow place"
             , description = Just "Labels and descriptions wrap over several lines without moving the control itself."
             , code = Nothing
@@ -362,7 +557,7 @@ Radio.view
                             , Radio.option "b" "Try again the next working day"
                             ]
                         , Radio.selected (pickOf "radio-long" model)
-                        , Radio.onSelect (PickChanged "radio-long")
+                        , Radio.onChange (PickChanged "radio-long")
                         ]
                     , CheckboxGroup.view
                         [ CheckboxGroup.label "Send a copy of the delivery confirmation to these recipients"
@@ -378,9 +573,9 @@ Radio.view
                     , Switch.view
                         [ Switch.label "Send the invoice to the accounting system of the customer when the order is delivered"
                         , Switch.id "sw-long"
-                        , Switch.description "The invoice is sent through the e-invoicing network and cannot be recalled once it has been delivered."
+                        , Switch.hint "The invoice is sent through the e-invoicing network and cannot be recalled once it has been delivered."
                         , Switch.checked (flagOf "sw-long" model)
-                        , Switch.onToggle (FlagChanged "sw-long")
+                        , Switch.onCheck (FlagChanged "sw-long")
                         ]
                     ]
                 ]
@@ -395,33 +590,41 @@ Radio.view
 switches : Locale -> Model -> Html Msg
 switches lang model =
     Doc.section "Switch"
-        "A switch (role=switch) for settings that take effect at once. Space toggles it. While the application is saving, the knob shows a spinner and clicks are ignored."
+        "A switch (role=switch) for settings that take effect at once. Space toggles it. While the application is saving, the knob shows a spinner, clicks and Space change nothing, and the switch keeps the keyboard focus."
         [ Doc.example
-            { title = "Switch with a description"
-            , description = Just "Sizes, disabled, error, and a save that takes time (click the last one)."
+            { title = "Switch with a hint"
+            , description = Just "Sizes, disabled, error, and a save that takes time (click the last one, then press Space again while it saves: the focus stays)."
             , code = Just """Switch.view
     [ Switch.label "Email updates"
-    , Switch.description "You get an email when an order changes status."
+    , Switch.hint "You get an email when an order changes status."
     , Switch.checked model.notify
-    , Switch.onToggle NotifyToggled
+    , Switch.onCheck NotifyChecked
     , Switch.loading model.saving
-    ]"""
+    ]
+
+-- update: a press while saving sends the value the switch already has
+NotifyChecked value ->
+    if value == model.notify then
+        ( model, Cmd.none )
+
+    else
+        ( { model | notify = value, saving = True }, saveNotify value )"""
             }
             (grid 300
                 [ stack
                     [ Switch.view
                         [ Switch.label "Email updates"
                         , Switch.id "sw-email"
-                        , Switch.description "You get an email when an order changes status."
+                        , Switch.hint "You get an email when an order changes status."
                         , Switch.checked (flagOf "sw-email" model)
-                        , Switch.onToggle (FlagChanged "sw-email")
+                        , Switch.onCheck (FlagChanged "sw-email")
                         , Switch.locale lang
                         ]
                     , Switch.view
                         [ Switch.label "SMS updates"
                         , Switch.id "sw-sms"
                         , Switch.checked (flagOf "sw-sms" model)
-                        , Switch.onToggle (FlagChanged "sw-sms")
+                        , Switch.onCheck (FlagChanged "sw-sms")
                         , Switch.size Small
                         , Switch.locale lang
                         ]
@@ -429,7 +632,7 @@ switches lang model =
                         [ Switch.label "Large switch"
                         , Switch.id "sw-large"
                         , Switch.checked (flagOf "sw-large" model)
-                        , Switch.onToggle (FlagChanged "sw-large")
+                        , Switch.onCheck (FlagChanged "sw-large")
                         , Switch.size Large
                         , Switch.locale lang
                         ]
@@ -447,26 +650,26 @@ switches lang model =
                         , Switch.checked True
                         ]
                     , Switch.view
-                        ([ Switch.label "Accept the terms"
-                         , Switch.id "sw-error"
-                         , Switch.checked (flagOf "sw-error" model)
-                         , Switch.onToggle (FlagChanged "sw-error")
-                         , Switch.locale lang
-                         ]
-                            ++ (if flagOf "sw-error" model then
-                                    []
+                        [ Switch.label "Show prices with tax"
+                        , Switch.id "sw-error"
+                        , Switch.checked (flagOf "sw-error" model)
+                        , Switch.onCheck (FlagChanged "sw-error")
+                        , Switch.errorMaybe
+                            (if flagOf "sw-error" model then
+                                Nothing
 
-                                else
-                                    [ Switch.error "You must accept the terms" ]
-                               )
-                        )
+                             else
+                                Just "Prices for consumers must include tax"
+                            )
+                        , Switch.locale lang
+                        ]
                     , Switch.view
                         [ Switch.label "Saving to the server"
                         , Switch.id "sw-saving"
-                        , Switch.description "The switch shows a spinner for a second and ignores clicks meanwhile."
+                        , Switch.hint "The switch shows a spinner for a second and ignores clicks meanwhile."
                         , Switch.checked (flagOf "sw-saving" model)
                         , Switch.loading model.saving
-                        , Switch.onToggle SavingToggled
+                        , Switch.onCheck SavingChecked
                         , Switch.locale lang
                         ]
                     ]
@@ -475,17 +678,17 @@ switches lang model =
         , Doc.example
             { title = "List of settings"
             , description = Just "With controlAtEnd the switch sits at the far end of the line, as in a list of settings."
-            , code = Just """Switch.view [ Switch.label "Daily report", Switch.controlAtEnd, Switch.checked model.dailyReport, Switch.onToggle DailyReportToggled ]"""
+            , code = Just """Switch.view [ Switch.label "Daily report", Switch.controlAtEnd, Switch.checked model.dailyReport, Switch.onCheck DailyReportChecked ]"""
             }
             (Card.view [ Card.title "Notifications" ]
                 [ Layout.stack [ Layout.gap 4 ]
                     [ Switch.view
                         [ Switch.label "Daily report by email"
                         , Switch.id "sw-setting-a"
-                        , Switch.description "Sent at 07:00 every day."
+                        , Switch.hint "Sent at 07:00 every day."
                         , Switch.controlAtEnd
                         , Switch.checked (flagOf "sw-setting-a" model)
-                        , Switch.onToggle (FlagChanged "sw-setting-a")
+                        , Switch.onCheck (FlagChanged "sw-setting-a")
                         ]
                     , Layout.divider
                     , Switch.view
@@ -493,7 +696,7 @@ switches lang model =
                         , Switch.id "sw-setting-b"
                         , Switch.controlAtEnd
                         , Switch.checked (flagOf "sw-setting-b" model)
-                        , Switch.onToggle (FlagChanged "sw-setting-b")
+                        , Switch.onCheck (FlagChanged "sw-setting-b")
                         ]
                     , Layout.divider
                     , Switch.view
@@ -501,7 +704,7 @@ switches lang model =
                         , Switch.id "sw-setting-c"
                         , Switch.controlAtEnd
                         , Switch.checked (flagOf "sw-setting-c" model)
-                        , Switch.onToggle (FlagChanged "sw-setting-c")
+                        , Switch.onCheck (FlagChanged "sw-setting-c")
                         ]
                     ]
                 ]
@@ -516,18 +719,20 @@ switches lang model =
 segments : Model -> Html Msg
 segments model =
     Doc.section "Segmented control"
-        "A choice between a few options that look like joined buttons, for views, periods and modes. They are radio buttons underneath: Tab goes to the chosen option, the arrow keys move and choose."
+        "A choice between a few options that look like joined buttons, for views, periods and modes. They are radio buttons underneath: Tab goes to the chosen option, the arrow keys move and choose. One option is always chosen, so selected takes a value, not a Maybe."
         [ Doc.example
             { title = "With icons, periods and full width"
-            , description = Just "On the left icons with text, in the middle a period picker, and on the right full width."
-            , code = Just """SegmentedControl.view
-    [ SegmentedControl.ariaLabel "View"
+            , description = Just "On the left icons with text (the values are a type of the application), in the middle a period picker, and on the right full width."
+            , code = Just """type Layout = ListLayout | GridLayout | ColumnsLayout
+
+SegmentedControl.view
+    [ SegmentedControl.label "View"
     , SegmentedControl.options
-        [ SegmentedControl.option "list" "List" |> SegmentedControl.withIcon Icon.list
-        , SegmentedControl.option "grid" "Grid" |> SegmentedControl.withIcon Icon.grid
+        [ SegmentedControl.option ListLayout "List" |> SegmentedControl.withIcon Icon.list
+        , SegmentedControl.option GridLayout "Grid" |> SegmentedControl.withIcon Icon.grid
         ]
-    , SegmentedControl.selected model.layout
-    , SegmentedControl.onSelect LayoutSelected
+    , SegmentedControl.selected model.layout -- Layout
+    , SegmentedControl.onChange LayoutChanged -- Layout -> Msg
     ]"""
             }
             (grid 300
@@ -535,12 +740,12 @@ segments model =
                     [ SegmentedControl.label "View"
                     , SegmentedControl.id "seg-view"
                     , SegmentedControl.options
-                        [ SegmentedControl.option "list" "List" |> SegmentedControl.withIcon Icon.list
-                        , SegmentedControl.option "grid" "Grid" |> SegmentedControl.withIcon Icon.grid
-                        , SegmentedControl.option "columns" "Columns" |> SegmentedControl.withIcon Icon.columns
+                        [ SegmentedControl.option ListLayout "List" |> SegmentedControl.withIcon Icon.list
+                        , SegmentedControl.option GridLayout "Grid" |> SegmentedControl.withIcon Icon.grid
+                        , SegmentedControl.option ColumnsLayout "Columns" |> SegmentedControl.withIcon Icon.columns
                         ]
-                    , SegmentedControl.selected (pickOf "seg-view" model)
-                    , SegmentedControl.onSelect (PickChanged "seg-view")
+                    , SegmentedControl.selected model.layout
+                    , SegmentedControl.onChange LayoutChanged
                     ]
                 , SegmentedControl.view
                     [ SegmentedControl.label "Period"
@@ -551,8 +756,8 @@ segments model =
                         , SegmentedControl.option "month" "Month"
                         , SegmentedControl.option "year" "Year" |> SegmentedControl.disabledOption
                         ]
-                    , SegmentedControl.selected (pickOf "seg-period" model)
-                    , SegmentedControl.onSelect (PickChanged "seg-period")
+                    , SegmentedControl.selected (segmentOf "seg-period" model)
+                    , SegmentedControl.onChange (PickChanged "seg-period")
                     ]
                 , SegmentedControl.view
                     [ SegmentedControl.label "Owner (full width)"
@@ -563,64 +768,76 @@ segments model =
                         , SegmentedControl.option "mine" "Mine"
                         , SegmentedControl.option "unassigned" "Unassigned"
                         ]
-                    , SegmentedControl.selected (pickOf "seg-owner" model)
-                    , SegmentedControl.onSelect (PickChanged "seg-owner")
+                    , SegmentedControl.selected (segmentOf "seg-owner" model)
+                    , SegmentedControl.onChange (PickChanged "seg-owner")
                     ]
                 ]
             )
         , Doc.example
             { title = "Sizes, icon only, error and disabled"
-            , description = Just "A segment with only an icon uses its text as the accessible name and as a tooltip."
-            , code = Just """SegmentedControl.option "grid" "Grid" |> SegmentedControl.withIcon Icon.grid |> SegmentedControl.iconOnly"""
+            , description = Just "A segment made with iconOption has only an icon; its text is the accessible name and the tooltip, so it cannot be forgotten. A label that the segments make clear is kept for screen readers with labelHidden."
+            , code = Just """SegmentedControl.view
+    [ SegmentedControl.label "Layout"
+    , SegmentedControl.labelHidden
+    , SegmentedControl.options
+        [ SegmentedControl.iconOption ListLayout Icon.list "List"
+        , SegmentedControl.iconOption GridLayout Icon.grid "Grid"
+        ]
+    , SegmentedControl.selected model.layout
+    , SegmentedControl.onChange LayoutChanged
+    ]"""
             }
             (grid 260
                 [ SegmentedControl.view
-                    [ SegmentedControl.ariaLabel "Small"
+                    [ SegmentedControl.label "Small"
+                    , SegmentedControl.labelHidden
                     , SegmentedControl.id "seg-small"
                     , SegmentedControl.size Small
                     , SegmentedControl.options (letters "A" "B" "C")
-                    , SegmentedControl.selected (pickOf "seg-small" model)
-                    , SegmentedControl.onSelect (PickChanged "seg-small")
+                    , SegmentedControl.selected (segmentOf "seg-small" model)
+                    , SegmentedControl.onChange (PickChanged "seg-small")
                     ]
                 , SegmentedControl.view
-                    [ SegmentedControl.ariaLabel "Large"
+                    [ SegmentedControl.label "Large"
+                    , SegmentedControl.labelHidden
                     , SegmentedControl.id "seg-large"
                     , SegmentedControl.size Large
                     , SegmentedControl.options (letters "A" "B" "C")
-                    , SegmentedControl.selected (pickOf "seg-large" model)
-                    , SegmentedControl.onSelect (PickChanged "seg-large")
+                    , SegmentedControl.selected (segmentOf "seg-large" model)
+                    , SegmentedControl.onChange (PickChanged "seg-large")
                     ]
                 , SegmentedControl.view
-                    [ SegmentedControl.ariaLabel "Icons only"
+                    [ SegmentedControl.label "Icons only"
+                    , SegmentedControl.labelHidden
                     , SegmentedControl.id "seg-icons"
                     , SegmentedControl.options
-                        [ SegmentedControl.option "list" "List" |> SegmentedControl.withIcon Icon.list |> SegmentedControl.iconOnly
-                        , SegmentedControl.option "grid" "Grid" |> SegmentedControl.withIcon Icon.grid |> SegmentedControl.iconOnly
+                        [ SegmentedControl.iconOption "list" Icon.list "List"
+                        , SegmentedControl.iconOption "grid" Icon.grid "Grid"
                         ]
-                    , SegmentedControl.selected (pickOf "seg-icons" model)
-                    , SegmentedControl.onSelect (PickChanged "seg-icons")
+                    , SegmentedControl.selected (segmentOf "seg-icons" model)
+                    , SegmentedControl.onChange (PickChanged "seg-icons")
                     ]
                 , SegmentedControl.view
-                    [ SegmentedControl.label "Required choice"
+                    [ SegmentedControl.label "Choice with an error"
                     , SegmentedControl.id "seg-error"
                     , SegmentedControl.required
                     , SegmentedControl.errorMaybe
-                        (if pickOf "seg-error" model == Nothing then
-                            Just "Choose an option"
+                        (if segmentOf "seg-error" model == "third" then
+                            Just "Third is not allowed for this report"
 
                          else
                             Nothing
                         )
                     , SegmentedControl.options (letters "First" "Second" "Third")
-                    , SegmentedControl.selected (pickOf "seg-error" model)
-                    , SegmentedControl.onSelect (PickChanged "seg-error")
+                    , SegmentedControl.selected (segmentOf "seg-error" model)
+                    , SegmentedControl.onChange (PickChanged "seg-error")
                     ]
                 , SegmentedControl.view
                     [ SegmentedControl.label "Disabled"
                     , SegmentedControl.id "seg-disabled"
                     , SegmentedControl.disabled True
                     , SegmentedControl.options (letters "Off" "On" "Auto")
-                    , SegmentedControl.selected (Just "on")
+                    , SegmentedControl.selected "on"
                     ]
                 ]
             )
@@ -638,8 +855,8 @@ segments model =
                         [ SegmentedControl.option "all" "Everyone in the whole company, across all warehouses and offices"
                         , SegmentedControl.option "unit" "Only my warehouse"
                         ]
-                    , SegmentedControl.selected (pickOf "seg-long" model)
-                    , SegmentedControl.onSelect (PickChanged "seg-long")
+                    , SegmentedControl.selected (segmentOf "seg-long" model)
+                    , SegmentedControl.onChange (PickChanged "seg-long")
                     ]
                 ]
             )
@@ -648,7 +865,7 @@ segments model =
 
 {-| Three options whose value is their text.
 -}
-letters : String -> String -> String -> List SegmentedControl.Option
+letters : String -> String -> String -> List (SegmentedControl.Option String)
 letters first second third =
     [ SegmentedControl.option (String.toLower first) first
     , SegmentedControl.option (String.toLower second) second
@@ -713,8 +930,44 @@ sliders lang model =
                 ]
             )
         , Doc.example
+            { title = "Fetch when the thumb is let go"
+            , description = Just "onInput keeps the written value up to date while dragging; onCommit is sent once when the thumb is let go (and for every key press), the moment to ask the server for the filtered list."
+            , code = Just """Slider.view
+    [ Slider.label "Highest price"
+    , Slider.max 1000
+    , Slider.step 10
+    , Slider.value model.maxPrice
+    , Slider.onInput PriceMoved -- every step of the drag
+    , Slider.onCommit PriceChosen -- once, when the thumb is let go
+    ]"""
+            }
+            (narrow 340
+                [ stack
+                    [ Slider.view
+                        [ Slider.label "Highest price"
+                        , Slider.id "slider-price"
+                        , Slider.max 1000
+                        , Slider.step 10
+                        , Slider.value (levelOf "slider-price" model)
+                        , Slider.onInput (LevelChanged "slider-price")
+                        , Slider.onCommit PriceChosen
+                        , Slider.unit "USD"
+                        , Slider.locale lang
+                        ]
+                    , readout
+                        (case model.committed of
+                            Just price ->
+                                "Fetched the products up to " ++ Format.decimal lang 0 price ++ " USD"
+
+                            Nothing ->
+                                "Nothing fetched yet: drag the thumb and let go"
+                        )
+                    ]
+                ]
+            )
+        , Doc.example
             { title = "Range"
-            , description = Just "Two thumbs that cannot pass each other. Keep at least 10 pieces between them."
+            , description = Just "Two thumbs that cannot pass each other, named \"Order quantity, from\" and \"Order quantity, to\" for screen readers. Keep at least 10 pieces between them."
             , code = Just """Slider.viewRange
     [ Slider.label "Order quantity"
     , Slider.min 0

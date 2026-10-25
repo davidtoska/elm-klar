@@ -256,8 +256,8 @@ PolicyMsg inner ->
         }
         (Layout.stack [ Layout.gap 3 ]
             [ Layout.row [ Layout.gap 4, Layout.wrap, Layout.alignCenter ]
-                [ Switch.view [ Switch.label "Ignore white space", Switch.checked model.ignoreSpace, Switch.onToggle IgnoreSpace ]
-                , Switch.view [ Switch.label "Wrap long lines", Switch.checked model.wrap, Switch.onToggle Wrap ]
+                [ Switch.view [ Switch.label "Ignore white space", Switch.checked model.ignoreSpace, Switch.onCheck IgnoreSpace ]
+                , Switch.view [ Switch.label "Wrap long lines", Switch.checked model.wrap, Switch.onCheck Wrap ]
                 ]
             , Diff.view PolicyMsg
                 (List.concat
@@ -305,7 +305,7 @@ orderExample locale model =
 Diff.view OrderMsg [ Diff.ariaLabel "Changes to the order" ] model.order model.orderDiff"""
         }
         (Layout.stack [ Layout.gap 3 ]
-            [ Switch.view [ Switch.label "Match order lines by sku", Switch.checked model.byKey, Switch.onToggle ByKey ]
+            [ Switch.view [ Switch.label "Match order lines by sku", Switch.checked model.byKey, Switch.onCheck ByKey ]
             , Diff.view OrderMsg
                 [ Diff.ariaLabel "Changes to the order", Diff.locale locale ]
                 model.order
@@ -332,7 +332,7 @@ Diff.viewStatic [ Diff.ariaLabel "Changes by Ada Lovelace, 12 Oct 2026" ] entryD
             (List.map (auditCard locale) auditDiffs
                 ++ [ Card.view [ Card.title "With the toolbar", Card.headingLevel 4 ]
                         [ Layout.stack [ Layout.gap 3 ]
-                            [ Switch.view [ Switch.label "Show the fields that did not change", Switch.checked model.showUnchanged, Switch.onToggle ShowUnchanged ]
+                            [ Switch.view [ Switch.label "Show the fields that did not change", Switch.checked model.showUnchanged, Switch.onCheck ShowUnchanged ]
                             , Diff.view AuditMsg
                                 (List.concat
                                     [ [ Diff.ariaLabel "Changes to the order", Diff.locale locale ]

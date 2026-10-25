@@ -88,34 +88,46 @@ changed =
     Event.custom "change" (Encode.object [])
 
 
-radio : String -> String -> State -> Result String State
-radio group choice =
+{-| A choice of a radio group or a segmented control. The DOM value of a radio
+button is its position (the values of the options are the picker's own), so the
+choices of each group are listed in the order they are shown.
+-}
+radio : List String -> String -> String -> State -> Result String State
+radio order group choice =
+    let
+        position =
+            List.indexedMap Tuple.pair order
+                |> List.filter (\( _, key ) -> key == choice)
+                |> List.head
+                |> Maybe.map Tuple.first
+                |> Maybe.withDefault -1
+    in
     send
         [ Selector.tag "input"
         , Selector.attribute (Attr.name group)
-        , Selector.attribute (Attr.value choice)
+        , Selector.attribute (Attr.value (String.fromInt position))
         ]
         changed
 
 
 frequency : String -> State -> Result String State
 frequency =
-    radio id
+    radio [ "once", "daily", "weekly", "monthly", "yearly" ] id
 
 
 ends : String -> State -> Result String State
 ends =
-    radio (id ++ "-end")
+    radio [ "never", "after", "on" ] (id ++ "-end")
 
 
 by : String -> State -> Result String State
 by =
-    radio (id ++ "-by")
+    radio [ "day", "nth", "last" ] (id ++ "-by")
 
 
 missing : String -> State -> Result String State
 missing =
-    radio (id ++ "-missing")
+    radio [ "last", "skip" ] (id ++ "-missing")
 
 
 typeInto : String -> String -> State -> Result String State
@@ -350,7 +362,7 @@ monthlyTests =
                             |> Query.find [ Selector.id (id ++ "-by-group") ]
                             |> Expect.all
                                 [ Query.has [ Selector.text "On the last Thursday of the month" ]
-                                , Query.findAll [ Selector.attribute (Attr.value "last") ] >> Query.count (Expect.equal 0)
+                                , Query.findAll [ Selector.tag "input", Selector.attribute (Attr.type_ "radio") ] >> Query.count (Expect.equal 2)
                                 ]
                     ]
                     ()

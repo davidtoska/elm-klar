@@ -1168,19 +1168,26 @@ viewInputs locale model =
                     , Checkbox.onCheck NotifyChanged
                     ]
                 , Checkbox.view
-                    ([ Checkbox.label "I accept the terms of delivery"
-                     , Checkbox.checked model.terms
-                     , Checkbox.onCheck TermsChanged
-                     ]
-                        ++ (if model.terms then
-                                []
+                    [ Checkbox.label "I accept the terms of delivery"
+                    , Checkbox.required
+                    , Checkbox.checked model.terms
+                    , Checkbox.onCheck TermsChanged
+                    , Checkbox.errorMaybe
+                        (if model.terms then
+                            Nothing
 
-                            else
-                                [ Checkbox.error "You must accept the terms" ]
-                           )
-                    )
+                         else
+                            Just "You must accept the terms"
+                        )
+                    ]
                 , Checkbox.view [ Checkbox.label "Disabled", Checkbox.disabled True ]
                 , Checkbox.view [ Checkbox.label "Disabled and checked", Checkbox.checked True, Checkbox.disabled True ]
+                , Checkbox.view [ Checkbox.label "Read only and checked: Tab reaches it, nothing changes it", Checkbox.checked True, Checkbox.readOnly True ]
+                , Layout.row [ Layout.gap 4, Layout.alignCenter ]
+                    [ Checkbox.view [ Checkbox.label "Small", Checkbox.size Small, Checkbox.checked model.notify, Checkbox.onCheck NotifyChanged ]
+                    , Checkbox.view [ Checkbox.label "Medium", Checkbox.checked model.notify, Checkbox.onCheck NotifyChanged ]
+                    , Checkbox.view [ Checkbox.label "Large", Checkbox.size Large, Checkbox.checked model.notify, Checkbox.onCheck NotifyChanged ]
+                    ]
                 , Layout.divider
                 , Checkbox.view
                     [ Checkbox.label "Select all warehouses"
@@ -1578,16 +1585,19 @@ checkboxCode =
     , Checkbox.onCheck NotifyChanged
     ]
 
--- the error is only added while there is a problem
 Checkbox.view
-    ([ Checkbox.label "I accept the terms of delivery"
-     , Checkbox.checked model.terms
-     , Checkbox.onCheck TermsChanged
-     ]
-        ++ (if model.terms then [] else [ Checkbox.error "You must accept the terms" ])
-    )
+    [ Checkbox.label "I accept the terms of delivery"
+    , Checkbox.required
+    , Checkbox.checked model.terms
+    , Checkbox.onCheck TermsChanged
+    , Checkbox.errorMaybe (Validate.errorFor "order-terms" model.errors)
+    ]
 
 Checkbox.view [ Checkbox.label "Disabled", Checkbox.disabled True ]
+
+Checkbox.view [ Checkbox.label "Read only", Checkbox.checked True, Checkbox.readOnly True ]
+
+Checkbox.view [ Checkbox.label "Small", Checkbox.size Small, Checkbox.checked model.notify, Checkbox.onCheck NotifyChanged ]
 
 Checkbox.view
     [ Checkbox.label "Select all warehouses"

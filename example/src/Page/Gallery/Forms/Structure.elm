@@ -277,7 +277,7 @@ formLayout lang model =
                     [ Switch.label "Stacked layout"
                     , Switch.id "layout-stacked"
                     , Switch.checked model.stacked
-                    , Switch.onToggle StackedToggled
+                    , Switch.onCheck StackedToggled
                     ]
                 , FormLayout.view
                     ([ FormLayout.onSubmit NoOp, FormLayout.ariaLabel "Example form", FormLayout.locale lang ]
@@ -379,7 +379,8 @@ FormLayout.status [ FormLayout.id "order-form", FormLayout.onRetry Retry, FormLa
             }
             (stack
                 [ SegmentedControl.view
-                    [ SegmentedControl.ariaLabel "Status"
+                    [ SegmentedControl.label "Status"
+                    , SegmentedControl.labelHidden
                     , SegmentedControl.id "status-kind"
                     , SegmentedControl.size Small
                     , SegmentedControl.options
@@ -388,8 +389,8 @@ FormLayout.status [ FormLayout.id "order-form", FormLayout.onRetry Retry, FormLa
                         , SegmentedControl.option "succeeded" "Saved"
                         , SegmentedControl.option "failed" "Failed"
                         ]
-                    , SegmentedControl.selected model.statusKind
-                    , SegmentedControl.onSelect StatusKindSelected
+                    , SegmentedControl.selected (Maybe.withDefault "idle" model.statusKind)
+                    , SegmentedControl.onChange StatusKindSelected
                     ]
                 , FormLayout.status
                     [ FormLayout.id statusDemoId

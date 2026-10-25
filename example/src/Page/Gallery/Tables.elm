@@ -1734,9 +1734,9 @@ clientSection locale client =
             (Layout.stack [ Layout.gap 3 ]
                 [ Switch.view
                     [ Switch.label "Urgent orders only"
-                    , Switch.description "A filter outside the table, applied with Table.rowFilter."
+                    , Switch.hint "A filter outside the table, applied with Table.rowFilter."
                     , Switch.checked client.urgentOnly
-                    , Switch.onToggle UrgentOnlyToggled
+                    , Switch.onCheck UrgentOnlyToggled
                     ]
                 , Table.view ClientTable
                     ([ Table.columns clientColumns
@@ -1855,12 +1855,12 @@ serverSection locale server =
                     [ Switch.view
                         [ Switch.label "Simulate failure (HTTP 503)"
                         , Switch.checked server.simulateError
-                        , Switch.onToggle SimulateErrorToggled
+                        , Switch.onCheck SimulateErrorToggled
                         ]
                     , Switch.view
                         [ Switch.label "Slow server (+2.2 s)"
                         , Switch.checked server.slowServer
-                        , Switch.onToggle SlowServerToggled
+                        , Switch.onCheck SlowServerToggled
                         ]
                     , Layout.spacer
                     , Text.caption ("Requests: " ++ String.fromInt server.request)
@@ -2311,19 +2311,20 @@ statesSection locale states =
             (Layout.stack [ Layout.gap 3 ]
                 [ Layout.row [ Layout.gap 5, Layout.wrap, Layout.alignCenter ]
                     [ SegmentedControl.view
-                        [ SegmentedControl.ariaLabel "Kind of failure"
+                        [ SegmentedControl.label "Kind of failure"
+                        , SegmentedControl.labelHidden
                         , SegmentedControl.options
                             [ SegmentedControl.option "network" "No connection"
                             , SegmentedControl.option "server" "Server error"
                             , SegmentedControl.option "forbidden" "No access"
                             ]
-                        , SegmentedControl.selected (Just (failureKindValue lifecycle.kind))
-                        , SegmentedControl.onSelect FailureKindChosen
+                        , SegmentedControl.selected (failureKindValue lifecycle.kind)
+                        , SegmentedControl.onChange FailureKindChosen
                         ]
                     , Switch.view
                         [ Switch.label "The service is back"
                         , Switch.checked lifecycle.serviceBack
-                        , Switch.onToggle ServiceBackToggled
+                        , Switch.onCheck ServiceBackToggled
                         ]
                     ]
                 , Table.view FailedTable

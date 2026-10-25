@@ -590,7 +590,7 @@ FormLayout.view [ FormLayout.id "new-order-form", FormLayout.onSubmit Submit ]
                             , Radio.option "pickup" "Pick up" |> Radio.withDescription "The customer collects the goods at the warehouse."
                             ]
                         , Radio.selected order.method
-                        , Radio.onSelect MethodSelected
+                        , Radio.onChange MethodSelected
                         , Radio.errorMaybe (shown methodId)
                         ]
                     , SegmentedControl.view
@@ -598,8 +598,8 @@ FormLayout.view [ FormLayout.id "new-order-form", FormLayout.onSubmit Submit ]
                         , SegmentedControl.id "new-order-priority"
                         , SegmentedControl.options
                             (List.map (\priority -> SegmentedControl.option (priorityKey priority) (priorityLabel priority)) allPriorities)
-                        , SegmentedControl.selected order.priority
-                        , SegmentedControl.onSelect PrioritySelected
+                        , SegmentedControl.selected (Maybe.withDefault "normal" order.priority)
+                        , SegmentedControl.onChange PrioritySelected
                         ]
                     , Slider.view
                         [ Slider.label "Discount"
@@ -642,19 +642,19 @@ FormLayout.view [ FormLayout.id "new-order-form", FormLayout.onSubmit Submit ]
                             [ Switch.view
                                 [ Switch.label "Email updates"
                                 , Switch.id "new-order-notify-email"
-                                , Switch.description "Status changes and reminders."
+                                , Switch.hint "Status changes and reminders."
                                 , Switch.controlAtEnd
                                 , Switch.checked order.notifyEmail
-                                , Switch.onToggle NotifyEmailToggled
+                                , Switch.onCheck NotifyEmailToggled
                                 ]
                             , Layout.divider
                             , Switch.view
                                 [ Switch.label "SMS updates"
                                 , Switch.id "new-order-notify-sms"
-                                , Switch.description "Needs a phone number."
+                                , Switch.hint "Needs a phone number."
                                 , Switch.controlAtEnd
                                 , Switch.checked order.notifySms
-                                , Switch.onToggle NotifySmsToggled
+                                , Switch.onCheck NotifySmsToggled
                                 ]
                             ]
                         ]
@@ -710,7 +710,7 @@ FormLayout.view [ FormLayout.id "new-order-form", FormLayout.onSubmit Submit ]
                         [ Switch.label "Simulate a failure"
                         , Switch.id "new-order-simulate-failure"
                         , Switch.checked order.simulateFailure
-                        , Switch.onToggle SimulateFailureToggled
+                        , Switch.onCheck SimulateFailureToggled
                         , Switch.size Small
                         ]
                     , Layout.spacer

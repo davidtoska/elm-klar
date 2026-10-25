@@ -22,11 +22,14 @@ onCheck : (Bool -> msg) -> Attribute msg
 label : String -> Attribute msg
 hint : String -> Attribute msg
 error : String -> Attribute msg
+errorMaybe : Maybe String -> Attribute msg
+required : Attribute msg
 ariaLabel : String -> Attribute msg
 
 -- Look and behavior
 size : Theme.Size -> Attribute msg
 disabled : Bool -> Attribute msg
+readOnly : Bool -> Attribute msg
 tabIndex : Int -> Attribute msg
 id : String -> Attribute msg
 ```
@@ -73,8 +76,15 @@ The hint and the error message are drawn under the label, or beside the box when
 there is no label (then the checkbox needs `ariaLabel`). Both are joined to the
 checkbox with `aria-describedby`, the error is read out when it appears, and the
 accessible name stays the label alone. A checkbox draws these itself and does not
-use [Klar.Field](Klar.Field.md), so it has no `errorMaybe`, `required` or
-`labelHidden`.
+use [Klar.Field](Klar.Field.md); it has the same `hint`, `error`, `errorMaybe` and
+`required` as the fields, and `ariaLabel` instead of `labelHidden`.
+
+A checkbox the user may look at but not change (a saved record, a missing
+permission) is `readOnly`: not dimmed like `disabled`, still reached with Tab and
+read by screen readers, but nothing can change it. A checkbox without `onCheck` is
+only a picture of a state that something around it changes, like the boxes in the
+rows of a multi-select list: it still toggles when clicked, so give a checkbox that
+stands on its own `onCheck` or `readOnly`.
 
 ## View
 
@@ -167,8 +177,28 @@ Marks the checkbox invalid (a red box and `aria-invalid`) and shows the
 message in red under the label (beside the box when there is no label). The
 message is joined to the checkbox with `aria-describedby`, and screen readers
 read it when it appears. An empty text counts as no error, so there is never a
-red box without a message. There is no `errorMaybe`: add `error` to the list only
-while there is a problem.
+red box without a message.
+
+### `errorMaybe`
+
+```elm
+errorMaybe : Maybe String -> Attribute msg
+```
+
+Like `error`, for a message that may not be there: `Nothing` shows no
+error. It goes well with `Validate.errorFor`.
+
+    Checkbox.errorMaybe (Validate.errorFor "order-terms" errors)
+
+### `required`
+
+```elm
+required : Attribute msg
+```
+
+Marks the checkbox as required, such as "I accept the terms": a `*` after the
+label (hidden from screen readers) and `aria-required` on the checkbox. It only
+marks the checkbox and checks nothing.
 
 ### `ariaLabel`
 
@@ -198,6 +228,20 @@ disabled : Bool -> Attribute msg
 
 Dims the checkbox and makes it unchangeable and unfocusable (the HTML
 `disabled` attribute). The default is `False`.
+
+### `readOnly`
+
+```elm
+readOnly : Bool -> Attribute msg
+```
+
+Shows the value without letting the user change it, for a record the user may
+read but not edit. Unlike `disabled` it is not dimmed, and Tab still reaches it,
+so a screen reader can read it ("Newsletter, checkbox, checked, read only"); a
+click or Space changes nothing and nothing is sent to `onCheck`. The box is then
+an element with `role="checkbox"`, `aria-checked` and `aria-readonly` instead of
+a native checkbox, with the same `id`. `disabled` wins over it. The default is
+`False`.
 
 ### `tabIndex`
 

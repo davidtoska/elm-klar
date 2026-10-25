@@ -129,7 +129,7 @@ message alone.
                         , Radio.option "express" "Express, next day"
                         ]
                     , Radio.selected (Just model.priority)
-                    , Radio.onSelect PriorityChanged
+                    , Radio.onChange PriorityChanged
                     ]
                 ]
             , FormLayout.actions

@@ -1535,7 +1535,7 @@
       "group": "Inputs",
       "purpose": "A group of checkboxes: choose any number of the options.",
       "whenToUse": "a handful of options where the user may choose any number and should see them all.",
-      "whenNot": "exactly one choice is wanted (`Klar.Radio`) or the list is long and needs a search box (`Klar.MultiSelect`).",
+      "whenNot": "exactly one choice is wanted (`Klar.Radio`), the options are a compact row of toggles (`Klar.ToggleGroup`) or the list is long and needs a search box (`Klar.MultiSelect`).",
       "state": [],
       "msg": [],
       "ids": [],
@@ -1545,7 +1545,11 @@
         "view",
         "option",
         "withDescription",
-        "disabledOption"
+        "disabledOption",
+        "options",
+        "selected",
+        "onChange",
+        "selectAll"
       ],
       "related": [
         "Klar.Checkbox",
@@ -1553,7 +1557,8 @@
         "Klar.Form.Layout",
         "Klar.MultiSelect",
         "Klar.Radio",
-        "Klar.Theme"
+        "Klar.Theme",
+        "Klar.ToggleGroup"
       ],
       "keywords": [
         "checkbox group",
@@ -1583,7 +1588,11 @@
         "view",
         "option",
         "withDescription",
-        "disabledOption"
+        "disabledOption",
+        "options",
+        "selected",
+        "onChange",
+        "label"
       ],
       "related": [
         "Klar.CheckboxGroup",
@@ -1666,7 +1675,7 @@
       "group": "Inputs",
       "purpose": "A row of joined options where exactly one is chosen: a switch between views (\"List\" / \"Grid\"), periods (\"Day\" / \"Week\" / \"Month\") or modes.",
       "whenToUse": "a few short options that switch what the page shows, such as List or Grid, or Day, Week and Month.",
-      "whenNot": "the options need a sentence of explanation (`Klar.Radio`), there are many (`Klar.Select`) or panels of content are switched (`Klar.Tabs`).",
+      "whenNot": "the options need a sentence of explanation (`Klar.Radio`), there are many (`Klar.Select`), none or several may be on (`Klar.ToggleGroup`) or panels of content are switched (`Klar.Tabs`).",
       "state": [],
       "msg": [],
       "ids": [],
@@ -1675,9 +1684,12 @@
       "mainFunctions": [
         "view",
         "option",
+        "iconOption",
         "withIcon",
-        "iconOnly",
-        "disabledOption"
+        "disabledOption",
+        "options",
+        "selected",
+        "onChange"
       ],
       "related": [
         "Klar.Field",
@@ -1685,7 +1697,8 @@
         "Klar.Radio",
         "Klar.Select",
         "Klar.Tabs",
-        "Klar.Theme"
+        "Klar.Theme",
+        "Klar.ToggleGroup"
       ],
       "keywords": [
         "segmented control",

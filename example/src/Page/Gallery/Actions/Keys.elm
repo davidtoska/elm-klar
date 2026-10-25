@@ -138,19 +138,18 @@ section locale model =
             }
             (Layout.stack [ Layout.gap 3, Layout.alignStart ]
                 [ SegmentedControl.view
-                    [ SegmentedControl.ariaLabel "Keyboard"
+                    [ SegmentedControl.label "Keyboard"
+                    , SegmentedControl.labelHidden
                     , SegmentedControl.id "actions-keys-platform"
                     , SegmentedControl.options [ SegmentedControl.option "pc" "Windows or Linux", SegmentedControl.option "mac" "Mac" ]
                     , SegmentedControl.selected
-                        (Just
-                            (if model.mac then
-                                "mac"
+                        (if model.mac then
+                            "mac"
 
-                             else
-                                "pc"
-                            )
+                         else
+                            "pc"
                         )
-                    , SegmentedControl.onSelect MacChanged
+                    , SegmentedControl.onChange MacChanged
                     ]
                 , Layout.container [ Layout.maxWidth 340, Layout.alignStart ]
                     [ Layout.stack [ Layout.gap 2 ]
