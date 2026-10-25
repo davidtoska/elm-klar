@@ -245,12 +245,14 @@ components =
                         (Remote.refreshWith (Remote.refreshWith Loading (Ok [ Tree.leaf Ids.string "a" "Alpha" ]) fourteenOhFive) (Err failure) (at 1000))
                     )
                     |> Query.has [ text "Old data from 14:05", text "Alpha" ]
-        , test "the marker is announced politely and has a retry button" <|
+        , test "the marker is announced politely, says why, and has a retry button" <|
             \_ ->
                 html (history [ Timeline.onRetry Retry ])
-                    |> Query.find [ Selector.class "klar-stale" ]
+                    |> Query.find [ Selector.class "klar-fresh__slot" ]
                     |> Expect.all
-                        [ Query.has [ Selector.attribute (Attr.attribute "role" "status") ]
+                        [ Query.find [ Selector.attribute (Attr.attribute "role" "status") ]
+                            >> Query.has [ text "Old data from 14:05 UTC. Refresh failed: Can't reach the service." ]
+                        , Query.find [ Selector.class "klar-stale" ] >> Query.has [ text "Refresh failed: Can't reach the service" ]
                         , Query.has [ Selector.tag "button", text "Try again" ]
                         ]
         , test "a problem that retrying cannot fix has no retry button" <|

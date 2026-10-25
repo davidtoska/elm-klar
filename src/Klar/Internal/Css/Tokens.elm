@@ -52,7 +52,9 @@ css =
   --klar-amber-50: #fff7e6;
   --klar-amber-100: #ffecc2;
   --klar-amber-500: #d98a0b;
-  --klar-amber-600: #b87208;
+  /* The warning color is text too (a warning note, a solid badge with white text): 5.1:1
+     on white and 4.8:1 on amber-50, where the brighter #b87208 was 3.9:1 and failed AA. */
+  --klar-amber-600: #9c6106;
   --klar-amber-700: #8f5806;
 
   --klar-red-50: #fdf0ee;
@@ -152,6 +154,8 @@ css =
   --klar-control: 32px;
   --klar-control-lg: 40px;
   --klar-control-px: 10px;
+  /* The row of a list in a popup. Elm computes the scroll position of a row from 32px
+     (Select.Popup.rowHeight, VirtualList), so it is the same at every density. */
   --klar-option-h: 32px;
 
   /* ---- Table rows ---- */
@@ -196,6 +200,8 @@ css =
   color-scheme: light;
 }
 
+/* Every transition and every entrance runs on these durations, so under reduced
+   motion they end at once. What has a duration of its own is in the list of Base. */
 @media (prefers-reduced-motion: reduce) {
   :root {
     --klar-dur-fast: 0ms;

@@ -54,3 +54,17 @@ klar-text
 klar-timepicker__box
 klar-timepicker__control
 klar-tree__filter
+# Known gaps: a size, tone or density that the Elm code can emit (Internal.sizeSuffix,
+# toneSuffix, densitySuffix) and that has no rule, so it looks like the default.
+# Write the rule, then delete the line.
+klar-alert--info
+klar-alert--primary
+klar-check--lg
+klar-check--sm
+klar-confirm__icon--info
+klar-confirm__icon--primary
+klar-confirm__icon--success
+klar-progress--info
+klar-progress--primary
+klar-toast--info
+klar-toast--primary

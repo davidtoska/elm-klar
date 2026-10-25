@@ -54,11 +54,13 @@ npm start            # builds and serves the showcase on http://localhost:8000
 ```
 
 `npm run check` runs, in order: `check:text` (UTF-8, LF, no BOM), `check:classes` (every
-`klar-` class the Elm code uses has a rule), `check:icons`, `check:docs` (every exposed name
-documented, `elm make --docs` passes), `check:ai-docs` (ai/ is current; AI.md is under 400
-lines, names every module, its program compiles), `check:ai-names` (every `Module.name` in
-AI.md, README and the doc comments exists), `check-doc-examples --strict` (complete examples
-in doc comments compile), `check:api` (no public signature names a type a user cannot name),
+`klar-` class the Elm code uses has a rule, every size, tone and density a suffix function can
+emit too), `check:icons`, `check:docs` (every exposed name documented, `elm make --docs`
+passes), `check:ai-docs` (ai/ is current; AI.md is under 400 lines, names every module, its
+program compiles), `check:ai-names` (every `Module.name` in AI.md, README and the doc comments
+exists), `check-doc-examples --strict` (complete examples in doc comments compile), `check:api`
+(no public signature names a type a user cannot name), `check:rules` (a report, `--strict` to
+fail: a `Msg` or `State` that holds a function, remote data whose freshness is thrown away),
 `check:format`, the tests, the showcase and its examples build, `check:example-imports` (only
 exposed modules; no class or style in `example/src/Examples/`).
 
@@ -77,7 +79,9 @@ file, not a heredoc; Elm reports compile errors one module at a time.
    name ids that exist.
 5. **Every component that shows remote data has every state**: loading, failed (with retry),
    empty, data, refreshing and old (`Remote.Kept`, settled with `Klar.Internal.Freshness`).
-   Never add an attribute for "stale" or "refreshing": it comes from the `Remote`.
+   Never add an attribute for "stale" or "refreshing": it comes from the `Remote`. The data
+   is drawn inside `Freshness.wrap` whatever its freshness (the same elements fresh, refreshing
+   and old, so focus survives a refresh), and the root is `Freshness.region` in every state.
 6. **Text** comes from `Klar.Locale` (`Locale.pick` on an `{ en, nb }` record), never
    hard-wired; every component with built-in text has a `locale` attribute. Never `case` on a
    locale.

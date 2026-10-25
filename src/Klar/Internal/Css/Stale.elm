@@ -13,6 +13,18 @@ css =
    draws, and the dimming while a refresh is on its way.
    ========================================================================== */
 
+/* The box around the content (Freshness.wrap): the same element in every state, so a
+   refresh never replaces the content. It adds nothing to the layout; the component
+   gives it its own classes. Its first child is the slot of the marker, which is always
+   there (with its live region) and is laid out as if its children were the box's own. */
+.klar-fresh { min-width: 0; }
+
+.klar-fresh__slot { display: contents; }
+
+/* The root of a component with remote data (Freshness.region): it takes focus only from
+   Klar.focus after a retry, and shows the ring of Base only when the keyboard brought it. */
+.klar-region { min-width: 0; }
+
 .klar-stale {
   display: flex;
   flex-wrap: wrap;
@@ -33,7 +45,7 @@ css =
 
 .klar-stale__reason { color: var(--klar-text-secondary); }
 
-.klar-stale__action { margin-left: auto; }
+.klar-stale__action { margin-inline-start: auto; }
 
 /* Dimming is limited by contrast: muted text stays at 4.5:1 down to about 92%. A thin
    moving line at the top says the rest. */
@@ -54,11 +66,18 @@ css =
   to { background-position: 140% 0; }
 }
 
-@media (prefers-reduced-motion: reduce) {
-  .klar-refreshing::after { animation: none; background-position: 0 0; background-size: 100% 100%; background-color: var(--klar-blue-200); background-image: none; }
+/* Under reduced motion the line stands still (the list in Base). Forced colors drop
+   backgrounds: the line keeps a system color, and the marker its border. */
+@media (forced-colors: active) {
+  .klar-refreshing::after {
+    forced-color-adjust: none;
+    background: Highlight;
+  }
+
+  .klar-stale { border-color: CanvasText; }
 }
 
-.klar-refreshing > :not(.klar-stale):not(.klar-sr-only) {
+.klar-refreshing > :not(.klar-stale):not(.klar-sr-only):not(.klar-fresh__slot) {
   opacity: 0.92;
   transition: opacity var(--klar-dur) var(--klar-ease);
 }

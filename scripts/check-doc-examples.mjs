@@ -3,6 +3,7 @@
 //
 //   node scripts/check-doc-examples.mjs            compile and print the summary
 //   node scripts/check-doc-examples.mjs --strict   also exit with 1 when a complete example does not compile
+//   node scripts/check-doc-examples.mjs --list     also name the examples that were compiled or need context
 //
 // Every indented code block in the documentation of an exposed module (the module comment and the
 // comment of each name) is sorted into one of four kinds:
@@ -10,7 +11,8 @@
 //   compiled   a complete set of top-level declarations (a type annotation followed by its
 //              definition, or a type declaration, optionally after `module` / `import` lines),
 //              compiled in a scratch project with the imports it needs added from the names it
-//              uses (`Table.` -> `import Klar.Table as Table`).
+//              uses (`Table.` -> `import Klar.Table as Table`); a block that starts with
+//              `module` is a whole program and gets no imports: one it forgets fails.
 //   failed     complete, and the compiler rejects it for a reason that is not a missing name of
 //              the application. These are mistakes in the documentation.
 //   context    complete, but it uses names of the application (`Model`, `Msg`, `Order` ...) that
@@ -112,10 +114,16 @@ function aliasTable(exposedNames) {
   return table;
 }
 
+// A block that starts with `module` is a whole program that a reader copies as it is: it gets
+// no imports, so one that it forgets is a failure. Any other block gets the imports of the
+// names it uses.
 function withImports(code, table, moduleName) {
   const lines = code.split('\n');
   const imports = lines.filter((l) => /^import\s/.test(l));
   const body = lines.filter((l) => !/^import\s/.test(l) && !/^module\s/.test(l));
+  if (lines.some((l) => /^module\s/.test(l))) {
+    return [`module ${moduleName} exposing (..)`, '', ...imports, '', ...body].join('\n') + '\n';
+  }
   const already = new Set();
   for (const l of imports) {
     const m = /^import\s+([\w.]+)(?:\s+as\s+(\w+))?/.exec(l);
@@ -267,6 +275,12 @@ const summary = [
 ];
 
 console.log('Doc examples:\n' + summary.map((l) => '  ' + l).join('\n'));
+if (process.argv.includes('--list')) {
+  for (const kind of ['compiled', 'context']) {
+    console.log(`\n${kind}:`);
+    for (const b of kinds[kind]) console.log(`  - ${b.owner}${b.problems ? ': ' + b.problems[0].title : ''}`);
+  }
+}
 if (kinds.failed.length > 0) {
   console.log('\nFailed examples:');
   for (const b of kinds.failed) {

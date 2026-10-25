@@ -8,6 +8,7 @@ module Klar.Internal exposing
     , densitySuffix
     , ensureVisible
     , focus
+    , focusChain
     , focusFirst
     , hasLatinLetters
     , heading
@@ -22,6 +23,7 @@ module Klar.Internal exposing
     , onClickStop
     , onKeys
     , onKeysPassive
+    , onLayerKeys
     , onMouseDownPrevent
     , pageStartId
     , percentEncode
@@ -31,6 +33,7 @@ module Klar.Internal exposing
     , stopClick
     , styleVars
     , toneSuffix
+    , unhandled
     , viewIf
     , viewMaybe
     )
@@ -345,22 +348,64 @@ heading level =
             Html.h3
 
 
-{-| Keep only characters that are safe in a DOM id and in CSS identifiers.
+{-| A text as a DOM id that is also a plain CSS identifier, without losing anything:
+ASCII letters, digits and `-` stay as they are, a space becomes `__`, and every
+other character becomes `_`, its code point in lowercase hex, and `_`.
+
+    sanitizeId "billing-address" -- "billing-address"
+
+    sanitizeId "Customer name" -- "Customer__name"
+
+    sanitizeId "Ørsta" -- "_d8_rsta"
+
+    sanitizeId "order_id" -- "order_5f_id"
+
+Two different texts never give the same id (the encoding can be read back: after a
+`_` comes either a second `_` or hex digits and a `_`), so keys that differ only in a
+space, a punctuation mark or a letter outside ASCII still name two elements, and an
+`aria-controls` made from one key names that key's element. (Half of an emoji, which
+has no code point, becomes `_fffd_`, the replacement character.)
+
 -}
 sanitizeId : String -> String
 sanitizeId raw =
-    raw
-        |> String.map
-            (\c ->
-                if Char.isAlphaNum c && Char.toCode c < 128 then
-                    c
+    if String.all (\char -> isIdChar (Char.toCode char)) raw then
+        raw
 
-                else if c == '-' || c == '_' then
-                    c
+    else
+        String.foldr (\char rest -> idPart (Char.toCode char) ++ rest) "" raw
 
-                else
-                    '-'
-            )
+
+{-| ASCII letters, digits and `-`: the characters an id keeps as they are.
+-}
+isIdChar : Int -> Bool
+isIdChar code =
+    (code >= 0x30 && code <= 0x39) || (code >= 0x41 && code <= 0x5A) || (code >= 0x61 && code <= 0x7A) || code == 0x2D
+
+
+idPart : Int -> String
+idPart code =
+    if isIdChar code then
+        String.fromChar (Char.fromCode code)
+
+    else if code == 0x20 then
+        "__"
+
+    else if isNaN (toFloat code) || code < 0 || code > 0x0010FFFF then
+        -- a lone high surrogate has no code at all (NaN)
+        "_fffd_"
+
+    else
+        "_" ++ lowerHex code ++ "_"
+
+
+lowerHex : Int -> String
+lowerHex n =
+    if n < 16 then
+        String.slice n (n + 1) "0123456789abcdef"
+
+    else
+        lowerHex (n // 16) ++ String.slice (modBy 16 n) (modBy 16 n + 1) "0123456789abcdef"
 
 
 
@@ -393,6 +438,9 @@ onMouseDownPrevent msg =
     Events.preventDefaultOn "mousedown" (Decode.succeed ( msg, True ))
 
 
+{-| A key press: `key` as in `KeyboardEvent.key` (`"Enter"`, `"a"`, `"ArrowDown"`)
+and the modifiers that were held.
+-}
 type alias KeyEvent =
     { key : String
     , ctrl : Bool
@@ -402,14 +450,80 @@ type alias KeyEvent =
     }
 
 
+{-| Reads a `keydown` (or `keyup`) event. It fails, so the handler sends nothing and
+the browser default happens, for a key that belongs to the composition of an input
+method (Japanese, Chinese, Korean and others): while the user composes, Enter
+confirms the text and Escape cancels it, and neither may save, close or pick.
+`onKeys`, `onKeysPassive`, `onLayerKeys` and every component decoder built on this
+one have the guard; a decoder that reads `key` itself does not, so build key
+decoders on this one.
+-}
 keyEvent : Decoder KeyEvent
 keyEvent =
-    Decode.map5 KeyEvent
-        (Decode.field "key" Decode.string)
-        (Decode.field "ctrlKey" Decode.bool)
-        (Decode.field "metaKey" Decode.bool)
-        (Decode.field "shiftKey" Decode.bool)
-        (Decode.field "altKey" Decode.bool)
+    composing
+        |> Decode.andThen
+            (\isComposing ->
+                if isComposing then
+                    Decode.fail "a key of an input method composition"
+
+                else
+                    Decode.map5 KeyEvent
+                        (Decode.field "key" Decode.string)
+                        (Decode.field "ctrlKey" Decode.bool)
+                        (Decode.field "metaKey" Decode.bool)
+                        (Decode.field "shiftKey" Decode.bool)
+                        (Decode.field "altKey" Decode.bool)
+            )
+
+
+{-| Is the key part of an input method composition? Browsers say so with
+`isComposing`; Safari sends the Enter that ends a composition with `isComposing`
+false and the key code 229, which every browser uses for the keys an input method
+takes. An event that has neither field (a test, an old browser) is not composing.
+-}
+composing : Decoder Bool
+composing =
+    Decode.map2 (||)
+        (Decode.oneOf [ Decode.field "isComposing" Decode.bool, Decode.succeed False ])
+        (Decode.oneOf [ Decode.field "keyCode" Decode.int |> Decode.map (\code -> code == 229), Decode.succeed False ])
+
+
+{-| Only for an event that no element inside has handled yet: the decoder fails when
+`defaultPrevented` is true. This is how keys are layered. A control that handles a
+key itself (a search box that clears its text on Escape, an inline edit that cancels,
+a popup that closes) prevents its default, with `onKeys` or `preventDefaultOn`; the
+keydown then bubbles on, and an overlay, a container or a page-level shortcut that
+listens further out reads it through `unhandled` and leaves it alone.
+
+    -- a dialog closes on an Escape that nothing inside it took
+    Events.preventDefaultOn "keydown"
+        (Internal.unhandled Internal.keyEvent
+            |> Decode.andThen
+                (\event ->
+                    if event.key == "Escape" then
+                        Decode.succeed ( Close, True )
+
+                    else
+                        Decode.fail "another key"
+                )
+        )
+
+The layer of a popup takes its Escape with `onLayerKeys`, which prevents it. A key
+bound with `onKeysPassive` keeps its default, so it still reaches the containers as
+not handled. An event without the field (a test) counts as not handled.
+
+-}
+unhandled : Decoder a -> Decoder a
+unhandled decoder =
+    Decode.oneOf [ Decode.field "defaultPrevented" Decode.bool, Decode.succeed False ]
+        |> Decode.andThen
+            (\handled ->
+                if handled then
+                    Decode.fail "handled by an element inside"
+
+                else
+                    decoder
+            )
 
 
 {-| "Ctrl+Shift+K" style description of a key press. Shift is only added for
@@ -451,13 +565,31 @@ keysDecoder prevent bindings =
     keyEvent
         |> Decode.andThen
             (\event ->
-                case lookup (keyName event) bindings of
+                case binding event bindings of
                     Just msg ->
                         Decode.succeed ( msg, prevent )
 
                     Nothing ->
                         Decode.fail "unhandled key"
             )
+
+
+{-| The message bound to a key press: by its name (`"Ctrl+Enter"`), or, with Ctrl or
+Meta held (not both), by its name with `Mod+` for that modifier, so `"Mod+A"` is
+Ctrl+A on Windows and Linux and Cmd+A on a Mac.
+-}
+binding : KeyEvent -> List ( String, msg ) -> Maybe msg
+binding event bindings =
+    case lookup (keyName event) bindings of
+        Just msg ->
+            Just msg
+
+        Nothing ->
+            if event.ctrl /= event.meta then
+                lookup ("Mod+" ++ keyName { event | ctrl = False, meta = False }) bindings
+
+            else
+                Nothing
 
 
 lookup : String -> List ( String, a ) -> Maybe a
@@ -475,19 +607,56 @@ lookup key bindings =
 
 
 {-| Keyboard bindings on `keydown`. The browser default is prevented for the
-keys that match. Key names follow `KeyboardEvent.key`, with modifiers:
-`"ArrowDown"`, `"Enter"`, `"Escape"`, `" "`, `"Shift+Tab"`, `"Ctrl+Enter"`.
+keys that match, which also tells the containers further out that the key is
+taken (`unhandled`). Key names follow `KeyboardEvent.key`, with modifiers in the
+order Ctrl, Meta, Alt, Shift: `"ArrowDown"`, `"Enter"`, `"Escape"`, `" "`,
+`"Shift+Tab"`, `"Ctrl+Enter"`. `Mod+` is Ctrl or Meta (Cmd on a Mac): `"Mod+A"`. A
+key of an input method composition matches nothing (`keyEvent`).
 -}
 onKeys : List ( String, msg ) -> Attribute msg
 onKeys bindings =
     Events.preventDefaultOn "keydown" (keysDecoder True bindings)
 
 
-{-| Same as `onKeys` but the default action still happens (use for Tab).
+{-| Same as `onKeys` but the default action still happens (use for Tab). A key of
+an input method composition matches nothing here either.
 -}
 onKeysPassive : List ( String, msg ) -> Attribute msg
 onKeysPassive bindings =
     Events.preventDefaultOn "keydown" (keysDecoder False bindings)
+
+
+{-| The keys of the click-away layer of a popup (`klar-layer`), in one place.
+Escape sends the first message and takes the key (its default is prevented), so a
+dialog or a drawer around the popup, which reads keys through `unhandled`, leaves
+that Escape alone and stays open. The other bindings (Tab and Shift+Tab, and for a
+menu Enter and Space) keep their default, so Tab still moves the focus on and Enter
+still presses the focused item. A key that an element inside the popup has handled
+already (a search box that clears its text on Escape) is left to it: the next
+Escape closes the popup.
+
+    Internal.onLayerKeys (toMsg Close)
+        [ ( "Tab", toMsg CloseQuiet ), ( "Shift+Tab", toMsg CloseQuiet ) ]
+
+-}
+onLayerKeys : msg -> List ( String, msg ) -> Attribute msg
+onLayerKeys escape bindings =
+    Events.preventDefaultOn "keydown"
+        (unhandled keyEvent
+            |> Decode.andThen
+                (\event ->
+                    if keyName event == "Escape" then
+                        Decode.succeed ( escape, True )
+
+                    else
+                        case binding event bindings of
+                            Just msg ->
+                                Decode.succeed ( msg, False )
+
+                            Nothing ->
+                                Decode.fail "not a key of the layer"
+                )
+        )
 
 
 
@@ -502,14 +671,21 @@ focus id done =
     Task.attempt (\_ -> done) (Dom.focus id)
 
 
-{-| Focus the first element of the list that exists, and send the message when it
-is done. The ids of a dialog's way back end with `pageStartId`, so that closing a
-dialog that nobody remembers an opener for leaves focus in the page and not on
-`body`.
+{-| A way back for the focus: focus the first element of the list that exists, and
+send the message when it is done. The list always ends with `pageStartId` (added
+when it is not the last id already), which an `AppShell` and an `Overlay.host` draw
+and which can take focus, so closing something whose opener and fallbacks are all
+gone leaves focus at the start of the page and not on `body`. Empty ids are skipped.
+
+Every id must name an element that can take focus: a control that is not disabled,
+or an element with a `tabindex` (-1 is enough). Elm cannot see where focus went: an
+element that exists but cannot take focus (a `tr`, a `div` without `tabindex`, a
+disabled button) ends the search all the same, and focus stays on `body`.
+
 -}
 focusFirst : List String -> msg -> Cmd msg
 focusFirst ids done =
-    case ids of
+    case focusChain ids of
         [] ->
             Cmd.none
 
@@ -519,6 +695,14 @@ focusFirst ids done =
                 (Dom.focus first)
                 rest
                 |> Task.attempt (\_ -> done)
+
+
+{-| The ids `focusFirst` tries, in order: the given ones that are not empty, then
+`pageStartId` once at the end.
+-}
+focusChain : List String -> List String
+focusChain ids =
+    List.filter (\id -> id /= "" && id /= pageStartId) ids ++ [ pageStartId ]
 
 
 {-| The DOM id of the start of the page content: the content area of an

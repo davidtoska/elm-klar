@@ -86,6 +86,7 @@ the request is sent.
     import Browser
     import Html exposing (Html)
     import Klar.FilterBar as FilterBar
+    import Klar.Ids as Ids
     import Klar.Remote as Remote
     import Klar.Rule as Rule
     import Klar.SavedViews as SavedViews

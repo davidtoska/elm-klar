@@ -502,13 +502,13 @@ labelTests =
         , test "says what the group is, as far as the label can be written in an id" <|
             \_ ->
                 Ids.groupId "Order status" [ "Open" ]
-                    |> String.startsWith "klar-toggle-order-status-"
+                    |> String.startsWith "klar-toggle-order__status-"
                     |> Expect.equal True
-        , test "a label with no letter that an id can hold (or no label) reads 'group'" <|
+        , test "a label of dashes only (or no label) reads 'group', and other scripts are written as their codes" <|
             \_ ->
                 Expect.all
                     [ \_ -> Ids.groupId "" [] |> String.startsWith "klar-toggle-group-" |> Expect.equal True
-                    , \_ -> Ids.groupId "日本語" [] |> String.startsWith "klar-toggle-group-" |> Expect.equal True
+                    , \_ -> Ids.groupId "日本語" [] |> String.startsWith "klar-toggle-_65e5__672c__8a9e_-" |> Expect.equal True
                     , \_ -> Ids.groupId "---" [] |> String.startsWith "klar-toggle-group-" |> Expect.equal True
                     ]
                     ()

@@ -355,7 +355,7 @@ checkboxTests =
                     [ Query.has [ Selector.class "klar-check--bare" ]
                     , count [ Selector.class "klar-check__text" ] 0
                     , \r -> Query.has [ aria "aria-label" "Select order 1042" ] (inputOf r)
-                    , \r -> Query.hasNot [ aria "aria-describedby" "klar-check-select-order-1042-description" ] (inputOf r)
+                    , \r -> Query.hasNot [ aria "aria-describedby" "klar-check-select__order__1042-description" ] (inputOf r)
                     ]
                     root
         , test "without an id the ids of the parts are made from the label, and the input gets none" <|
@@ -365,10 +365,10 @@ checkboxTests =
                         checkbox [ Checkbox.label "Accept terms", Checkbox.error "Required" ]
                 in
                 Expect.all
-                    [ \r -> Query.has [ aria "aria-describedby" "klar-check-accept-terms-error", aria "aria-labelledby" "klar-check-accept-terms-label" ] (inputOf r)
-                    , count [ Selector.id "klar-check-accept-terms-error" ] 1
-                    , count [ Selector.id "klar-check-accept-terms-label" ] 1
-                    , count [ Selector.id "klar-check-accept-terms" ] 0
+                    [ \r -> Query.has [ aria "aria-describedby" "klar-check-accept__terms-error", aria "aria-labelledby" "klar-check-accept__terms-label" ] (inputOf r)
+                    , count [ Selector.id "klar-check-accept__terms-error" ] 1
+                    , count [ Selector.id "klar-check-accept__terms-label" ] 1
+                    , count [ Selector.id "klar-check-accept__terms" ] 0
                     ]
                     root
         , test "toggling still sends the new value" <|
