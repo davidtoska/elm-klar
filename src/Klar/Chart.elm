@@ -150,6 +150,7 @@ import Klar.Chart.Core as Core
 import Klar.Chart.Data as Data
 import Klar.Chart.Donut as Donut
 import Klar.Chart.Line as Line
+import Klar.Chart.Scalar as Scalar
 import Klar.Chart.Types as Types
 import Klar.Date exposing (Date)
 import Klar.EmptyState as EmptyState
@@ -681,7 +682,7 @@ stays empty, the middle shows a dash and screen readers hear "No value".
 -}
 gauge : List (Attribute msg) -> Float -> Html msg
 gauge arg1 arg2 =
-    Core.gauge (List.map unwrapAttribute arg1) arg2
+    Scalar.gauge (List.map unwrapAttribute arg1) arg2
 
 
 {-| A horizontal meter: the value as a marker on a scale with zones.
@@ -702,7 +703,7 @@ measurement: the value is a dash, the track has no marker and screen readers hea
 -}
 meter : List (Attribute msg) -> Float -> Html msg
 meter arg1 arg2 =
-    Core.meter (List.map unwrapAttribute arg1) arg2
+    Scalar.meter (List.map unwrapAttribute arg1) arg2
 
 
 {-| A tiny trend line without axes, for a table cell or a tile (see

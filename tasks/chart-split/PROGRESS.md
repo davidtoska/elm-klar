@@ -91,3 +91,7 @@
 - Next: Donut.
 
 - Donut: format, full check, byte-identical docs and identical chart/sparkline roots passed.
+- Commit 6e3c9e2: Donut complete.
+- Next: Scalar.
+
+- Scalar: format, full check, byte-identical docs and identical chart/sparkline roots passed.
