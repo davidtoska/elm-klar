@@ -2893,10 +2893,10 @@
       "mainFunctions": [
         "view",
         "init",
+        "setInitialFocus",
         "update",
         "isOpen",
         "open",
-        "openWith",
         "close",
         "closeButtonId"
       ],
@@ -3003,10 +3003,10 @@
       "mainFunctions": [
         "view",
         "init",
+        "setInitialFocus",
         "update",
         "isOpen",
         "open",
-        "openWith",
         "close",
         "closeButtonId"
       ],

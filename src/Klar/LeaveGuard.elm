@@ -556,7 +556,7 @@ perform key effects id modal =
                     -- dialog opened, if that element has an id
                     let
                         ( next, cmd ) =
-                            Modal.openWith { opener = "", focus = [ stayId id ] } current
+                            Modal.open "" (Modal.setInitialFocus [ stayId id ] current)
                     in
                     ( next, Cmd.map ModalMsg cmd :: cmds )
 

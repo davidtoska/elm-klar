@@ -88,11 +88,12 @@ application's message and dismisses the toast:
 The state holds the application's messages, hence `State msg`.
 
 A keyboard user needs a quick way to the "Undo" before it goes away: bind a key to
-`focus` with [Klar.Shortcut](Klar.Shortcut.md) (`F6` or `Alt+T` are the usual ones).
-The timer of a toast stops while focus is in it.
+`focus` with [Klar.Shortcut](Klar.Shortcut.md). Take a key that the browser leaves
+free, such as `F8`; `F6` belongs to the browser, which moves focus to its address
+bar with it. The timer of a toast stops while focus is in it.
 
     -- shortcuts
-    Shortcut.shortcut (Shortcut.function 6) "General" "Go to the notifications" FocusToasts
+    Shortcut.shortcut (Shortcut.function 8) "General" "Go to the notifications" FocusToasts
 
     -- update
     FocusToasts ->

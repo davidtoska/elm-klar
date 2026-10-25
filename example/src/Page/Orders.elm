@@ -1044,7 +1044,7 @@ openEditor opener target model =
                 []
 
         ( drawer, cmd ) =
-            Drawer.openWith { opener = opener, focus = focus } model.drawer
+            Drawer.open opener (Drawer.setInitialFocus focus model.drawer)
     in
     ( { model | drawer = drawer, editing = Just editor }, Cmd.map DrawerMsg cmd )
 

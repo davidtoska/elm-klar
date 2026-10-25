@@ -50,11 +50,12 @@ application's message and dismisses the toast:
 The state holds the application's messages, hence `State msg`.
 
 A keyboard user needs a quick way to the "Undo" before it goes away: bind a key to
-`focus` with [Klar.Shortcut](Klar-Shortcut) (`F6` or `Alt+T` are the usual ones).
-The timer of a toast stops while focus is in it.
+`focus` with [Klar.Shortcut](Klar-Shortcut). Take a key that the browser leaves
+free, such as `F8`; `F6` belongs to the browser, which moves focus to its address
+bar with it. The timer of a toast stops while focus is in it.
 
     -- shortcuts
-    Shortcut.shortcut (Shortcut.function 6) "General" "Go to the notifications" FocusToasts
+    Shortcut.shortcut (Shortcut.function 8) "General" "Go to the notifications" FocusToasts
 
     -- update
     FocusToasts ->
@@ -317,6 +318,7 @@ type Msg
     | Focused Int Bool
     | Entered String
     | Lost
+    | Found
     | FocusChain (List String)
     | Noop
 
@@ -345,6 +347,12 @@ update msg ((State state) as current) =
 
                 Nothing ->
                     ( current, Cmd.none )
+
+        Found ->
+            -- Focus went somewhere on its own (the action opened a dialog, the
+            -- application moved it): nothing to bring back, and the guards of the
+            -- dialogs and popovers keep watch again.
+            ( State { state | recover = Nothing }, Cmd.none )
 
         _ ->
             arm (step msg current)
@@ -408,6 +416,9 @@ step msg ((State state) as current) =
             current
 
         Lost ->
+            current
+
+        Found ->
             current
 
         FocusChain _ ->
@@ -810,18 +821,7 @@ viewStack toMsg attributes (State state) trap =
                     "klar-toasts--recover"
                 ]
             , Attr.id state.id
-            , Events.on "focusin"
-                (Decode.field "relatedTarget"
-                    (Decode.map2 Tuple.pair (Focus.isInside state.id) (Decode.field "id" Decode.string))
-                    |> Decode.andThen
-                        (\( inside, from ) ->
-                            if inside || from == "" then
-                                Decode.fail "not from outside, or from an element without an id"
-
-                            else
-                                Decode.succeed (toMsg (Entered from))
-                        )
-                )
+            , Events.on "focusin" (Decode.map (\from -> toMsg (Entered from)) (cameFromDecoder state.id))
             ]
             [ -- Keyed, so that a toast that goes away takes its own node with it: the
               -- others keep theirs (with the pointer and the focus on them), and the
@@ -862,8 +862,9 @@ viewStack toMsg attributes (State state) trap =
                 )
 
             -- A toast that had focus went away: if focus fell to the page, this
-            -- brings it back to a toast or to where it came from.
-            , Internal.viewIf (state.recover /= Nothing) (Focus.guard Focus.Idle (toMsg Lost))
+            -- brings it back to a toast or to where it came from; if something else
+            -- took focus in the meantime, it ends the watch.
+            , Internal.viewIf (state.recover /= Nothing) (Focus.settle { lost = toMsg Lost, found = toMsg Found })
             ]
         , case trap of
             Just ids ->
@@ -879,6 +880,36 @@ viewStack toMsg attributes (State state) trap =
             Nothing ->
                 Html.text ""
         ]
+
+
+{-| Where focus came from when it comes into the stack from outside: the id of the
+element it left, or `""` when that element has no id or focus came from nowhere (the
+body), so that a toast that goes away never sends focus to a place the user left
+long ago. A move from one toast to another is no entry and changes nothing.
+-}
+cameFromDecoder : String -> Decode.Decoder String
+cameFromDecoder stackId =
+    Decode.maybe
+        (Decode.field "relatedTarget"
+            (Decode.nullable
+                (Decode.map2 Tuple.pair
+                    (Focus.isInside stackId)
+                    (Decode.oneOf [ Decode.field "id" Decode.string, Decode.succeed "" ])
+                )
+            )
+        )
+        |> Decode.andThen
+            (\related ->
+                case Maybe.andThen identity related of
+                    Just ( True, _ ) ->
+                        Decode.fail "a move inside the stack"
+
+                    Just ( False, from ) ->
+                        Decode.succeed from
+
+                    Nothing ->
+                        Decode.succeed ""
+            )
 
 
 viewItem : (Msg -> msg) -> Locale -> String -> Item msg -> Html msg

@@ -7,7 +7,9 @@ module ToastTest exposing (suite)
   - every toast and its buttons have ids that start with the id of the stack;
   - when the toast that has focus goes away (closed, its action ran, dismissed by
     the application), a guard brings focus back if it fell to the page, and only
-    then;
+    then; either way it stops watching, so the guards of the dialogs never wait
+    for good;
+  - where focus came from is what it left last time it came in, or nothing;
   - `Toast.focus` takes the keyboard to the newest toast;
   - which toasts start a timer.
 
@@ -16,9 +18,11 @@ module ToastTest exposing (suite)
 import Expect exposing (Expectation)
 import Html.Attributes as Attr
 import Json.Encode as Encode
+import Klar.Modal as Modal
 import Klar.Overlay as Overlay
 import Klar.Theme exposing (Tone(..))
 import Klar.Toast as Toast
+import Support.Css as Css
 import Test exposing (Test, describe, test)
 import Test.Html.Event as Event
 import Test.Html.Query as Query
@@ -27,6 +31,7 @@ import Test.Html.Selector as Selector
 
 type Msg
     = ToastMsg Toast.Msg
+    | DialogMsg Modal.Msg
     | Undo
 
 
@@ -71,6 +76,9 @@ settle stack result =
                 case msg of
                     ToastMsg inner ->
                         Ok (Toast.update inner stack)
+
+                    DialogMsg _ ->
+                        Err "a message of the dialog, not of the stack"
 
                     Undo ->
                         Err "the action of the application, not a message of the stack"
@@ -257,13 +265,89 @@ recoverTests =
 
                     Err problem ->
                         Expect.fail problem
-        , test "focus is on something on the page: the guard leaves it there" <|
+        , test "focus is on something on the page: the guard leaves it there, and stops watching" <|
             \_ ->
-                drawn (Toast.dismiss "first" (focusedFirst two))
+                let
+                    dismissed =
+                        Toast.dismiss "first" (focusedFirst two)
+                in
+                drawn dismissed
                     |> Query.find [ Selector.class "klar-modal__guard" ]
                     |> Event.simulate (lostFocus "INPUT")
                     |> Event.toResult
-                    |> Expect.err
+                    |> settle dismissed
+                    |> (\after ->
+                            case after of
+                                Ok ( settled, cmd ) ->
+                                    Expect.all
+                                        [ \_ -> Expect.equal Cmd.none cmd
+                                        , \_ ->
+                                            drawn settled
+                                                |> Query.find [ Selector.class "klar-toasts" ]
+                                                |> Expect.all
+                                                    [ Query.hasNot [ Selector.class "klar-toasts--recover" ]
+                                                    , Query.children [ Selector.class "klar-modal__guard" ] >> Query.count (Expect.equal 0)
+                                                    ]
+                                        ]
+                                        ()
+
+                                Err problem ->
+                                    Expect.fail problem
+                       )
+        , test "the action opened a dialog, which took focus: the watch ends, and the dialog keeps watch again" <|
+            \_ ->
+                let
+                    dismissed =
+                        Toast.dismiss "first" (focusedFirst two)
+
+                    dialog =
+                        Modal.init "order-dialog" |> Modal.open "" |> Tuple.first
+
+                    withDialog stack =
+                        Overlay.host
+                            { attributes = []
+                            , page = []
+                            , overlays =
+                                [ Modal.view DialogMsg [] dialog "Order 1042" []
+                                , Toast.view ToastMsg [] stack
+                                ]
+                            }
+                            |> Query.fromHtml
+                in
+                withDialog dismissed
+                    |> Query.find [ Selector.class "klar-toasts" ]
+                    |> Query.find [ Selector.class "klar-modal__guard" ]
+                    |> Event.simulate (lostFocus "DIV")
+                    |> Event.toResult
+                    |> settle dismissed
+                    |> Result.map
+                        (\( settled, _ ) ->
+                            withDialog settled
+                                |> Expect.all
+                                    [ Query.findAll [ Selector.class "klar-toasts--recover" ] >> Query.count (Expect.equal 0)
+                                    , Query.find [ Selector.id "order-dialog" ]
+                                        >> Query.children [ Selector.class "klar-modal__guard" ]
+                                        >> Query.count (Expect.equal 1)
+                                    , Query.find [ Selector.class "klar-toasts" ]
+                                        >> Query.children [ Selector.class "klar-modal__guard" ]
+                                        >> Query.count (Expect.equal 0)
+                                    ]
+                        )
+                    |> Result.withDefault (Expect.fail "the guard of the stack sent nothing")
+        , test "the stylesheet runs the guard of the stack whatever has focus, so that it always decides" <|
+            \_ ->
+                String.lines Css.rules
+                    |> List.member ".klar-toasts > .klar-modal__guard{animation: klar-focus-lost 1ms 60ms}"
+                    |> Expect.equal True
+        , test "while the stack recovers, the guards of the dialogs and the popovers wait" <|
+            \_ ->
+                String.lines Css.rules
+                    |> List.filter (String.contains ".klar-modal__guard{animation: klar-focus-lost")
+                    |> List.filter (\rule -> not (String.startsWith ".klar-toasts > " rule))
+                    |> Expect.all
+                        [ List.isEmpty >> Expect.equal False
+                        , List.all (String.contains ".klar-toasts--recover") >> Expect.equal True
+                        ]
         , test "focus that comes into a toast again ends the watch" <|
             \_ ->
                 let
@@ -278,6 +362,24 @@ recoverTests =
                     |> Result.map (Tuple.first >> drawn >> Query.findAll [ Selector.class "klar-modal__guard" ] >> Query.count (Expect.equal 0))
                     |> Result.withDefault (Expect.fail "no message")
         ]
+
+
+{-| The stack after focus came into it from this element (the `relatedTarget` of
+the `focusin`).
+-}
+enter : Encode.Value -> Stack -> Result String Stack
+enter from stack =
+    drawn stack
+        |> Query.find [ Selector.id "toasts" ]
+        |> Event.simulate (Event.custom "focusin" (Encode.object [ ( "relatedTarget", from ) ]))
+        |> Event.toResult
+        |> settle stack
+        |> Result.map Tuple.first
+
+
+fromSave : Encode.Value
+fromSave =
+    Encode.object [ ( "id", Encode.string "save-button" ), ( "tagName", Encode.string "BUTTON" ) ]
 
 
 focusTests : Test
@@ -301,6 +403,20 @@ focusTests =
                         )
                     |> Event.toResult
                     |> Expect.ok
+        , test "an entry from an element with an id remembers it" <|
+            \_ ->
+                enter fromSave two
+                    |> Expect.notEqual (Ok two)
+        , test "an entry from an element without an id forgets the earlier origin" <|
+            \_ ->
+                enter fromSave two
+                    |> Result.andThen (enter (Encode.object [ ( "tagName", Encode.string "TR" ) ]))
+                    |> Expect.equal (Ok two)
+        , test "an entry from nowhere (focus was on the body) forgets it too" <|
+            \_ ->
+                enter fromSave two
+                    |> Result.andThen (enter Encode.null)
+                    |> Expect.equal (Ok two)
         , test "a move inside the stack is not where focus came from" <|
             \_ ->
                 drawn two

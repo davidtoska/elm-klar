@@ -1,7 +1,7 @@
 module Klar.Drawer exposing
     ( view
-    , State, Msg, init, update, isOpen
-    , open, openWith, close, closeButtonId
+    , State, Msg, init, setInitialFocus, update, isOpen
+    , open, close, closeButtonId
     , Attribute, subtitle, footer, footerStart, flush, hideClose, ariaDescribedBy
     , small, medium, large, right, left
     , static, busy, onRequestClose
@@ -82,12 +82,12 @@ everything else comes from your application.
 
 # State
 
-@docs State, Msg, init, update, isOpen
+@docs State, Msg, init, setInitialFocus, update, isOpen
 
 
 # Opening and closing
 
-@docs open, openWith, close, closeButtonId
+@docs open, close, closeButtonId
 
 
 # Content
@@ -163,28 +163,34 @@ isOpen =
     Modal.isOpen
 
 
-{-| Opens the drawer and moves focus into it. `opener` is the DOM id of the
-element to give focus back to when the drawer closes, such as the button or the
-table row that opened it. With `""`, or when that element is gone, focus goes back
-to the most recent element of the page that had focus before the drawer opened
-and still exists (it needs an id). A drawer opened by a route change needs no
-opener.
+{-| The ids of elements inside the drawer that get focus when it opens, the first
+one that exists (a search field, the first field of a form). Without it (the
+default) the drawer itself gets focus, and a screen reader reads its title. Set it
+when you create the state:
+
+    Drawer.init "filters-drawer" |> Drawer.setInitialFocus [ "customer-search" ]
+
+When the place depends on the row that is opened, set it right before `open`:
+
+    Drawer.open "order-1042-row" (Drawer.setInitialFocus [ "order-note" ] model.drawer)
+
+-}
+setInitialFocus : List String -> State -> State
+setInitialFocus =
+    Modal.setInitialFocus
+
+
+{-| Opens the drawer and moves focus into it: to the first element of
+`setInitialFocus` that exists, or else to the drawer itself. `opener` is the DOM
+id of the element to give focus back to when the drawer closes, such as the button
+or the table row that opened it. With `""`, or when that element is gone, focus
+goes back to the most recent element of the page that had focus before the drawer
+opened and still exists (it needs an id). A drawer opened by a route change needs
+no opener.
 -}
 open : String -> State -> ( State, Cmd Msg )
 open =
     Modal.open
-
-
-{-| Like `open`, with a list of element ids that should receive focus first
-(a search field, say). The first one that exists wins; if none does, the drawer
-itself gets focus.
-
-    Drawer.openWith { opener = "filters-button", focus = [ "customer-search" ] } model.drawer
-
--}
-openWith : { opener : String, focus : List String } -> State -> ( State, Cmd Msg )
-openWith =
-    Modal.openWith
 
 
 {-| Closes the drawer and gives focus back to its opener. Call it from your own
@@ -224,7 +230,8 @@ while closed, so it can stay in your view all the time. It returns an
 -}
 view : (Msg -> msg) -> List (Attribute msg) -> State -> String -> List (Html msg) -> Overlay msg
 view toMsg attributes =
-    Modal.view toMsg (right :: attributes)
+    -- Only here does a dialog go to the side: `Modal.view` ignores `left` and `right`.
+    Modal.view toMsg (attributes ++ [ Config.Attribute (\config -> { config | side = Just config.edge }) ])
 
 
 {-| A smaller line below the title, for context such as the date of the last
@@ -256,18 +263,20 @@ large =
     Modal.large
 
 
-{-| Slide in from the right edge. This is the default.
+{-| Slide in from the right edge. This is the default. Only `Drawer.view` reads
+it: `Modal.view` draws a centered dialog whatever you pass.
 -}
 right : Attribute msg
 right =
-    Config.Attribute (\config -> { config | side = Just Right })
+    Config.Attribute (\config -> { config | edge = Right })
 
 
-{-| Slide in from the left edge.
+{-| Slide in from the left edge. Only `Drawer.view` reads it: `Modal.view` draws a
+centered dialog whatever you pass.
 -}
 left : Attribute msg
 left =
-    Config.Attribute (\config -> { config | side = Just Left })
+    Config.Attribute (\config -> { config | edge = Left })
 
 
 {-| A click on the backdrop and `Escape` do not close the drawer; the close

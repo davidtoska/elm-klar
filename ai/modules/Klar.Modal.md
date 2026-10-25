@@ -22,12 +22,12 @@ view :
 type State  -- opaque: no constructors are exposed
 type Msg  -- opaque: no constructors are exposed
 init : String -> State
+setInitialFocus : List String -> State -> State
 update : Msg -> State -> ( State, Cmd Msg )
 isOpen : State -> Bool
 
 -- Opening and closing
 open : String -> State -> ( State, Cmd Msg )
-openWith : { opener : String, focus : List String } -> State -> ( State, Cmd Msg )
 close : State -> ( State, Cmd Msg )
 
 -- Content
@@ -147,9 +147,9 @@ dialog is closed, so it can stay in your view all the time. It returns an
 
 ## State
 
-The state remembers whether the dialog is open and where focus has to return
-to when it closes. Keep one `State` in your model for every dialog, each with an
-id of its own.
+The state remembers whether the dialog is open, where focus goes when it opens and
+where focus has to return to when it closes. Keep one `State` in your model for
+every dialog, each with an id of its own.
 
 ### `State`
 
@@ -179,6 +179,24 @@ init : String -> State
 
 A closed dialog. The id must be unique on the page: it becomes the DOM id of
 the dialog element, and the ids of the parts inside it start with it.
+
+### `setInitialFocus`
+
+```elm
+setInitialFocus : List String -> State -> State
+```
+
+The ids of elements inside the dialog that get focus when it opens, the first
+one that exists: the first field of a form, a search field. Without it (the
+default) the dialog itself gets focus, and a screen reader reads its title. Set it
+when you create the state:
+
+    Modal.init "edit-order-dialog" |> Modal.setInitialFocus [ "customer-name" ]
+
+When the place depends on what is opened (a record that cannot be changed has no
+field to start in), set it right before `open`:
+
+    Modal.open "edit-order-button" (Modal.setInitialFocus [ "customer-name" ] model.editDialog)
 
 ### `update`
 
@@ -216,28 +234,17 @@ button and returns focus to it without being told.
 open : String -> State -> ( State, Cmd Msg )
 ```
 
-Opens the dialog and moves focus into it. `opener` is the DOM id of the
-element to give focus back to when the dialog closes, usually the button that
-opened it. With `""`, or when that element is gone, focus goes back to the most
-recent element of the page that had focus before the dialog opened and still
+Opens the dialog and moves focus into it: to the first element of
+`setInitialFocus` that exists, or else to the dialog itself. `opener` is the DOM
+id of the element to give focus back to when the dialog closes, usually the button
+that opened it. With `""`, or when that element is gone, focus goes back to the
+most recent element of the page that had focus before the dialog opened and still
 exists (it needs an id).
 
     Modal.open "edit-order-button" model.editDialog
 
-### `openWith`
-
-```elm
-openWith : { opener : String, focus : List String } -> State -> ( State, Cmd Msg )
-```
-
-Like `open`, with a list of element ids that should receive focus. The
-first one that exists wins (if none does, the dialog itself gets focus), so a
-form can ask for its first field:
-
-    Modal.openWith { opener = "new-order-button", focus = [ "customer-name" ] } model.editDialog
-
-Calling it on a dialog that is already open moves focus again and keeps the
-first opener.
+Calling it on a dialog that is already open moves focus again and keeps the first
+opener.
 
 ### `close`
 
@@ -259,7 +266,9 @@ type alias Attribute msg = Modal.Config.Attribute msg
 
 A setting of a dialog. Make them with the functions below and pass a list to
 `view`; later attributes win over earlier ones. [Klar.Drawer](Klar.Drawer.md) and
-[Klar.ConfirmDialog](Klar.ConfirmDialog.md) use the same settings.
+[Klar.ConfirmDialog](Klar.ConfirmDialog.md) use the same settings. The type is opaque:
+it is defined in a module of this package that is not exposed, so the functions
+below are the only way to make one.
 
 ### `subtitle`
 
@@ -409,15 +418,19 @@ say). A `static` dialog sends `msg` only from its close button.
 
 ## Keyboard focus
 
-  - On `open` focus moves into the dialog: to the dialog itself, or to the
-    first element named in `openWith { opener = ..., focus = [ "first-field-id" ] }`
-    that exists.
+  - On `open` focus moves into the dialog: to the first element named with
+    `setInitialFocus` that exists, or else to the dialog itself (a screen reader
+    then reads its title). Where focus goes on open is part of the state in every
+    overlay that takes focus when it opens: `Modal`, `Drawer`, `ConfirmDialog` (it
+    picks its own) and `Popover`, whose button opens it without a call of yours.
+    Set it at `init`, or right before `open` when it depends on what is opened.
   - `Tab` and `Shift+Tab` stay inside: two invisible tab stops around the
     dialog send focus to the other end. Going forward past the last element
     lands on the close button (or on the dialog itself when there is none).
     Going backward past the first lands on the element named with `lastFocus`,
-    or else at the end of the footer (the footer shows a focus ring), so that the
-    next `Shift+Tab` reaches the last button of the footer.
+    or else at the end of the footer, or of the body when there is no footer (the
+    footer or the body shows a focus ring), so that the next `Shift+Tab` reaches
+    the last button.
   - On `close` focus returns to the opener. If that element is gone, or there was
     none (`""`), to the most recent element of the page that had focus before the
     dialog opened and still exists. A dialog opened by a route change or by a
@@ -426,13 +439,15 @@ say). A `static` dialog sends `msg` only from its close button.
     the page of an `Overlay.host`), so that the next `Tab` starts there and not
     at the top of the window.
   - If the element that has focus inside the dialog is removed or disabled (a
-    button replaced after an action), or focus never arrived (the element named in
-    `openWith` was disabled), focus moves to the dialog itself. No call is needed
-    for that.
-  - `Escape` is layered: a control inside the dialog that handles it (a field that
-    clears its text, a select or a menu that closes its list) keeps it, and the
-    dialog closes only on an `Escape` that nothing inside handled. The `Escape`
-    that cancels an IME composition never closes the dialog.
+    button replaced after an action), or focus never arrived (the element named
+    with `setInitialFocus` was disabled), focus moves to the dialog itself. No call
+    is needed for that.
+  - `Escape` is layered: the dialog closes only on an `Escape` that nothing inside
+    it handled. A popup open inside the dialog (the list of a select, a menu, a
+    date picker) closes alone, and so does a control that handles `Escape` and
+    prevents its default (a field of your own that clears its text with
+    `Html.Events.preventDefaultOn`, say). The `Escape` that ends an IME
+    composition never closes the dialog.
   - The toasts are the last stop of the loop: see [Klar.Overlay](Klar.Overlay.md).
 
 ### `lastFocus`

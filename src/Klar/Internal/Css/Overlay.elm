@@ -83,7 +83,9 @@ html:has(.klar-modal-lock) {
 
    One guard acts at a time. The dialog on top keeps watch (only it draws a
    guard), unless a popover is open inside it, which then keeps watch itself (the
-   innermost one, when popovers are nested). While the toast stack brings back the
+   innermost one, when popovers are nested). A popover on the page keeps watch only
+   while no dialog or palette is open (`klar-modal-lock`): one left open behind a
+   dialog must not pull focus out of it. While the toast stack brings back the
    focus of a toast that went away (`klar-toasts--recover`), only the stack acts. */
 .klar-modal__guard {
   position: absolute;
@@ -93,9 +95,18 @@ html:has(.klar-modal-lock) {
 }
 
 :root:not(:has(.klar-modal__dialog:focus-within, .klar-palette__panel:focus-within, .klar-toasts:focus-within, .klar-popover__popup:focus-within, .klar-toasts--recover))
-  :is(.klar-modal__dialog:not(:has(.klar-popover__popup)), .klar-popover__popup:not(:has(.klar-popover__popup))) > .klar-modal__guard,
-:root:not(:has(.klar-modal__dialog:focus-within, .klar-palette__panel:focus-within, .klar-toasts:focus-within, .klar-popover__popup:focus-within))
-  .klar-toasts > .klar-modal__guard {
+  :is(.klar-modal__dialog:not(:has(.klar-popover__popup)), .klar-modal__dialog .klar-popover__popup:not(:has(.klar-popover__popup))) > .klar-modal__guard,
+:root:not(:has(.klar-modal__dialog:focus-within, .klar-palette__panel:focus-within, .klar-toasts:focus-within, .klar-popover__popup:focus-within, .klar-toasts--recover, .klar-modal-lock))
+  .klar-popover__popup:not(:has(.klar-popover__popup)) > .klar-modal__guard {
+  animation: klar-focus-lost 1ms 60ms;
+}
+
+/* The guard of the toast stack is drawn only while the stack brings back the focus
+   of a toast that went away, and it runs whatever has focus: it decides once. Focus
+   on the body is brought back; focus anywhere else (a dialog the action opened, a
+   field the application focused) ends the watch, so the stack never keeps the other
+   guards waiting for good. */
+.klar-toasts > .klar-modal__guard {
   animation: klar-focus-lost 1ms 60ms;
 }
 
@@ -207,8 +218,10 @@ html:has(.klar-modal-lock) {
 }
 
 /* Shift+Tab lands at the end of the footer after wrapping around (the next
-   Shift+Tab reaches its last button): make that visible on the footer. */
-.klar-modal__footer:has(> .klar-modal__end:focus-visible) {
+   Shift+Tab reaches its last button), or at the end of the body when there is no
+   footer: make that visible on the footer, or on the body. */
+.klar-modal__footer:has(> .klar-modal__end:focus-visible),
+.klar-modal__body:has(> .klar-modal__end:focus-visible) {
   outline: 2px solid var(--klar-focus-color);
   outline-offset: -2px;
 }
@@ -527,15 +540,16 @@ html:has(.klar-modal-lock) {
 }
 
 /* Windows high contrast: the shadows are gone, so the dialogs, drawers and toasts
-   keep their edges as borders in the system colors, and the footer that Shift+Tab
-   wrapped to keeps its ring. */
+   keep their edges as borders in the system colors, and the footer or the body
+   that Shift+Tab wrapped to keeps its ring. */
 @media (forced-colors: active) {
   .klar-modal__dialog,
   .klar-toast {
     border-color: CanvasText;
   }
 
-  .klar-modal__footer:has(> .klar-modal__end:focus-visible) {
+  .klar-modal__footer:has(> .klar-modal__end:focus-visible),
+  .klar-modal__body:has(> .klar-modal__end:focus-visible) {
     outline-color: Highlight;
   }
 }

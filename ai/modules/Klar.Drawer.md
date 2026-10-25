@@ -22,12 +22,12 @@ view :
 type alias State = Modal.State
 type alias Msg = Modal.Msg
 init : String -> State
+setInitialFocus : List String -> State -> State
 update : Msg -> State -> ( State, Cmd Msg )
 isOpen : State -> Bool
 
 -- Opening and closing
 open : String -> State -> ( State, Cmd Msg )
-openWith : { opener : String, focus : List String } -> State -> ( State, Cmd Msg )
 close : State -> ( State, Cmd Msg )
 closeButtonId : State -> String
 
@@ -178,6 +178,23 @@ init : String -> State
 A closed drawer. The `String` is the DOM id of the drawer and must be
 unique on the page.
 
+### `setInitialFocus`
+
+```elm
+setInitialFocus : List String -> State -> State
+```
+
+The ids of elements inside the drawer that get focus when it opens, the first
+one that exists (a search field, the first field of a form). Without it (the
+default) the drawer itself gets focus, and a screen reader reads its title. Set it
+when you create the state:
+
+    Drawer.init "filters-drawer" |> Drawer.setInitialFocus [ "customer-search" ]
+
+When the place depends on the row that is opened, set it right before `open`:
+
+    Drawer.open "order-1042-row" (Drawer.setInitialFocus [ "order-note" ] model.drawer)
+
 ### `update`
 
 ```elm
@@ -204,24 +221,13 @@ is for your own logic.
 open : String -> State -> ( State, Cmd Msg )
 ```
 
-Opens the drawer and moves focus into it. `opener` is the DOM id of the
-element to give focus back to when the drawer closes, such as the button or the
-table row that opened it. With `""`, or when that element is gone, focus goes back
-to the most recent element of the page that had focus before the drawer opened
-and still exists (it needs an id). A drawer opened by a route change needs no
-opener.
-
-### `openWith`
-
-```elm
-openWith : { opener : String, focus : List String } -> State -> ( State, Cmd Msg )
-```
-
-Like `open`, with a list of element ids that should receive focus first
-(a search field, say). The first one that exists wins; if none does, the drawer
-itself gets focus.
-
-    Drawer.openWith { opener = "filters-button", focus = [ "customer-search" ] } model.drawer
+Opens the drawer and moves focus into it: to the first element of
+`setInitialFocus` that exists, or else to the drawer itself. `opener` is the DOM
+id of the element to give focus back to when the drawer closes, such as the button
+or the table row that opened it. With `""`, or when that element is gone, focus
+goes back to the most recent element of the page that had focus before the drawer
+opened and still exists (it needs an id). A drawer opened by a route change needs
+no opener.
 
 ### `close`
 
@@ -344,7 +350,8 @@ large : Attribute msg
 right : Attribute msg
 ```
 
-Slide in from the right edge. This is the default.
+Slide in from the right edge. This is the default. Only `Drawer.view` reads
+it: `Modal.view` draws a centered dialog whatever you pass.
 
 ### `left`
 
@@ -352,7 +359,8 @@ Slide in from the right edge. This is the default.
 left : Attribute msg
 ```
 
-Slide in from the left edge.
+Slide in from the left edge. Only `Drawer.view` reads it: `Modal.view` draws a
+centered dialog whatever you pass.
 
 ## Dismissing
 

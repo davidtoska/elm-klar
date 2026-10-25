@@ -58,9 +58,10 @@ there is no room below; other browsers get plain positioning. Clicks inside the
 panel do not close it. A click outside, `Escape` or the close button do, and
 focus returns to the button. `Tab` out of the panel closes it too, and focus
 goes where the user was heading. `Escape` pressed in a select or a menu that is
-open inside the panel closes only that popup, and so does an `Escape` that a
-control in the panel handled itself (a search field that cleared its text) or that
-ends an IME composition. If the element that has focus in the panel is removed or
+open inside the panel closes only that popup. The panel also leaves alone an
+`Escape` that a control in it handled and prevented the default of (a field of
+your own that clears its text with `Html.Events.preventDefaultOn`, say), and one
+that ends an IME composition. If the element that has focus in the panel is removed or
 disabled (an "Apply" that becomes "Applying ..."), focus moves to the panel, so that
 `Escape` and `Tab` keep working. [Klar.Modal](Klar-Modal) describes these rules,
 shared by all popups and dialogs, in one place.

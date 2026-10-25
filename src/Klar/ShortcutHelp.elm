@@ -165,7 +165,7 @@ open : String -> State -> ( State, Cmd Msg )
 open opener (State state) =
     let
         ( modal, cmd ) =
-            Modal.openWith { opener = opener, focus = [ filterId state.id ] } state.modal
+            Modal.open opener (Modal.setInitialFocus [ filterId state.id ] state.modal)
     in
     ( State { state | modal = modal, filter = "" }, Cmd.map ModalMsg cmd )
 
