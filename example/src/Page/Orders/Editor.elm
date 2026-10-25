@@ -518,7 +518,7 @@ view config editor =
                     [ Autocomplete.view (CustomerMsg >> toMsg)
                         [ Autocomplete.label "Customer"
                         , Autocomplete.required
-                        , Autocomplete.options (Remote.withDefault [] (Remote.map (.customers >> List.map customerOption) config.lookups))
+                        , Autocomplete.remote (Remote.map (.customers >> List.map customerOption) config.lookups)
                         , Autocomplete.minChars 2
                         , Autocomplete.hint "Choose a known customer or type a new name."
                         , Autocomplete.errorMaybe (errorOf "order-customer")

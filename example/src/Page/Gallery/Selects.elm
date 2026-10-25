@@ -1033,7 +1033,7 @@ largeLists locale model =
         "3,000 orders. The list draws only the rows that are visible, plus a few above and below (Klar.VirtualList does this for all three components), so it opens, filters on every keystroke and moves with the keyboard without delay. The line under the list says how many options matched. Try “ord-1250”, “pinnacle” or “shipped”, or hold PageDown."
         [ Doc.example
             { title = "3,000 options"
-            , description = Just "The label is the order number and the customer, the description the city and the status, and the number of lines sits at the end of the row (Select.withMeta). All three are searched."
+            , description = Just "The label is the order number and the customer, the description the city and the status, and the number of lines sits at the end of the row (Select.withMeta). The label and the description are searched; the number of lines is not."
             , code = Just manyCode
             }
             (Layout.grid [ Layout.minColumn 320, Layout.gap 5 ]
@@ -1273,6 +1273,7 @@ autocompletes locale model =
                         locale
                         model
                         [ Autocomplete.label "Customer"
+                        , Autocomplete.serverSearch
                         , Autocomplete.remote model.customerSearch.results
                         , Autocomplete.onRetry (Retry CustomerSearch)
                         , Autocomplete.clearable
@@ -1635,6 +1636,7 @@ autoServerCode : String
 autoServerCode =
     """Autocomplete.view CustomerMsg
     [ Autocomplete.label "Customer"
+    , Autocomplete.serverSearch -- the server searches; without it the list is filtered here
     , Autocomplete.remote model.found -- Remote (List (Option String))
     , Autocomplete.onRetry RetrySuggestions
     ]

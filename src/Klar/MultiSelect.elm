@@ -121,6 +121,7 @@ import Dict
 import Html exposing (Html)
 import Html.Attributes as Attr
 import Html.Events as Events
+import Html.Keyed
 import Json.Decode as Decode
 import Klar.Button as Button
 import Klar.Field as Field
@@ -159,8 +160,21 @@ type State id
         , list : VirtualList.State
         , cache : Maybe (Popup.Cache id)
         , said : Maybe Said
+        , saidTicket : Int
         , fromCode : Bool
+        , allChosen : Maybe (AllChosen id)
         }
+
+
+{-| What the last "Select all" left: every selectable match of this search text
+was chosen, and these were their values. The button stays unavailable while the
+search text and the matches are the same and no value was removed, which one pass
+over the matches finds out, without comparing every match with every chosen value.
+-}
+type alias AllChosen id =
+    { query : String
+    , matches : List id
+    }
 
 
 {-| What the field last told a screen reader about a change made from the closed
@@ -201,7 +215,9 @@ init id =
         , list = VirtualList.init (listboxId id)
         , cache = Nothing
         , said = Nothing
+        , saidTicket = 0
         , fromCode = False
+        , allChosen = Nothing
         }
 
 
@@ -237,6 +253,7 @@ setValues newValues (State state) =
     State
         { state
             | selected = List.map (\v -> known v |> Maybe.withDefault { value = v, option = Nothing }) unique
+            , allChosen = Nothing
         }
 
 
@@ -256,6 +273,7 @@ setOptions opts (State state) =
     State
         { state
             | selected = List.map (\opt -> { value = opt.value, option = Just opt }) unique
+            , allChosen = Nothing
         }
 
 
@@ -263,7 +281,7 @@ setOptions opts (State state) =
 -}
 clear : State id -> State id
 clear (State state) =
-    State { state | selected = [] }
+    State { state | selected = [], allChosen = Nothing }
 
 
 {-| The text in the search box while the list is open, and `""` when it is
@@ -377,11 +395,14 @@ chosen and is not chosen yet. Values are compared with `==`, so the exact answer
 compares every match with every chosen value, and this runs on every render
 (every hover and scroll). So it compares only when it must and when that is
 cheap: while fewer values are chosen than there are matches to choose, some match
-is not chosen; and when the comparison would be large the button stays available
-(the click works the rest out once, in `update`).
+is not chosen; after a "Select all" of this search text nothing is left
+(`allChosen`); matches that come in their order among the chosen values (as
+"Select all" adds them) are all chosen, which one pass finds out; and when the
+full comparison would be large the button stays available (the click works the
+rest out once, in `update`, and then remembers it).
 -}
-anyLeftToChoose : List (Option id) -> List (Selected id) -> Bool
-anyLeftToChoose matched selected =
+anyLeftToChoose : State id -> List (Option id) -> Bool
+anyLeftToChoose (State state) matched =
     let
         selectable =
             List.filter (\opt -> not opt.disabled) matched
@@ -390,16 +411,98 @@ anyLeftToChoose matched selected =
             List.length selectable
 
         chosenCount =
-            List.length selected
+            List.length state.selected
     in
     if selectableCount == 0 then
         False
 
-    else if chosenCount < selectableCount || selectableCount * chosenCount > comparisonBudget then
+    else if chosenCount < selectableCount then
+        True
+
+    else if state.allChosen == Just { query = state.query, matches = List.map .value selectable } then
+        False
+
+    else if inOrderAmong selectable state.selected then
+        False
+
+    else if selectableCount * chosenCount > comparisonBudget then
         True
 
     else
-        List.any (\opt -> not (isChosen opt.value selected)) selectable
+        List.any (\opt -> not (isChosen opt.value state.selected)) selectable
+
+
+{-| Whether the options come, in their order, among the chosen values (with
+other values between them): then every one of them is chosen. One pass over both
+lists.
+-}
+inOrderAmong : List (Option id) -> List (Selected id) -> Bool
+inOrderAmong opts selected =
+    case opts of
+        [] ->
+            True
+
+        opt :: rest ->
+            case chosenAfter opt.value selected of
+                Just later ->
+                    inOrderAmong rest later
+
+                Nothing ->
+                    False
+
+
+{-| The chosen values after the first one that is `v`, or `Nothing` when none is.
+-}
+chosenAfter : id -> List (Selected id) -> Maybe (List (Selected id))
+chosenAfter v selected =
+    case selected of
+        [] ->
+            Nothing
+
+        sel :: rest ->
+            if sel.value == v then
+                Just rest
+
+            else
+                chosenAfter v rest
+
+
+{-| The selectable matches that are not chosen yet, in their order. Each match is
+first compared with the chosen value after the last one found and only then with
+all of them, so when the chosen values follow the order of the options (as
+"Select all" adds them) the work grows with the length of the lists, not with its
+square.
+-}
+unchosen : List (Option id) -> List (Selected id) -> List (Option id)
+unchosen matched selected =
+    List.foldl
+        (\opt ( next, left ) ->
+            if opt.disabled then
+                ( next, left )
+
+            else
+                case next of
+                    sel :: rest ->
+                        if sel.value == opt.value then
+                            ( rest, left )
+
+                        else if isChosen opt.value selected then
+                            ( next, left )
+
+                        else
+                            ( next, opt :: left )
+
+                    [] ->
+                        if isChosen opt.value selected then
+                            ( next, left )
+
+                        else
+                            ( next, opt :: left )
+        )
+        ( selected, [] )
+        matched
+        |> Tuple.second
+        |> List.reverse
 
 
 {-| The most `==` comparisons a render may spend on the state of "Select all".
@@ -436,6 +539,7 @@ type Msg id
     | SearchFocused (Popup.Env id)
     | ListMsg VirtualList.Msg
     | Settle Int
+    | Unsay Int
     | NoOp
 
 
@@ -579,50 +683,69 @@ update msg ((State state) as current) =
             ( add [ opt ] current, Cmd.none )
 
         Remove opt ->
-            ( remove opt.value current |> say (RemovedValue (Just opt.label))
-            , if state.open then
-                Cmd.none
+            remove opt.value current
+                |> say (RemovedValue (Just opt.label))
+                |> Tuple.mapSecond
+                    (\announce ->
+                        if state.open then
+                            announce
 
-              else
-                Internal.focus state.id NoOp
-            )
+                        else
+                            Cmd.batch [ announce, Internal.focus state.id NoOp ]
+                    )
 
         RemoveLast ->
             case List.reverse state.selected of
                 lastOne :: _ ->
-                    ( remove lastOne.value current |> say (RemovedValue (Maybe.map .label lastOne.option)), Cmd.none )
+                    remove lastOne.value current |> say (RemovedValue (Maybe.map .label lastOne.option))
 
                 [] ->
                     ( current, Cmd.none )
 
         SelectAllMatched env limit ->
             -- worked out here, once per click, not on every render: it compares
-            -- every matching option with every chosen value
+            -- the matching options with the chosen values
             let
                 rows =
                     Popup.cachedRows state.cache env state.query
 
-                fresh =
-                    rows.matched
-                        |> List.filter (\opt -> not opt.disabled && not (isChosen opt.value state.selected))
-                        |> (case limit of
-                                Just n ->
-                                    List.take (max 0 (n - List.length state.selected))
+                left =
+                    unchosen rows.matched state.selected
 
-                                Nothing ->
-                                    identity
-                           )
+                fresh =
+                    case limit of
+                        Just n ->
+                            List.take (max 0 (n - List.length state.selected)) left
+
+                        Nothing ->
+                            left
+
+                done =
+                    if List.length fresh == List.length left then
+                        Just { query = state.query, matches = List.map .value (List.filter (\opt -> not opt.disabled) rows.matched) }
+
+                    else
+                        Nothing
+
+                (State added) =
+                    append fresh current
             in
-            ( append fresh current, Internal.focus (searchId state.id) NoOp )
+            ( State { added | allChosen = done }, Internal.focus (searchId state.id) NoOp )
 
         ClearAll ->
-            ( clear current |> say RemovedAll
-            , if state.open then
-                Internal.focus (searchId state.id) NoOp
+            clear current
+                |> say RemovedAll
+                |> Tuple.mapSecond
+                    (\announce ->
+                        Cmd.batch
+                            [ announce
+                            , if state.open then
+                                Internal.focus (searchId state.id) NoOp
 
-              else
-                Internal.focus state.id NoOp
-            )
+                              else
+                                Internal.focus state.id NoOp
+                            ]
+                    )
 
         SearchFocused env ->
             -- A list opened from code (`open`) has not seen the options: keep
@@ -646,6 +769,13 @@ update msg ((State state) as current) =
         Settle ticket ->
             if ticket == state.wait then
                 ( State { state | searched = state.query }, Cmd.none )
+
+            else
+                ( current, Cmd.none )
+
+        Unsay ticket ->
+            if ticket == state.saidTicket then
+                ( State { state | said = Nothing }, Cmd.none )
 
             else
                 ( current, Cmd.none )
@@ -685,15 +815,20 @@ append fresh (State state) =
 
 
 {-| Tells a screen reader about a change made from the closed field. The open list
-has its own status line, which says it already.
+has its own status line, which says it already. Every announcement is a new text
+node (keyed by `saidTicket`), so that two changes that read the same ("Value
+removed" twice) are both announced, and the text goes away after a few seconds, so
+that a screen reader in browse mode does not find an old one.
 -}
-say : Said -> State id -> State id
+say : Said -> State id -> ( State id, Cmd (Msg id) )
 say said (State state) =
     if state.open then
-        State { state | said = Nothing }
+        ( State { state | said = Nothing }, Cmd.none )
 
     else
-        State { state | said = Just said }
+        ( State { state | said = Just said, saidTicket = state.saidTicket + 1 }
+        , Process.sleep 5000 |> Task.perform (\_ -> Unsay (state.saidTicket + 1))
+        )
 
 
 remove : id -> State id -> State id
@@ -701,6 +836,7 @@ remove v (State state) =
     State
         { state
             | selected = List.filter (\sel -> sel.value /= v) state.selected
+            , allChosen = Nothing
         }
 
 
@@ -1501,26 +1637,29 @@ viewControl toMsg config field t env (State state) =
           else
             Popup.viewChevron
 
-        -- always on the page, so that a change is announced when it happens
-        , Html.span
+        -- always on the page, so that a change is announced when it happens;
+        -- a new key for every announcement (see `say`)
+        , Html.Keyed.node "span"
             [ Internal.cls [ "klar-sr-only" ]
             , Attr.attribute "role" "status"
             , Attr.attribute "aria-live" "polite"
             ]
-            [ Html.text
-                (case state.said of
-                    Just (RemovedValue (Just name)) ->
-                        t.removed name
+            [ ( String.fromInt state.saidTicket
+              , Html.text
+                    (case state.said of
+                        Just (RemovedValue (Just name)) ->
+                            t.removed name
 
-                    Just (RemovedValue Nothing) ->
-                        t.removedValue
+                        Just (RemovedValue Nothing) ->
+                            t.removedValue
 
-                    Just RemovedAll ->
-                        t.removedAll
+                        Just RemovedAll ->
+                            t.removedAll
 
-                    Nothing ->
-                        ""
-                )
+                        Nothing ->
+                            ""
+                    )
+              )
             ]
         ]
 
@@ -1561,7 +1700,7 @@ viewPopup toMsg config t env (State state) =
             isLoaded && rows.optionRows > 0
 
         canSelectAll =
-            hasRows && not atMax && anyLeftToChoose rows.matched state.selected
+            hasRows && not atMax && anyLeftToChoose (State state) rows.matched
 
         canClear =
             count > 0
