@@ -151,15 +151,12 @@ separator =
 
 extraText : Option id -> String
 extraText opt =
-    case ( opt.description, opt.keywords ) of
-        ( Nothing, [] ) ->
+    case ( opt.description, opt.meta, opt.keywords ) of
+        ( Nothing, Nothing, [] ) ->
             ""
 
-        ( Just description, words ) ->
-            String.join " " (description :: words)
-
-        ( Nothing, words ) ->
-            String.join " " words
+        ( description, meta, words ) ->
+            String.join " " (List.filterMap identity [ description, meta ] ++ words)
 
 
 entry : Option id -> Entry id

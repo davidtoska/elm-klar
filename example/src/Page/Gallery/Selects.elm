@@ -97,6 +97,7 @@ orderOptions =
             (\order ->
                 Select.option (orderIdText order.id) (orderIdText order.id ++ " · " ++ order.customer)
                     |> Select.withDescription (order.city ++ " · " ++ orderStatusLabel order.status)
+                    |> Select.withMeta (Format.int Locale.en order.lines ++ " lines")
             )
 
 
@@ -1032,7 +1033,7 @@ largeLists locale model =
         "3,000 orders. The list draws only the rows that are visible, plus a few above and below (Klar.VirtualList does this for all three components), so it opens, filters on every keystroke and moves with the keyboard without delay. The line under the list says how many options matched. Try “ord-1250”, “pinnacle” or “shipped”, or hold PageDown."
         [ Doc.example
             { title = "3,000 options"
-            , description = Just "The label is the order number and the customer, the description the city and the status. Both are searched."
+            , description = Just "The label is the order number and the customer, the description the city and the status, and the number of lines sits at the end of the row (Select.withMeta). All three are searched."
             , code = Just manyCode
             }
             (Layout.grid [ Layout.minColumn 320, Layout.gap 5 ]

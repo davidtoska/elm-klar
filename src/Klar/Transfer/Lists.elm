@@ -190,6 +190,7 @@ unknownOption id text =
     , tone = Nothing
     , color = Nothing
     , keywords = []
+    , meta = Nothing
     }
 
 

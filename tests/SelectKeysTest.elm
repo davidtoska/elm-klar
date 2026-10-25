@@ -591,13 +591,28 @@ selectAllTests =
 
 groupTests : Test
 groupTests =
-    test "an option says its group to screen readers (the heading rows are not in the listbox)" <|
-        \_ ->
-            selectView [ Select.options [ Select.option "no" "Norway" |> Select.withGroup "Europe" ] ] openSelect
-                |> Query.fromHtml
-                |> Query.find [ Selector.id "country-opt-1" ]
-                |> Query.find [ Selector.class "klar-sr-only" ]
-                |> Query.has [ Selector.text ", Europe" ]
+    describe "What a row says"
+        [ test "an option says its group to screen readers (the heading rows are not in the listbox)" <|
+            \_ ->
+                selectView [ Select.options [ Select.option "no" "Norway" |> Select.withGroup "Europe" ] ] openSelect
+                    |> Query.fromHtml
+                    |> Query.find [ Selector.id "country-opt-1" ]
+                    |> Query.find [ Selector.class "klar-sr-only" ]
+                    |> Query.has [ Selector.text ", Europe" ]
+        , test "the meta value sits at the end of the row" <|
+            \_ ->
+                selectView [ Select.options [ Select.option "sku-1" "Pallet jack" |> Select.withMeta "12 in stock" ] ] openSelect
+                    |> Query.fromHtml
+                    |> Query.find [ Selector.id "country-opt-0" ]
+                    |> Query.find [ Selector.class "klar-select__option-meta" ]
+                    |> Query.has [ Selector.text "12 in stock" ]
+        , test "and it is searched" <|
+            \_ ->
+                [ Select.option "sku-1" "Pallet jack" |> Select.withMeta "PJ-2000", Select.option "sku-2" "Forklift" ]
+                    |> Select.filter "pj-2000"
+                    |> List.map .value
+                    |> Expect.equal [ "sku-1" ]
+        ]
 
 
 

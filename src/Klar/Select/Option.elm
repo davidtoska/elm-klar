@@ -8,6 +8,7 @@ module Klar.Select.Option exposing
     , withGroup
     , withIcon
     , withKeywords
+    , withMeta
     , withTone
     )
 
@@ -48,6 +49,7 @@ type alias Option id =
     , tone : Maybe Tone
     , color : Maybe Color
     , keywords : List String
+    , meta : Maybe String
     }
 
 
@@ -71,6 +73,7 @@ option value label =
     , tone = Nothing
     , color = Nothing
     , keywords = []
+    , meta = Nothing
     }
 
 
@@ -81,6 +84,14 @@ same match in the label.
 withDescription : String -> Option id -> Option id
 withDescription text opt =
     { opt | description = Just text }
+
+
+{-| A short value at the end of the row, in tabular figures: a stock count, a
+code, a price. It is searched like the description.
+-}
+withMeta : String -> Option id -> Option id
+withMeta text opt =
+    { opt | meta = Just text }
 
 
 {-| Lists the option under a heading with this name. Options with the same
@@ -170,4 +181,5 @@ mapOption change opt =
     , tone = opt.tone
     , color = opt.color
     , keywords = opt.keywords
+    , meta = opt.meta
     }

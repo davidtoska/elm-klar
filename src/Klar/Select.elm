@@ -1,7 +1,7 @@
 module Klar.Select exposing
     ( State, init, Msg, update, view
     , value, setValue, setOption, clear, query, isOpen, open, close
-    , Option, option, withDescription, withGroup, withIcon, withTone, withColor, withKeywords, disabledOption, mapOption, filter
+    , Option, option, withDescription, withMeta, withGroup, withIcon, withTone, withColor, withKeywords, disabledOption, mapOption, filter
     , Attribute, options, remote, serverSearch, onRetry
     , label, labelHidden, hint, error, errorMaybe, required, optionalText
     , placeholder, searchPlaceholder, clearable, creatable, valueText, disabled, readOnly, size, visibleRows, locale, settings
@@ -101,7 +101,7 @@ the application watches `Select.query` and fetches. The built-in texts ("Select
 Options are plain records, shared with `MultiSelect`, `Autocomplete` and
 `Transfer`: this is the one place to make them, so one import is enough.
 
-@docs Option, option, withDescription, withGroup, withIcon, withTone, withColor, withKeywords, disabledOption, mapOption, filter
+@docs Option, option, withDescription, withMeta, withGroup, withIcon, withTone, withColor, withKeywords, disabledOption, mapOption, filter
 
 
 # Attributes
@@ -166,6 +166,7 @@ or a simulated backend that has no select of its own. Read the fields as you lik
   - `tone` and `color` mark the option with a small dot before the label, a status color that
     follows the theme or a color from your data (never both; the last one set wins)
   - `keywords` are extra words that also match but are never shown (synonyms, codes, old names)
+  - `meta` is a short value at the end of the row, in tabular figures (a stock count, a code)
 
 -}
 type alias Option id =
@@ -178,6 +179,7 @@ type alias Option id =
     , tone : Maybe Tone
     , color : Maybe Color
     , keywords : List String
+    , meta : Maybe String
     }
 
 
@@ -202,6 +204,18 @@ label.
 withDescription : String -> Option id -> Option id
 withDescription =
     Option.withDescription
+
+
+{-| A short value at the end of the row, in tabular figures, for the numbers of
+a data-dense list: a stock count, a code, a price. It is searched like the
+description.
+
+    Select.option sku.id sku.name |> Select.withMeta (String.fromInt sku.stock ++ " in stock")
+
+-}
+withMeta : String -> Option id -> Option id
+withMeta =
+    Option.withMeta
 
 
 {-| Lists the option under a heading with this name. Options with the same group

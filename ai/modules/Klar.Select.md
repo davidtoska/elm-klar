@@ -37,9 +37,11 @@ type alias Option id =
     , tone : Maybe Theme.Tone
     , color : Maybe Color.Color
     , keywords : List String
+    , meta : Maybe String
     }
 option : id -> String -> Option id
 withDescription : String -> Option id -> Option id
+withMeta : String -> Option id -> Option id
 withGroup : String -> Option id -> Option id
 withIcon : Icon.Icon -> Option id -> Option id
 withTone : Theme.Tone -> Option id -> Option id
@@ -347,6 +349,7 @@ type alias Option id =
     , tone : Maybe Theme.Tone
     , color : Maybe Color.Color
     , keywords : List String
+    , meta : Maybe String
     }
 ```
 
@@ -367,6 +370,7 @@ or a simulated backend that has no select of its own. Read the fields as you lik
   - `tone` and `color` mark the option with a small dot before the label, a status color that
     follows the theme or a color from your data (never both; the last one set wins)
   - `keywords` are extra words that also match but are never shown (synonyms, codes, old names)
+  - `meta` is a short value at the end of the row, in tabular figures (a stock count, a code)
 
 ### `option`
 
@@ -390,6 +394,18 @@ searched too, but a match in the description ranks below the same match in the
 label.
 
     Select.option "de" "Germany" |> Select.withDescription "DE"
+
+### `withMeta`
+
+```elm
+withMeta : String -> Option id -> Option id
+```
+
+A short value at the end of the row, in tabular figures, for the numbers of
+a data-dense list: a stock count, a code, a price. It is searched like the
+description.
+
+    Select.option sku.id sku.name |> Select.withMeta (String.fromInt sku.stock ++ " in stock")
 
 ### `withGroup`
 

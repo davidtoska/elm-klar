@@ -509,6 +509,22 @@ css =
   color: var(--klar-text-disabled);
 }
 
+/* The meta value sits at the end of the row and never shrinks. */
+.klar-select__option-meta {
+  flex: none;
+  margin-inline-start: auto;
+  padding-inline-start: var(--klar-space-4);
+  color: var(--klar-text-muted);
+}
+
+.klar-select__option-description + .klar-select__option-meta {
+  margin-inline-start: 0;
+}
+
+.klar-select__option--disabled .klar-select__option-meta {
+  color: var(--klar-text-disabled);
+}
+
 .klar-select__group {
   display: flex;
   align-items: center;

@@ -1251,6 +1251,9 @@ viewItem config index ordinal opt =
                 Html.span [ Internal.cls [ "klar-select__option-description" ] ] (Search.highlight descriptionQuery description)
             )
             opt.description
+        , Internal.viewMaybe
+            (\meta -> Html.span [ Internal.cls [ "klar-select__option-meta", "klar-tabular" ] ] [ Html.text meta ])
+            opt.meta
 
         -- The heading rows are not part of the listbox (a virtual list cannot
         -- wrap its options in a role="group"), so each option says its group.
