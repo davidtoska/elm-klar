@@ -1256,11 +1256,12 @@ css =
 .klar-accordion__body { padding: 0; border: 0; }
 
 .klar-accordion__content {
-  padding: var(--klar-space-1) var(--klar-space-4) var(--klar-space-4) calc(var(--klar-space-3) + 16px + var(--klar-space-2));
+  padding-block: var(--klar-space-1) var(--klar-space-4);
+  padding-inline: calc(var(--klar-space-3) + 16px + var(--klar-space-2)) var(--klar-space-4);
   animation: klar-fade-in var(--klar-dur) var(--klar-ease);
 }
 
-.klar-accordion--flush .klar-accordion__content { padding-left: calc(var(--klar-space-1) + 16px + var(--klar-space-2)); padding-right: var(--klar-space-1); }
+.klar-accordion--flush .klar-accordion__content { padding-inline: calc(var(--klar-space-1) + 16px + var(--klar-space-2)) var(--klar-space-1); }
 
 .klar-accordion__section--disabled .klar-accordion__header,
 .klar-accordion__section--disabled .klar-accordion__header:hover {
