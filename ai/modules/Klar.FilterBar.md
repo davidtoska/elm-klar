@@ -112,9 +112,11 @@ problem as its tooltip, so the mistake shows at once.
 
 **Keyboard**: `Tab` moves through the pills and buttons; the chips are one stop.
 Among the chips `ArrowLeft` and `ArrowRight` move, `Home` and `End` go to the
-first and the last, `Enter` or `Space` opens the editor of a chip, and `Delete`
-or `Backspace` removes it (focus goes to its neighbour, and the removal can be
-undone). The remove buttons are for the mouse; they are not tab stops. In the editor `Enter` in a text or number
+first and the last, `Enter` or `Space` opens the editor of a condition chip, and
+`Delete` or `Backspace` removes a chip (focus goes to its neighbour, and the
+removal can be undone). A group chip (a group made in a `RuleBuilder` or a
+preset) is edited where it was made: `Enter` does nothing on it, and it can only
+be removed. The remove buttons are for the mouse; they are not tab stops. In the editor `Enter` in a text or number
 field applies, and `Ctrl+Enter` (`Cmd+Enter` on a Mac) applies from any control,
 also from a choice or a date; in a date field `Enter` takes the date that was
 typed. `Escape` closes the editor without applying and gives focus back to the
@@ -332,7 +334,7 @@ the `Remote` of a count that takes time:
   - Refreshing (`Remote.refresh` of a count): the old count stays, dimmed, with
     a spinner.
   - Old (`Remote.Kept` after a failed refresh): the old count, marked old, with
-    the retry.
+    the retry; while that retry runs the button stays, busy, and keeps focus.
 
 `NotAsked`, the default, shows no count. The count is in a polite live region,
 which is in the page from the start, so a screen reader hears the first count too.

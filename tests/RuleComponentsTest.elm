@@ -11,6 +11,7 @@ import Expect
 import Html exposing (Html)
 import Html.Attributes as Attr
 import Json.Encode as Encode
+import Klar.Date as Date
 import Klar.FilterBar as FilterBar
 import Klar.Locale as Locale
 import Klar.Rule as Rule exposing (Combinator(..), Operator(..), Rule(..))
@@ -44,6 +45,7 @@ suite =
     describe "the rule builder and the filter bar"
         [ builderTests
         , barTests
+        , ruleTests
         ]
 
 
@@ -133,8 +135,8 @@ builderTests =
                                 , Query.find [ Selector.tag "button", Selector.containing [ Selector.text "Download" ] ]
                                     >> Event.simulate Event.click
                                     >> Event.toResult
-                                    >> Result.map (\_ -> ())
-                                    >> Expect.equal (Ok ())
+                                    >> Result.map (\msg -> Tuple.second (RuleBuilder.update msg opened) /= Cmd.none)
+                                    >> Expect.equal (Ok True)
                                 ]
 
                     Err problem ->
@@ -145,6 +147,47 @@ builderTests =
                     |> Query.fromHtml
                     |> Query.find [ Selector.id "pr-n2" ]
                     |> Query.has [ Selector.attribute (Attr.attribute "aria-label" "Condition 2 of 2") ]
+        , test "duplicating a group from its menu closes the menu there, so the menu's own close leaves focus on the copy" <|
+            \_ ->
+                let
+                    start =
+                        builderState
+                            (rootOf
+                                [ cond 1 "quantity" GreaterThan [ "3" ]
+                                , GroupRule { id = 2, combinator = Any, negated = False, children = [ cond 3 "quantity" LessThan [ "9" ] ] }
+                                ]
+                            )
+
+                    draw =
+                        builder []
+
+                    duplicated =
+                        clickIn draw [ Selector.id "pr-n2-menu-trigger" ] start
+                            |> Result.andThen
+                                (\menuOpen ->
+                                    draw menuOpen
+                                        |> Query.fromHtml
+                                        |> Query.find [ Selector.attribute (Attr.attribute "role" "menuitem"), Selector.containing [ Selector.text "Duplicate group" ] ]
+                                        |> Event.simulate Event.click
+                                        |> Event.toResult
+                                        |> Result.map (\msg -> RuleBuilder.update msg menuOpen)
+                                )
+                in
+                case duplicated of
+                    Ok ( copied, cmd ) ->
+                        Expect.all
+                            [ \_ -> Expect.notEqual Cmd.none cmd
+                            , \_ -> Expect.equal 3 (Rule.conditionCount (RuleBuilder.rule copied))
+                            , \_ ->
+                                draw copied
+                                    |> Query.fromHtml
+                                    |> Query.findAll [ Selector.attribute (Attr.attribute "role" "menu") ]
+                                    |> Query.count (Expect.equal 0)
+                            ]
+                            ()
+
+                    Err problem ->
+                        Expect.fail problem
         , test "the negation box says what it negates" <|
             \_ ->
                 builder [] (RuleBuilder.init "pr")
@@ -325,11 +368,26 @@ barTests =
                                 |> Query.has [ Selector.attribute (Attr.attribute "aria-controls" "bar-popup") ]
                         )
                     |> Result.withDefault (Expect.fail "the chip did not open")
-        , test "Ctrl+Enter in the editor applies it" <|
+        , test "Ctrl+Enter in the editor applies the changed draft" <|
             \_ ->
                 press [ Selector.id "bar-chip-2" ] Event.click (barState paidAndLarge)
+                    |> Result.andThen
+                        (\opened ->
+                            bar [] opened
+                                |> Query.fromHtml
+                                |> Query.find [ Selector.id "bar-popup" ]
+                                |> Query.find [ Selector.tag "input", Selector.attribute (Attr.value "10") ]
+                                |> Event.simulate (Event.input "25")
+                                |> Event.toResult
+                                |> Result.map (\msg -> FilterBar.update msg opened |> Tuple.first)
+                        )
                     |> Result.andThen (press [ Selector.id "bar-popup" ] ctrlEnter)
-                    |> Result.map (\s -> ( FilterBar.isOpen s, same paidAndLarge (FilterBar.rule s) ))
+                    |> Result.map
+                        (\s ->
+                            ( FilterBar.isOpen s
+                            , same (Rule.allOf [ Rule.is "status" "paid", Rule.when "quantity" GreaterThan [ "25" ] ]) (FilterBar.rule s)
+                            )
+                        )
                     |> Expect.equal (Ok ( False, True ))
         , test "the chips are one tab stop: the first, and no remove button" <|
             \_ ->
@@ -345,8 +403,27 @@ barTests =
             \_ ->
                 press [ Selector.id "bar-chip-1" ] (keyDown "ArrowRight") (barState threeChips)
                     |> Result.andThen (press [ Selector.id "bar-chip-2" ] (keyDown "End"))
-                    |> Result.map (\moved -> bar [] moved |> Query.fromHtml |> Query.find [ Selector.id "bar-chip-3-remove" ] |> Query.has [ Selector.attribute (Attr.tabindex 0) ])
+                    |> Result.map (\moved -> bar [] moved |> Query.fromHtml |> Query.find [ Selector.id "bar-chip-3" ] |> Query.has [ Selector.attribute (Attr.tabindex 0) ])
                     |> Result.withDefault (Expect.fail "the keys were not handled")
+        , test "a group chip's tab stop is its main part, which is unavailable, not its remove button" <|
+            \_ ->
+                bar [] (barState threeChips)
+                    |> Query.fromHtml
+                    |> Query.find [ Selector.id "bar-chip-3" ]
+                    |> Query.has
+                        [ Selector.attribute (Attr.attribute "role" "button")
+                        , Selector.attribute (Attr.attribute "aria-disabled" "true")
+                        , Selector.class "klar-filterbar__chip-main"
+                        ]
+        , test "Enter on a group chip does nothing" <|
+            \_ ->
+                press [ Selector.id "bar-chip-3" ] (keyDown "Enter") (barState threeChips)
+                    |> Expect.err
+        , test "Delete on a group chip removes the group" <|
+            \_ ->
+                press [ Selector.id "bar-chip-3" ] (keyDown "Delete") (barState threeChips)
+                    |> Result.map (FilterBar.rule >> same (Rule.allOf [ Rule.is "status" "paid", Rule.when "quantity" GreaterThan [ "10" ] ]))
+                    |> Expect.equal (Ok True)
         , test "ArrowLeft on the first chip is left to the browser" <|
             \_ ->
                 press [ Selector.id "bar-chip-1" ] (keyDown "ArrowLeft") (barState threeChips)
@@ -366,4 +443,52 @@ barTests =
                 press [ Selector.id "bar-chip-1" ] Event.click (barState paidAndLarge)
                     |> Result.map (\opened -> ( FilterBar.isOpen opened, FilterBar.isOpen (Tuple.first (FilterBar.close opened)) ))
                     |> Expect.equal (Ok ( True, False ))
+        ]
+
+
+
+-- RULE
+
+
+statusField : List Rule.Choice -> Rule.Field ()
+statusField choices =
+    Rule.choiceField "status" "Status" choices (always "")
+
+
+ruleTests : Test
+ruleTests =
+    describe "Rule"
+        [ test "fieldChoices reads the choices of a choice field" <|
+            \_ ->
+                Rule.fieldChoices (statusField [ { value = "open", label = "Open" } ])
+                    |> Expect.equal [ { value = "open", label = "Open" } ]
+        , test "fieldChoices is empty for the other kinds" <|
+            \_ ->
+                Rule.fieldChoices (Rule.numberField "quantity" "Quantity" (always Nothing))
+                    |> Expect.equal []
+        , test "a choice field whose options are still loading reports no stale choice" <|
+            \_ ->
+                Rule.validate Locale.en [ statusField [] ] (rootOf [ cond 1 "status" Is [ "paid" ] ])
+                    |> Expect.equal []
+        , test "a choice that is gone is still reported when the choices are known" <|
+            \_ ->
+                Rule.validate Locale.en [ statusField [ { value = "open", label = "Open" } ] ] (rootOf [ cond 1 "status" Is [ "paid" ] ])
+                    |> List.map .nodeId
+                    |> Expect.equal [ 1 ]
+        , test "settled keeps a choice exactly as matches compares it" <|
+            \_ ->
+                let
+                    field =
+                        Rule.choiceField "status" "Status" [ { value = " paid ", label = "Paid" } ] .status
+
+                    rule =
+                        rootOf [ cond 1 "status" Is [ " paid " ], cond 2 "status" IsAnyOf [ " paid ", "open" ] ]
+
+                    rows =
+                        [ { status = " paid " }, { status = "paid" }, { status = "open" } ]
+
+                    matching r =
+                        List.filter (Rule.matches (Date.fromEpochDay 20000) [ field ] r) rows
+                in
+                Expect.equal (matching rule) (matching (Rule.settled [ field ] rule))
         ]

@@ -442,7 +442,8 @@ builder for screen readers. The default is no label.
 hint : String -> Attribute row msg
 ```
 
-A line of help under the label, read with the builder by screen readers.
+A line of help under the builder (after its footer, where a form field puts
+its hint), read with the builder by screen readers.
 
 ### `error`
 
@@ -496,7 +497,7 @@ matches". Give `Remote.Loaded n` for a count you have (`Rule.matches`), or the
   - Refreshing (`Remote.refresh` of a count): the old count stays, dimmed, with
     a spinner.
   - Old (`Remote.Kept` after a failed refresh): the old count, marked old, with
-    the retry.
+    the retry; while that retry runs the button stays, busy, and keeps focus.
 
 `NotAsked`, the default, shows no count. The count is in a polite live region, so
 a screen reader hears the new number.

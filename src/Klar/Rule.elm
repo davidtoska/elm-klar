@@ -1,6 +1,6 @@
 module Klar.Rule exposing
     ( Field, bareField, textField, numberField, dateField, boolField, choiceField, choiceFieldOf, inGroup, withOperators, fieldById
-    , fieldId, fieldLabel, fieldKind, fieldGroup, fieldOperators
+    , fieldId, fieldLabel, fieldKind, fieldChoices, fieldGroup, fieldOperators
     , FieldKind, textKind, numberKind, dateKind, booleanKind, choiceKind, Choice
     , Operator(..), Operands(..), operatorsFor, operandsOf, operatorLabel
     , Rule(..), Group, Combinator(..), Condition, emptyGroup
@@ -102,7 +102,7 @@ value.
 
 @docs Field, bareField, textField, numberField, dateField, boolField, choiceField, choiceFieldOf, inGroup, withOperators, fieldById
 
-@docs fieldId, fieldLabel, fieldKind, fieldGroup, fieldOperators
+@docs fieldId, fieldLabel, fieldKind, fieldChoices, fieldGroup, fieldOperators
 
 @docs FieldKind, textKind, numberKind, dateKind, booleanKind, choiceKind, Choice
 
@@ -185,8 +185,10 @@ what `matches` uses and writes the operands in one form, so the server needs non
 of the forgiveness of `matches`. What the server must do with it:
 
   - Text compares without regard to case, diacritics and surrounding spaces.
-  - Numbers are plain JSON-style decimals ("1234.5"), dates ISO `YYYY-MM-DD`,
-    day counts whole numbers, periods one of the keys listed under `InPeriod`.
+  - Numbers are written as `String.fromFloat` writes them: "1234.5", with
+    exponent notation ("1e+21", "1e-7") from 10^21 up and below 10^-6. Dates
+    are ISO `YYYY-MM-DD`, day counts whole numbers, periods one of the keys
+    listed under `InPeriod`.
   - `Between` and `NotBetween` include both ends, low first.
   - A row without a value satisfies only `IsEmpty` and the negative operators
     (`IsNot`, `NotContains`, `NotBetween`, `IsNoneOf`).
@@ -482,6 +484,24 @@ fieldLabel (Field data) =
 fieldKind : Field row -> FieldKind
 fieldKind (Field data) =
     data.kind
+
+
+{-| The choices of a choice field, in the order a picker lists them, and an
+empty list for every other kind. `FieldKind` is opaque: this is how you read the
+choices back, for a legend or a filter of your own.
+
+    Rule.fieldChoices (Rule.choiceField "status" "Status" statuses .status)
+    -- statuses
+
+-}
+fieldChoices : Field row -> List Choice
+fieldChoices (Field data) =
+    case data.kind of
+        ChoiceKind choices ->
+            choices
+
+        _ ->
+            []
 
 
 {-| The heading a field is listed under in a field picker, set with `inGroup`.
@@ -2154,7 +2174,8 @@ problem, in the order of the tree. An empty list means that the rule is fine.
   - An operand that is missing or cannot be read: not a number, not a date, not
     a whole number of days, not a period.
   - A choice that is no longer among the choices of the field (a saved rule
-    can outlive a choice).
+    can outlive a choice). A choice field with no choices yet, whose options
+    are still loading, is not checked.
   - A `Between` or `NotBetween` whose ends are the wrong way round.
   - A group with nothing in it. The root group may be empty.
 
@@ -2237,8 +2258,9 @@ conditionProblem locale field condition =
                     _ ->
                         Nothing
 
+            -- no choices yet (options that are still loading): nothing to check against
             ChoiceKind choices ->
-                if List.all (\value -> List.any (\choice -> choice.value == value) choices) (usedOperands condition) then
+                if List.isEmpty choices || List.all (\value -> List.any (\choice -> choice.value == value) choices) (usedOperands condition) then
                     Nothing
 
                 else
@@ -2502,9 +2524,9 @@ operandText locale field condition =
 
 {-| The rule as a server should get it: only what `matches` uses, with every
 operand in one form. Conditions that are not complete or are on unknown fields
-are left out, and so are groups with nothing left; numbers are written plainly
-("1 234,5" becomes "1234.5"), the ends of `Between` and `NotBetween` low first,
-text trimmed, choices sorted and without repeats, and only the operands the
+are left out, and so are groups with nothing left; numbers are written as
+`String.fromFloat` writes them ("1 234,5" becomes "1234.5"), the ends of `Between` and `NotBetween` low first,
+text trimmed, choices exactly as they are but sorted and without repeats, and only the operands the
 operator reads are kept. The root is a group, numbered 0, 1, 2 ... from the top
 down. `matches` gives the same rows for the settled rule as for the rule itself.
 
@@ -2581,6 +2603,10 @@ settledValues kind condition =
 
                     else
                         Date.fromIso text |> Maybe.map Date.toIso |> Maybe.withDefault text
+
+                -- a choice is a value of the field, exactly as `matches` compares it
+                ChoiceKind _ ->
+                    text
 
                 _ ->
                     String.trim text

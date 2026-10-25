@@ -569,8 +569,14 @@ update msg (State s) =
                 copyFocus =
                     findNode (Rule.nextId s.rule) copied
                         |> Maybe.map (anchorDomId s.id)
+
+                edited =
+                    edit copied s
             in
-            ( State (edit copied s)
+            -- From a group's menu the same click (or Enter) reaches the menu's layer
+            -- next, and its close would focus the original group's button after the
+            -- copy. The menu is closed here, without that command.
+            ( State { edited | menus = Dict.update id (Maybe.map (Menu.close >> Tuple.first)) edited.menus }
             , case copyFocus of
                 Just target ->
                     Internal.focus target NoOp
@@ -1050,7 +1056,7 @@ matches". Give `Remote.Loaded n` for a count you have (`Rule.matches`), or the
   - Refreshing (`Remote.refresh` of a count): the old count stays, dimmed, with
     a spinner.
   - Old (`Remote.Kept` after a failed refresh): the old count, marked old, with
-    the retry.
+    the retry; while that retry runs the button stays, busy, and keeps focus.
 
 `NotAsked`, the default, shows no count. The count is in a polite live region, so
 a screen reader hears the new number.
@@ -1141,7 +1147,8 @@ label value =
     updateField (Field.setLabel value)
 
 
-{-| A line of help under the label, read with the builder by screen readers.
+{-| A line of help under the builder (after its footer, where a form field puts
+its hint), read with the builder by screen readers.
 -}
 hint : String -> Attribute row msg
 hint value =

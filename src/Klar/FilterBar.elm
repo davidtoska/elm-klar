@@ -76,9 +76,11 @@ problem as its tooltip, so the mistake shows at once.
 
 **Keyboard**: `Tab` moves through the pills and buttons; the chips are one stop.
 Among the chips `ArrowLeft` and `ArrowRight` move, `Home` and `End` go to the
-first and the last, `Enter` or `Space` opens the editor of a chip, and `Delete`
-or `Backspace` removes it (focus goes to its neighbour, and the removal can be
-undone). The remove buttons are for the mouse; they are not tab stops. In the editor `Enter` in a text or number
+first and the last, `Enter` or `Space` opens the editor of a condition chip, and
+`Delete` or `Backspace` removes a chip (focus goes to its neighbour, and the
+removal can be undone). A group chip (a group made in a `RuleBuilder` or a
+preset) is edited where it was made: `Enter` does nothing on it, and it can only
+be removed. The remove buttons are for the mouse; they are not tab stops. In the editor `Enter` in a text or number
 field applies, and `Ctrl+Enter` (`Cmd+Enter` on a Mac) applies from any control,
 also from a choice or a date; in a date field `Enter` takes the date that was
 typed. `Escape` closes the editor without applying and gives focus back to the
@@ -518,7 +520,7 @@ update msg (State s) =
             ( State { s | current = Just id }, Cmd.none )
 
         MovedTo id ->
-            ( State { s | current = Just id }, Internal.focus (chipFocusId s id) NoOp )
+            ( State { s | current = Just id }, Internal.focus (chipDomId s.id id) NoOp )
 
         UndoClicked ->
             case s.undo of
@@ -535,14 +537,9 @@ update msg (State s) =
 removeFilter : Int -> String -> Inner -> ( State, Cmd Msg )
 removeFilter id focusId s =
     let
-        -- the chip comes back where it was: a condition's main button, a group's remove button
+        -- the chip comes back where it was, and so does focus
         back =
-            case Support.findCondition id s.rule of
-                Just _ ->
-                    chipDomId s.id id
-
-                Nothing ->
-                    chipDomId s.id id ++ "-remove"
+            chipDomId s.id id
     in
     ( State
         { s
@@ -588,11 +585,8 @@ neighbourFocus id s =
                     List.head (List.drop (index - 1) others)
     in
     case neighbour of
-        Just (ConditionRule condition) ->
-            chipDomId s.id condition.id
-
-        Just (GroupRule group) ->
-            chipDomId s.id group.id ++ "-remove"
+        Just next ->
+            chipDomId s.id (Rule.idOf next)
 
         Nothing ->
             addDomId s.id
@@ -620,19 +614,6 @@ chipDomId id node =
 popupDomId : String -> String
 popupDomId id =
     id ++ "-popup"
-
-
-{-| The element of a chip that takes the focus: the main button of a condition,
-the remove button of a group (it has nothing else).
--}
-chipFocusId : Inner -> Int -> String
-chipFocusId s id =
-    case Support.findCondition id s.rule of
-        Just _ ->
-            chipDomId s.id id
-
-        Nothing ->
-            chipDomId s.id id ++ "-remove"
 
 
 undoDomId : String -> String
@@ -731,7 +712,7 @@ the `Remote` of a count that takes time:
   - Refreshing (`Remote.refresh` of a count): the old count stays, dimmed, with
     a spinner.
   - Old (`Remote.Kept` after a failed refresh): the old count, marked old, with
-    the retry.
+    the retry; while that retry runs the button stays, busy, and keeps focus.
 
 `NotAsked`, the default, shows no count. The count is in a polite live region,
 which is in the page from the start, so a screen reader hears the first count too.
@@ -1049,22 +1030,17 @@ viewChip ctx root index child =
                 )
             ]
 
-        removeButton id name focusable =
+        -- for the mouse: the keyboard removes a chip with Delete
+        removeButton id name =
             Html.button
-                ([ Internal.cls [ "klar-filterbar__chip-remove" ]
-                 , Attr.type_ "button"
-                 , Attr.id (chipDomId s.id id ++ "-remove")
-                 , Attr.attribute "aria-label" (t.removeFilter ++ ": " ++ name)
-                 , Attr.title (t.removeFilter ++ ": " ++ name)
-                 , Events.onClick (ctx.toMsg (ChipRemoved id))
-                 ]
-                    ++ (if focusable then
-                            roving id
-
-                        else
-                            [ Attr.tabindex -1 ]
-                       )
-                )
+                [ Internal.cls [ "klar-filterbar__chip-remove" ]
+                , Attr.type_ "button"
+                , Attr.id (chipDomId s.id id ++ "-remove")
+                , Attr.attribute "aria-label" (t.removeFilter ++ ": " ++ name)
+                , Attr.title (t.removeFilter ++ ": " ++ name)
+                , Events.onClick (ctx.toMsg (ChipRemoved id))
+                , Attr.tabindex -1
+                ]
                 [ Icon.sized Icon.ExtraSmall Icon.close ]
     in
     Html.li [ Internal.cls [ "klar-filterbar__item" ] ]
@@ -1140,7 +1116,7 @@ viewChip ctx root index child =
                               else
                                 Html.span [ Internal.cls [ "klar-sr-only" ] ] [ Html.text (" (" ++ t.incomplete ++ ")") ]
                             ]
-                        , removeButton condition.id title False
+                        , removeButton condition.id title
                         ]
                     , case s.editing of
                         Just editing ->
@@ -1185,9 +1161,22 @@ viewChip ctx root index child =
                             "klar-filterbar__chip--incomplete"
                         ]
                     ]
-                    [ Html.span [ Internal.cls [ "klar-filterbar__chip-main", "klar-filterbar__chip-main--static" ], Attr.title described ]
+                    -- The group is edited where it was made (a RuleBuilder, a preset): its
+                    -- main part is the chip's tab stop, a button that is unavailable,
+                    -- so Enter does nothing, and Delete removes the group as on any chip.
+                    [ Html.span
+                        ([ Internal.cls [ "klar-filterbar__chip-main", "klar-filterbar__chip-main--static" ]
+                         , Attr.id (chipDomId s.id group.id)
+                         , Attr.attribute "role" "button"
+                         , Attr.attribute "aria-disabled" "true"
+                         , Attr.attribute "aria-label" described
+                         , Attr.attribute "aria-keyshortcuts" "Delete"
+                         , Attr.title described
+                         ]
+                            ++ roving group.id
+                        )
                         [ Html.span [ Internal.cls [ "klar-filterbar__chip-value" ] ] [ Html.text described ] ]
-                    , removeButton group.id described True
+                    , removeButton group.id described
                     ]
         ]
 

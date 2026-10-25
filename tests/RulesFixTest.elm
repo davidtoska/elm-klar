@@ -38,6 +38,7 @@ import Test exposing (Test, describe, fuzz, test)
 import Test.Html.Event as Event
 import Test.Html.Query as Query
 import Test.Html.Selector as Selector
+import Time
 
 
 suite : Test
@@ -588,6 +589,28 @@ filterBarCountingTests =
                         [ Query.has [ Selector.text "The count failed" ]
                         , Query.find [ Selector.tag "button" ] >> Event.simulate Event.click >> Event.expect Retried
                         ]
+        , test "while the retry of an old count runs, the button stays, busy" <|
+            \_ ->
+                let
+                    old =
+                        Remote.refreshWith (Remote.refresh (Loaded 3)) (Err (Remote.problem Remote.network)) (Time.millisToPosix 0)
+                in
+                Expect.all
+                    [ \_ ->
+                        theCount Locale.en [ FilterBar.matchCount old, FilterBar.onRetry Retried ]
+                            |> Query.find [ Selector.id "bar-count-retry" ]
+                            |> Event.simulate Event.click
+                            |> Event.expect Retried
+                    , \_ ->
+                        theCount Locale.en [ FilterBar.matchCount (Remote.refresh old), FilterBar.onRetry Retried ]
+                            |> Query.find [ Selector.id "bar-count-retry" ]
+                            |> Query.has [ Selector.attribute (Attr.attribute "aria-busy" "true"), Selector.attribute (Attr.attribute "aria-disabled" "true") ]
+                    , \_ ->
+                        theCount Locale.en [ FilterBar.matchCount (Remote.refresh old), FilterBar.onRetry Retried ]
+                            |> Query.findAll [ Selector.class "klar-spinner" ]
+                            |> Query.count (Expect.equal 1)
+                    ]
+                    ()
         , test "without onRetry a failed count has no button" <|
             \_ ->
                 theCount Locale.en [ FilterBar.matchCount (Failed (Remote.problem Remote.network)) ]

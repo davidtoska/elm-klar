@@ -1248,7 +1248,7 @@ DialogApplied ->
 filterBars : Locale -> Model -> Html Msg
 filterBars locale model =
     Doc.section "Filter bar"
-        "Quick filters above a table: the active conditions as chips, “Add filter” opens a small editor (field, operator, value), and ready-made filters as toggle pills. The filters are an ordinary Rule (an “all of” group), so they can be given to Rule.matches or opened in the rule builder. Keyboard: Tab moves through the pills, chips and buttons; Enter on a chip opens it; in the editor, Enter in a text or number field applies the filter, Ctrl+Enter (Cmd+Enter) applies it from any control, and Escape closes the editor and gives focus back. Removing a chip or “Clear all” can be undone."
+        "Quick filters above a table: the active conditions as chips, “Add filter” opens a small editor (field, operator, value), and ready-made filters as toggle pills. The filters are an ordinary Rule (an “all of” group), so they can be given to Rule.matches or opened in the rule builder. Keyboard: Tab moves through the pills and buttons, and the chips are one tab stop: ArrowLeft and ArrowRight move along them, Home and End jump, Enter on a condition chip opens it, Delete removes a chip; in the editor, Enter in a text or number field applies the filter, Ctrl+Enter (Cmd+Enter) applies it from any control, and Escape closes the editor and gives focus back. Removing a chip or “Clear all” can be undone."
         [ Doc.example
             { title = "Quick filters and match count"
             , description = Just "Click a chip to change it. An incomplete condition is shown dashed and does not filter."

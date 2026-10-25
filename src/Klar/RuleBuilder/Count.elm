@@ -1,9 +1,11 @@
 module Klar.RuleBuilder.Count exposing (view)
 
 {-| The match count of `Klar.RuleBuilder` and `Klar.FilterBar`: "1,482 of 3,000
-matches", from a `Remote Int`, in every state. The element tree is the same in
-every state and the live region is in the page from the start, so the first
-count is announced and a retry button keeps its place.
+matches", from a `Remote Int`, in every state. The live region is in the page
+from the start, so the first count is announced. The retry button is there for a
+failed count and an old one (`Kept`); while the retry of an old count runs it
+stays, busy, so focus stays on it and a second click sends nothing. A failed
+count with nothing old goes back to "Counting ..." and the button goes.
 
 Internal to the rules group.
 
@@ -54,6 +56,14 @@ view config =
                     , Html.text (" " ++ t.hits)
                     ]
 
+        hasRetry =
+            case config.onRetry of
+                Just _ ->
+                    True
+
+                Nothing ->
+                    False
+
         stale =
             case freshness of
                 Freshness.Stale _ ->
@@ -76,7 +86,8 @@ view config =
 
                 Loaded n ->
                     ( counted n
-                        ++ (if Freshness.busy freshness then
+                        -- a retry in flight shows its spinner in the button
+                        ++ (if Freshness.busy freshness && not (stale && hasRetry) then
                                 [ Spinner.view [ Spinner.size Theme.Small ] ]
 
                             else
@@ -114,7 +125,7 @@ view config =
             content
         , case ( retry, config.onRetry ) of
             ( True, Just msg ) ->
-                Button.view [ Button.link, Button.id config.retryId, Button.onClick msg ] t.retry
+                Button.view [ Button.link, Button.id config.retryId, Button.onClick msg, Button.loading (Freshness.busy freshness) ] t.retry
 
             _ ->
                 Html.text ""
