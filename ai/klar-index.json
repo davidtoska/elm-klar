@@ -719,6 +719,7 @@
         "Klar.EmptyState",
         "Klar.Button",
         "Klar.ErrorState",
+        "Klar.RemoteView",
         "Klar.Skeleton"
       ],
       "keywords": [

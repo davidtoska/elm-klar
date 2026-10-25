@@ -17,7 +17,8 @@ Do not use when: you can sketch the content (use `Klar.Skeleton`), want a bar th
 
     Spinner.view [ Spinner.size Large ]
 
-    Spinner.panel [] "Loading orders ..."
+    -- always in the view, next to the orders it waits for
+    Spinner.panel [ Spinner.loading model.loadingOrders ] "Loading orders ..."
 
 Use a spinner when you do not know what the content will look like or how long
 the wait will be. When you can sketch the content, show a
@@ -32,9 +33,9 @@ other turning indicator of Klar.
 readers announce a live region reliably only when its text changes while it is
 on the page, not when it arrives with its text. So keep a labelled spinner in the
 view and switch it with `loading`: the region stays, and only its text comes and
-goes. Without a label the spinner is decoration and hidden from assistive
-technology, so the text next to it should say what is going on. A
-[Klar.Button](Klar-Button) with `loading` shows a spinner by itself.
+goes. The same holds for a `panel`. Without a label the spinner is decoration
+and hidden from assistive technology, so the text next to it should say what is
+going on. A [Klar.Button](Klar-Button) with `loading` shows a spinner by itself.
 
 
 # Spinners
@@ -143,13 +144,14 @@ view attributes =
 
     else
         -- The region is the same element whether the spinner turns or not, so
-        -- that its text, and not the region, is what comes and goes.
+        -- that its text, and not the region, is what comes and goes. While idle
+        -- it stays in the page, empty and out of sight.
         Html.span
             [ if config.loading then
                 spinner
 
               else
-                Internal.cls [ "klar-spinner-idle" ]
+                Internal.cls [ "klar-sr-only" ]
             , Attr.attribute "role" "status"
             , Attr.attribute "aria-live" "polite"
             ]
@@ -165,9 +167,18 @@ a region that goes from loading to empty or failed keeps its place. The text is
 visible and is a polite status message.
 
 A wait that ends within 400ms shows no spinner at all: the panel fades in after
-that, so a fast answer does not flash. Its status text is there from the start.
+that, so a fast answer does not flash.
 
-    Spinner.panel [] "Loading orders ..."
+Render the panel all the time, next to the content it waits for, and switch it
+with `loading`: its live region stays in the page, and screen readers announce
+the text when a wait starts. A panel that a `case` branch puts in the page
+arrives together with its text, and that is announced unreliably. For a region
+that shows a `Remote`, use [Klar.RemoteView](Klar-RemoteView) instead.
+
+    Html.div []
+        [ Spinner.panel [ Spinner.loading model.loadingOrders ] "Loading orders ..."
+        , viewOrders model.orders
+        ]
 
     Spinner.panel [ Spinner.compact, Spinner.loading model.exporting ] "Preparing the export ..."
 
@@ -191,7 +202,7 @@ panel attributes text =
                 ]
 
              else
-                [ "klar-spinner-idle" ]
+                [ "klar-sr-only" ]
             )
         , Attr.attribute "role" "status"
         , Attr.attribute "aria-live" "polite"

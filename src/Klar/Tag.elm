@@ -50,6 +50,7 @@ whole text as a tooltip.
 import Html exposing (Html)
 import Html.Attributes as Attr
 import Html.Events as Events
+import Json.Decode as Decode
 import Klar.Color exposing (Color)
 import Klar.Icon as Icon exposing (Icon)
 import Klar.Internal as Internal
@@ -118,9 +119,11 @@ icon value =
 
 
 {-| Shows a small × button after the label that sends this message when it is
-pressed: a click, `Enter` or `Space`, or `Delete` or `Backspace` while the button
-has the focus. The tag does not remove itself: take the value out of your model
-when the message arrives.
+pressed: a click, `Enter` or `Space`, or a fresh press of `Delete` or `Backspace`
+while the button has the focus. A held `Delete` or `Backspace` does not repeat:
+after the focus has moved to the next tag (`nextFocus`), the repeats would remove
+that one too, and the next, until the list is empty. The tag does not remove
+itself: take the value out of your model when the message arrives.
 -}
 onRemove : msg -> Attribute msg
 onRemove msg =
@@ -156,7 +159,8 @@ removeLabel text =
 users keep their place: the remove button of the tag after it, else of the tag
 before it, else `otherwise` (the control that adds tags, or a heading). Give it
 the tags as they were before the removal, and the same id function as
-`removeId`.
+`removeId`. The tags must be unique (`==`), as their ids are: with two equal
+values the first one is taken as the removed one.
 
     viewTag : Warehouse -> Html Msg
     viewTag warehouse =
@@ -287,10 +291,35 @@ view attributes label =
                     , Attr.attribute "aria-label" buttonLabel
                     , Attr.title buttonLabel
                     , Events.onClick msg
-                    , Internal.onKeys [ ( "Delete", msg ), ( "Backspace", msg ) ]
+                    , onRemoveKeys msg
                     ]
                     [ Icon.sized Icon.ExtraSmall Icon.close ]
 
             Nothing ->
                 Html.text ""
         ]
+
+
+{-| `Delete` and `Backspace` on the remove button, on a fresh press only, without
+modifiers. A key that is held down sends repeated keydowns (`repeat` is true), and
+once the focus is on the next tag they would remove it too. A repeat is left
+alone: on a button these keys have no default action to prevent.
+-}
+onRemoveKeys : msg -> Html.Attribute msg
+onRemoveKeys msg =
+    Events.preventDefaultOn "keydown"
+        (Decode.map2 Tuple.pair
+            Internal.keyEvent
+            (Decode.oneOf [ Decode.field "repeat" Decode.bool, Decode.succeed False ])
+            |> Decode.andThen
+                (\( event, repeated ) ->
+                    if
+                        (event.key == "Delete" || event.key == "Backspace")
+                            && not (event.ctrl || event.meta || event.shift || event.alt || repeated)
+                    then
+                        Decode.succeed ( msg, True )
+
+                    else
+                        Decode.fail "not a fresh press of Delete or Backspace"
+                )
+        )

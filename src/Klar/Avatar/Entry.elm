@@ -15,9 +15,9 @@ entry value =
     Entry { name = value, image = Nothing }
 
 
-withImage : String -> Entry -> Entry
+withImage : Maybe String -> Entry -> Entry
 withImage url (Entry e) =
-    Entry { e | image = Just url }
+    Entry { e | image = url }
 
 
 name : Entry -> String

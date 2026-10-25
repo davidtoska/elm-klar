@@ -456,20 +456,6 @@ css =
   vertical-align: -0.15em;
 }
 
-/* A labelled spinner or a panel that is not loading: its live region stays in the
-   page, empty and out of sight, so the next wait is announced. */
-.klar-spinner-idle {
-  position: absolute;
-  width: 1px;
-  height: 1px;
-  margin: -1px;
-  padding: 0;
-  overflow: hidden;
-  clip: rect(0, 0, 0, 0);
-  white-space: nowrap;
-  border: 0;
-}
-
 .klar-spinner--sm { width: 12px; height: 12px; border-width: 1.5px; }
 .klar-spinner--lg { width: 22px; height: 22px; border-width: 2.5px; color: var(--klar-primary); }
 
@@ -486,10 +472,12 @@ css =
 }
 
 .klar-spinner-panel--compact,
-:where([data-klar-density="compact"]) .klar-spinner-panel:where(:not(.klar-spinner-panel--compact, .klar-spinner-panel--comfortable)) { padding: var(--klar-space-6) var(--klar-space-4); gap: var(--klar-space-2); }
+:where([data-klar-density="compact"]) .klar-spinner-panel:where(:not(.klar-spinner-panel--compact)) { padding: var(--klar-space-6) var(--klar-space-4); gap: var(--klar-space-2); }
 
 /* A wait shorter than the delay shows no spinner at all, so a fast answer does not
-   flash: the panel fades in after 400ms. Its live text is there from the start. */
+   flash: the panel fades in after 400ms. Its live text is there from the start.
+   A labelled spinner or a panel that is not loading keeps its live region in the
+   page as .klar-sr-only, empty, so the next wait is announced. */
 .klar-spinner-panel--delayed > * { animation: klar-spinner-appear 150ms ease-out 400ms both; }
 
 @keyframes klar-spinner-appear {

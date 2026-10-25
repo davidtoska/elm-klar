@@ -4,6 +4,8 @@ module Klar.Internal.Css.Display exposing (css)
 `Klar.Internal.Css` puts the parts together in order.
 -}
 
+import Klar.Internal.Palette as Palette
+
 
 css : String
 css =
@@ -42,24 +44,12 @@ css =
   --klar-chart-track: var(--klar-gray-100);
   --klar-chart-hover: rgba(16, 24, 40, 0.05);
 
-  /* Avatar palette: muted tint + readable ink, assigned from the name. */
-  --klar-avatar-0-bg: var(--klar-blue-100);
-  --klar-avatar-0-fg: var(--klar-blue-800);
-  --klar-avatar-1-bg: var(--klar-gray-150);
-  --klar-avatar-1-fg: var(--klar-gray-800);
-  --klar-avatar-2-bg: var(--klar-green-100);
-  --klar-avatar-2-fg: var(--klar-green-700);
-  --klar-avatar-3-bg: #d3ebee;
-  --klar-avatar-3-fg: #1c5a63;
-  --klar-avatar-4-bg: #e1e5f6;
-  --klar-avatar-4-fg: #38418a;
-  --klar-avatar-5-bg: #f0e9d8;
-  --klar-avatar-5-fg: #6a5a2b;
-  --klar-avatar-6-bg: var(--klar-amber-100);
-  --klar-avatar-6-fg: var(--klar-amber-700);
-  --klar-avatar-7-bg: #f3e1e3;
-  --klar-avatar-7-fg: #7d3340;
-}
+  /* Avatar palette: muted tint + readable ink, assigned from the name. The
+     values are computed by Klar.Internal.Palette (stylesheetAvatars), with the
+     rule every theme follows: no hue within 40 degrees of the accent, 4.6 : 1. */
+"""
+        ++ Palette.stylesheetAvatars
+        ++ """}
 
 @property --klar-p {
   syntax: "<number>";

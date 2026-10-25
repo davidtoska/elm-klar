@@ -23,6 +23,7 @@ dot : Attribute
 icon : Icon.Icon -> Attribute
 size : Theme.Size -> Attribute
 max : Int -> Attribute
+locale : Locale.Locale -> Attribute
 ```
 
 ## Documentation
@@ -90,8 +91,9 @@ count : List Attribute -> Int -> Html msg
 
 A round number badge, such as a count of unread messages or of the errors in
 a form. It is `Primary` and `solid` by default; `tone`, `outline`, `size` and
-`max` change it. A number above `max` (99 by default) shows as "99+", while the
-tooltip and screen readers get the exact number. A count of zero or less shows
+`max` change it, and `locale` how the number is written. A number above `max`
+(99 by default) shows as "99+", while the tooltip and screen readers get the
+exact number. A count of zero or less shows
 nothing, so a badge for "nothing new" goes away by itself.
 
     Badge.count [] 7
@@ -175,3 +177,16 @@ with a plus ("99+"), while the tooltip and screen readers get the exact number.
 The default is 99, and the smallest value is 1. It has no effect on `view`.
 
     Badge.count [ Badge.max 999 ] 1280 -- shows "999+"
+
+### `locale`
+
+```elm
+locale : Locale.Locale -> Attribute
+```
+
+How a `count` writes its number: with the thousands separator of the locale
+("1,280" in English, "1 280" in Norwegian), in the badge, its tooltip and what
+screen readers hear. The default is `Locale.default`, which is English. It has
+no effect on `view` and `status`, whose text is yours.
+
+    Badge.count [ Badge.max 9999, Badge.locale Locale.nb ] 1280 -- shows "1 280"

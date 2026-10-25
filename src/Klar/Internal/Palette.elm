@@ -1,6 +1,7 @@
 module Klar.Internal.Palette exposing
     ( Color
     , Spec
+    , avatarDeclarations
     , avatarPairs
     , chartColors
     , contrast
@@ -9,6 +10,7 @@ module Klar.Internal.Palette exposing
     , hueDistance
     , scale
     , specs
+    , stylesheetAvatars
     )
 
 {-| The colors of the themes, computed in Elm.
@@ -25,8 +27,11 @@ every theme; `tests/ThemeTest.elm` checks it for all of them.
 
 The avatar colors and the categorical chart colors are computed here too, per
 theme and mode (`avatarPairs`, `chartColors`), so that they keep away from the
-accent of the theme and keep their contrast; `tests/PaletteTest.elm` checks them.
-The light mode of the first theme is the stylesheet's own (`Klar.Internal.Css.Display`).
+accent of the theme and keep their contrast; `tests/FeedbackTest.elm` checks them
+for every theme in both modes. The light mode of the first theme is the
+stylesheet's own: its avatar colors come from the same rule, written into the
+stylesheet by `Klar.Internal.Css.Display` (`stylesheetAvatars`), and its chart
+colors need nothing from here.
 
 -}
 
@@ -404,6 +409,15 @@ declarations spec dark =
 -}
 categorical : Spec -> Bool -> List ( String, String )
 categorical spec dark =
+    avatarDeclarations spec dark
+        ++ List.map (\( name, c ) -> ( "--klar-" ++ name, hsl c )) (chartColors spec dark)
+
+
+{-| The avatar tokens of a theme in one mode, `--klar-avatar-0-bg` to
+`--klar-avatar-7-fg`, from `avatarPairs`.
+-}
+avatarDeclarations : Spec -> Bool -> List ( String, String )
+avatarDeclarations spec dark =
     List.concat
         (List.indexedMap
             (\i ( ground, ink ) ->
@@ -413,7 +427,23 @@ categorical spec dark =
             )
             (avatarPairs spec dark)
         )
-        ++ List.map (\( name, c ) -> ( "--klar-" ++ name, hsl c )) (chartColors spec dark)
+
+
+{-| The avatar tokens of the first theme (Klar) in light mode, as lines of CSS
+declarations for the `:root` rule of the stylesheet, so that the default look
+follows the same rule as every theme (no hue within 40 degrees of the accent,
+4.6 : 1 for the initials).
+-}
+stylesheetAvatars : String
+stylesheetAvatars =
+    case specs of
+        first :: _ ->
+            avatarDeclarations first False
+                |> List.map (\( name, value ) -> "  " ++ name ++ ": " ++ value ++ ";\n")
+                |> String.concat
+
+        [] ->
+            ""
 
 
 
