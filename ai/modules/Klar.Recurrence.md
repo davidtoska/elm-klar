@@ -60,7 +60,10 @@ between :
 next : { start : Date.Date, after : Date.Date } -> Rule -> Maybe Date.Date
 isOccurrence : { start : Date.Date, date : Date.Date } -> Rule -> Bool
 count : { start : Date.Date } -> Rule -> Maybe Int
+lastOccurrence : { start : Date.Date } -> Rule -> Maybe Date.Date
 isEndless : Rule -> Bool
+endsAfter : Rule -> Maybe Int
+endsOn : Rule -> Maybe Date.Date
 maxOccurrences : Int
 
 -- In words
@@ -513,6 +516,18 @@ How many occurrences a rule that ends has in all, skipped dates left out.
 `Nothing` when there is no number to give: the rule never ends (`isEndless`
 says so), or it has more than `maxOccurrences` dates.
 
+### `lastOccurrence`
+
+```elm
+lastOccurrence : { start : Date.Date } -> Rule -> Maybe Date.Date
+```
+
+The date of the last occurrence of a rule that ends, counted from `start`
+and with skipped dates left out, such as "Last delivery 14 October". `Nothing`
+when the rule never ends or has no dates at all.
+
+    Recurrence.lastOccurrence { start = firstDelivery } rule
+
 ### `isEndless`
 
 ```elm
@@ -524,6 +539,25 @@ reach.
 
     Recurrence.rule Recurrence.daily [] |> Result.map Recurrence.isEndless
     --> Ok True
+
+### `endsAfter`
+
+```elm
+endsAfter : Rule -> Maybe Int
+```
+
+The number of a rule that ends after a number of occurrences (`after 10`
+gives `Just 10`), for a column such as "10 times". `Nothing` for the other ends.
+
+### `endsOn`
+
+```elm
+endsOn : Rule -> Maybe Date.Date
+```
+
+The last day of a rule that ends on a date (`until`), for a column such as
+"Ends 31 Dec 2027". `Nothing` for the other ends. The day itself is only an
+occurrence when it fits the rule; `lastOccurrence` gives the last date there is.
 
 ### `maxOccurrences`
 

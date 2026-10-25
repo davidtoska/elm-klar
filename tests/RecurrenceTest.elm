@@ -27,6 +27,7 @@ suite =
         , words
         , againstTheReference
         , partsFromTheStart
+        , endAccessors
         ]
 
 
@@ -1221,4 +1222,55 @@ partsFromTheStart =
                 Recurrence.fromRRule { start = date 2026 1 31 } "FREQ=MONTHLY"
                     |> Result.map (\rule -> Recurrence.next { start = date 2026 1 31, after = date 2026 1 31 } rule)
                     |> Expect.equal (Ok (Just (date 2026 3 31)))
+        ]
+
+
+endAccessors : Test
+endAccessors =
+    let
+        made pattern options =
+            Recurrence.rule pattern options |> Result.toMaybe
+
+        lastOf start maybeRule =
+            Maybe.andThen (Recurrence.lastOccurrence { start = start }) maybeRule
+    in
+    describe "the end of a rule, read back"
+        [ test "endsAfter and endsOn give the end the rule was made with" <|
+            \_ ->
+                Expect.equal
+                    ( Just (Just 10), Just Nothing, Just (Just (date 2027 12 31)) )
+                    ( made Recurrence.daily [ Recurrence.ends (Recurrence.after 10) ] |> Maybe.map Recurrence.endsAfter
+                    , made Recurrence.daily [ Recurrence.ends (Recurrence.after 10) ] |> Maybe.map Recurrence.endsOn
+                    , made Recurrence.daily [ Recurrence.ends (Recurrence.until (date 2027 12 31)) ] |> Maybe.map Recurrence.endsOn
+                    )
+        , test "the last of ten Tuesdays" <|
+            \_ ->
+                made (Recurrence.weekly Tue []) [ Recurrence.ends (Recurrence.after 10) ]
+                    |> lastOf (date 2026 10 20)
+                    |> Expect.equal (Just (date 2026 12 22))
+        , test "the last occurrence before an end date that does not fit" <|
+            \_ ->
+                made (Recurrence.weekly Tue []) [ Recurrence.ends (Recurrence.until (date 2026 12 31)) ]
+                    |> lastOf (date 2026 10 20)
+                    |> Expect.equal (Just (date 2026 12 29))
+        , test "a skipped last date is left out" <|
+            \_ ->
+                made (Recurrence.weekly Tue []) [ Recurrence.ends (Recurrence.after 10), Recurrence.except [ date 2026 12 22 ] ]
+                    |> lastOf (date 2026 10 20)
+                    |> Expect.equal (Just (date 2026 12 15))
+        , test "a daily rule of a hundred thousand days ends where it should" <|
+            \_ ->
+                made Recurrence.daily [ Recurrence.ends (Recurrence.after 100000) ]
+                    |> lastOf (date 2026 1 1)
+                    |> Expect.equal (Just (Date.addDays 99999 (date 2026 1 1)))
+        , test "a daily rule to the year 2400 ends on its last day" <|
+            \_ ->
+                made Recurrence.daily [ Recurrence.ends (Recurrence.until (date 2400 6 30)) ]
+                    |> lastOf (date 2026 1 1)
+                    |> Expect.equal (Just (date 2400 6 30))
+        , test "a rule that never ends has no last occurrence" <|
+            \_ ->
+                made Recurrence.daily []
+                    |> lastOf (date 2026 1 1)
+                    |> Expect.equal Nothing
         ]

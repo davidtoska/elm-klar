@@ -6,7 +6,7 @@ module Klar.Recurrence exposing
     , Option, every, ends, except
     , End, never, after, until
     , exceptions, withExceptions
-    , occurrences, between, next, isOccurrence, count, isEndless, maxOccurrences
+    , occurrences, between, next, isOccurrence, count, lastOccurrence, isEndless, endsAfter, endsOn, maxOccurrences
     , describe
     , toRRule, fromRRule
     )
@@ -119,7 +119,7 @@ period, not day by day: a yearly rule across a century is a hundred steps.
 
 # The dates
 
-@docs occurrences, between, next, isOccurrence, count, isEndless, maxOccurrences
+@docs occurrences, between, next, isOccurrence, count, lastOccurrence, isEndless, endsAfter, endsOn, maxOccurrences
 
 
 # In words
@@ -651,6 +651,105 @@ count window (Rule spec) =
 
             else
                 Just found
+
+
+{-| The number of a rule that ends after a number of occurrences (`after 10`
+gives `Just 10`), for a column such as "10 times". `Nothing` for the other ends.
+-}
+endsAfter : Rule -> Maybe Int
+endsAfter (Rule spec) =
+    case spec.end of
+        Spec.After n ->
+            Just n
+
+        _ ->
+            Nothing
+
+
+{-| The last day of a rule that ends on a date (`until`), for a column such as
+"Ends 31 Dec 2027". `Nothing` for the other ends. The day itself is only an
+occurrence when it fits the rule; `lastOccurrence` gives the last date there is.
+-}
+endsOn : Rule -> Maybe Date
+endsOn (Rule spec) =
+    case spec.end of
+        Spec.Until date ->
+            Just date
+
+        _ ->
+            Nothing
+
+
+{-| The date of the last occurrence of a rule that ends, counted from `start`
+and with skipped dates left out, such as "Last delivery 14 October". `Nothing`
+when the rule never ends or has no dates at all.
+
+    Recurrence.lastOccurrence { start = firstDelivery } rule
+
+-}
+lastOccurrence : { start : Date } -> Rule -> Maybe Date
+lastOccurrence window (Rule spec) =
+    let
+        startE =
+            Date.toEpochDay window.start
+
+        -- The last date in a window. A window with more dates than one call
+        -- returns is halved, the later half first, so the end is always seen.
+        lastOf from to =
+            let
+                found =
+                    Engine.collect { start = startE, from = from, to = to, limit = maxOccurrences + 1 } spec
+            in
+            if List.length found > maxOccurrences && from < to then
+                let
+                    middle =
+                        from + (to - from) // 2
+                in
+                case lastOf (middle + 1) to of
+                    Just day ->
+                        Just day
+
+                    Nothing ->
+                        lastOf from middle
+
+            else
+                List.reverse found |> List.head
+
+        -- Looks back from the end in windows that grow tenfold, so a dense
+        -- rule is found in the first window and a sparse one in a few.
+        search to width =
+            let
+                from =
+                    Basics.max startE (to - width + 1)
+            in
+            case lastOf from to of
+                Just day ->
+                    Just day
+
+                Nothing ->
+                    if from <= startE then
+                        Nothing
+
+                    else
+                        search (from - 1) (width * 10)
+    in
+    case spec.end of
+        Spec.Never ->
+            Nothing
+
+        Spec.After n ->
+            if n <= maxOccurrences then
+                Engine.collect { start = startE, from = startE, to = Engine.lastEpochDay, limit = n } spec
+                    |> List.reverse
+                    |> List.head
+                    |> Maybe.map Date.fromEpochDay
+
+            else
+                search Engine.lastEpochDay 400 |> Maybe.map Date.fromEpochDay
+
+        Spec.Until date ->
+            search (Basics.min Engine.lastEpochDay (Date.toEpochDay date)) 400
+                |> Maybe.map Date.fromEpochDay
 
 
 {-| Whether the rule never ends (the end is `never`), however far its dates
