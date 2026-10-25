@@ -3,8 +3,9 @@ module Klar.RuleBuilder exposing
     , State, init, Msg, update
     , rule, setRule, clear
     , showIssues, hideIssues, issues, focusId, focusNode, focusIssue
-    , Attribute, fields, today, maxDepth, label, locale
-    , matchCount, totalCount, counting
+    , Attribute, fields, today, maxDepth, ariaLabel, locale
+    , label, hint, error, errorMaybe, required, optionalText
+    , matchCount, totalCount, onRetry
     , json, importJson, actions
     )
 
@@ -17,11 +18,12 @@ Quick path: `init`, `update`, `view`, `rule`
 
 It edits a [Klar.Rule](Klar-Rule) `Rule` and never sees your rows: the
 application runs the rule with `Rule.matches` and passes the number of matching
-rows with `matchCount`. Use it when users need the full power of nested "all
+rows with `matchCount`, as a [Klar.Remote](Klar-Remote). Use it when users need the full power of nested "all
 of" and "any of" groups. For a row of filter chips above a table,
 [Klar.FilterBar](Klar-FilterBar) is the lighter choice; both work on the same
 `Rule`.
 
+    import Klar.Remote as Remote
     import Klar.Rule as Rule
     import Klar.RuleBuilder as RuleBuilder
 
@@ -41,7 +43,7 @@ of" and "any of" groups. For a row of filter chips above a table,
     -- view
     RuleBuilder.view RulesMsg
         [ RuleBuilder.fields orderFields
-        , RuleBuilder.matchCount (Just (List.length matching))
+        , RuleBuilder.matchCount (Remote.Loaded (List.length matching))
         , RuleBuilder.today today
         , RuleBuilder.json
         ]
@@ -52,14 +54,17 @@ of" and "any of" groups. For a row of filter chips above a table,
         List.filter (Rule.matches today orderFields (RuleBuilder.rule model.rules)) model.orders
 
 `orderFields` is a `List (Rule.Field Order)` made with `Rule.textField` and
-friends. For a large data set the application can show `counting True` while it
-works out the count.
+friends. A count that takes time (a server, a large data set) is the `Remote` it
+is: `Loading` shows "Counting ...", `Remote.refresh` keeps the old count, dimmed,
+while the new one is on its way, and a failed count offers `onRetry`.
 
 **The outcome is yours.** A rule is only the condition: what happens when it
-matches (a discount, a tag, a route) is neither in `Rule` nor in the builder. For
-"if the category is X and the quantity is above Y, take Z off" keep one builder
-per outcome, next to the control for the outcome, in a list of your own, and ask
-each rule about the row:
+matches (a discount, a tag, a route) is neither in `Rule` nor in the builder. In a
+form, declare the pair as a row: `Spec.conditions` and the outcome's own field in
+one sub-form, `Spec.rows` around it, and the form adds, removes, saves and checks
+the pairs (see [`Klar.Form`](Klar-Form)). Outside a form, keep one record per rule,
+with a key that stays with it when others are removed, give each builder an id
+made from that key, and ask each rule about the row:
 
     import Klar.Date exposing (Date)
     import Klar.Rule as Rule
@@ -69,7 +74,10 @@ each rule about the row:
         { category : String, quantity : Int }
 
     type alias PriceRule =
-        { when : RuleBuilder.State, discountPercent : Float }
+        { key : Int
+        , when : RuleBuilder.State -- RuleBuilder.init ("price-rule-" ++ String.fromInt key)
+        , discountPercent : Float
+        }
 
     orderFields : List (Rule.Field Order)
     orderFields =
@@ -85,22 +93,25 @@ each rule about the row:
             |> List.maximum
             |> Maybe.withDefault 0
 
-Each `PriceRule` has its own `RuleBuilder.init` id, and the message of its builder
-carries the index of the rule. Rules kept outside a `Klar.Form` report their
-problems into it with `Form.outside`.
+Draw the discount next to `RuleBuilder.view` in the same card; the message of each
+builder carries the key of its rule. Focus the first unfinished builder with
+`focusIssue`. Rules kept outside a `Klar.Form` report their problems into it with
+`Form.outside`.
 
 **Editors**: the field picker is a searchable [Klar.Select](Klar-Select),
 grouped by the heading given with `Rule.inGroup`; the operators come from
-`Rule.operatorsFor`. The value editor follows the field and the operator: a
+`Rule.fieldOperators` (the field's `Rule.withOperators`, or every operator that
+fits its kind). The value editor follows the field and the operator: a
 text input, a number input (read by `Rule.parseNumber`: a decimal comma or
 point and separators between the thousands, two inputs for "between"), a
 [Klar.DatePicker](Klar-DatePicker) (the operand is stored as ISO `YYYY-MM-DD`),
-a number of days for "in the last / next N days", a
-[Klar.Select](Klar-Select) for one choice and a
+a whole number of days for "in the last / next N days" and "more than N days
+ago / ahead", a select of periods for "is within" (this month, last quarter
+...), a [Klar.Select](Klar-Select) for one choice and a
 [Klar.MultiSelect](Klar-MultiSelect) for "is any of" and "is none of". Yes or
 no fields and "is empty" take no value.
 
-**Issues** (`Rule.validate`) are shown on the node that has them: a red line
+**Issues** (`Rule.validate`, one per node) are shown on the node that has them: a red line
 around the control and a short message. A node shows its issues once the user
 has tried to fill it in (typed, picked, or left a value field), so a fresh,
 empty condition is not red. `showIssues` shows every issue at once, for example
@@ -109,23 +120,6 @@ when the user tries to save. `issues` lists them for the application, and
 needs attention, so that a Save that finds an incomplete rule never leaves the
 user looking at a button. `focusId` is the DOM id of that control, for a
 `Form.Problem` that points into the builder: nothing is read from the page.
-
-**A rule with an outcome.** The builder only says _when_; what happens then (a
-discount, a label, a route) is the application's. In a form, declare it as a
-row: `Spec.conditions` and the outcome's own field in one sub-form, `Spec.rows`
-around it, and the form adds, removes, saves and checks the pairs (see
-[`Klar.Form`](Klar-Form)). Outside a form, keep one record per rule, with a number
-that stays with it when others are removed, and give each builder an id made from
-that number:
-
-    type alias PriceRule =
-        { key : Int
-        , when : RuleBuilder.State -- RuleBuilder.init ("price-rule-" ++ String.fromInt key)
-        , discount : Maybe Float
-        }
-
-Draw the discount next to `RuleBuilder.view` in the same card, and focus the
-first unfinished builder with `focusIssue`.
 
 **Keyboard**: every control is reached with `Tab`. The pickers open with
 `Enter`, `Space` or `ArrowDown` and search as you type; "All" and "Any" switch
@@ -164,12 +158,21 @@ of fields and choices come from the application.
 
 # Attributes
 
-@docs Attribute, fields, today, maxDepth, label, locale
+@docs Attribute, fields, today, maxDepth, ariaLabel, locale
+
+
+# In a form
+
+A builder in a form has a visible label, a hint, a required mark and an error
+message, like the other fields; `Form.ruleBuilder` sets them from the declaration.
+Without a `label` the builder is named by `ariaLabel` alone.
+
+@docs label, hint, error, errorMaybe, required, optionalText
 
 
 # Match count
 
-@docs matchCount, totalCount, counting
+@docs matchCount, totalCount, onRetry
 
 
 # Toolbar
@@ -179,6 +182,7 @@ of fields and choices come from the application.
 -}
 
 import Dict exposing (Dict)
+import File.Download as Download
 import Html exposing (Html)
 import Html.Attributes as Attr
 import Html.Events as Events
@@ -189,17 +193,18 @@ import Klar.Badge as Badge
 import Klar.Button as Button
 import Klar.Checkbox as Checkbox
 import Klar.Date exposing (Date)
-import Klar.Format as Format
+import Klar.Field as Field
 import Klar.Icon as Icon
 import Klar.Internal as Internal
 import Klar.Link as Link
 import Klar.Locale as Locale exposing (Locale)
 import Klar.Menu as Menu
+import Klar.Remote exposing (Remote(..))
 import Klar.Rule as Rule exposing (Combinator(..), Condition, Field, FieldKind, Group, Rule(..))
+import Klar.RuleBuilder.Count as Count
 import Klar.RuleBuilder.Editor as Editor
 import Klar.RuleBuilder.Support as Support
 import Klar.SegmentedControl as SegmentedControl
-import Klar.Spinner as Spinner
 import Klar.Theme exposing (Size(..), Tone(..))
 import Set exposing (Set)
 
@@ -292,12 +297,36 @@ rule (State s) =
 
 {-| Replaces the rule, for example with a saved one. A rule that is a lone
 condition is put in a group, and the nodes are renumbered from 0 if the root
-does not have the id 0 or an id occurs twice. Collapsed groups and other state
-are kept for the nodes that still exist; an offer to undo is dropped.
+does not have the id 0 or an id occurs twice. An offer to undo is dropped.
+
+When the new rule says the same as the old one (the same conditions and groups,
+ids aside), collapsed groups, open pickers and the issues the user has already
+seen are kept. Another rule starts fresh: no node of it counts as touched, so
+its issues wait until the user works on it (or `showIssues`), and no group is
+collapsed.
+
 -}
 setRule : Rule -> State -> State
 setRule newRule (State s) =
-    State (keepLive { s | rule = normalize newRule, undo = Nothing })
+    let
+        next =
+            normalize newRule
+    in
+    if Support.same next s.rule then
+        State (keepLive { s | rule = next, undo = Nothing })
+
+    else
+        State
+            (keepLive
+                { s
+                    | rule = next
+                    , undo = Nothing
+                    , touched = Set.empty
+                    , collapsed = Set.empty
+                    , menus = Dict.empty
+                    , controls = Editor.resetControls s.controls
+                }
+            )
 
 
 {-| Starts over with an empty rule. Unlike the "Reset" button of the toolbar it
@@ -324,19 +353,18 @@ hideIssues (State s) =
     State { s | revealed = False, touched = Set.empty }
 
 
-{-| Every issue the builder can show, for the fields given: the checks of
-`Rule.validate` and the two the builder adds (an operator that does not fit the
-field, a number of days that cannot be read). Each names the node it belongs to.
-It is what a form or a save button asks before it lets the rule through; the
-language is the one of the messages.
+{-| Every issue the builder can show, for the fields given: `Rule.validate` of
+the rule, at most one for each node, in the order of the tree. Each names the
+node it belongs to. It is what a form or a save button asks before it lets the
+rule through; the language is the one of the messages.
 
     RuleBuilder.issues Locale.en orderFields model.rules
     -- [ { nodeId = 2, message = "Enter a valid number" } ]
 
 -}
-issues : Locale -> List (Field row) -> State -> List Rule.Issue
+issues : Locale -> List (Field row) -> State -> List Rule.Problem
 issues lang fieldList (State s) =
-    Editor.extraIssues lang fieldList s.rule ++ Rule.validate lang fieldList s.rule
+    Rule.validate lang fieldList s.rule
 
 
 {-| The DOM id of the control that stands for a node when the focus has to go
@@ -459,6 +487,7 @@ type Msg
     | PanelToggled Panel
     | ImportTyped String
     | ImportApplied Int
+    | DownloadClicked String
     | NoOp
 
 
@@ -533,7 +562,29 @@ update msg (State s) =
             remove id s
 
         Duplicated id ->
-            ( State (edit (Rule.duplicate id s.rule) s), Cmd.none )
+            let
+                copied =
+                    Rule.duplicate id s.rule
+
+                -- the copy is numbered from the first free id, so its anchor is known
+                copyFocus =
+                    findNode (Rule.nextId s.rule) copied
+                        |> Maybe.map (anchorDomId s.id)
+
+                edited =
+                    edit copied s
+            in
+            -- From a group's menu the same click (or Enter) reaches the menu's layer
+            -- next, and its close would focus the original group's button after the
+            -- copy. The menu is closed here, without that command.
+            ( State { edited | menus = Dict.update id (Maybe.map (Menu.close >> Tuple.first)) edited.menus }
+            , case copyFocus of
+                Just target ->
+                    Internal.focus target NoOp
+
+                Nothing ->
+                    Cmd.none
+            )
 
         Moved id delta ->
             let
@@ -682,6 +733,9 @@ update msg (State s) =
                         }
                     , Internal.focus (importDomId s.id) NoOp
                     )
+
+        DownloadClicked fileName ->
+            ( State s, Download.string fileName "application/json" (Encode.encode 2 (Rule.encode s.rule)) )
 
         NoOp ->
             ( State s, Cmd.none )
@@ -938,14 +992,15 @@ type Attribute row msg
 type alias Config row msg =
     { fields : List (Field row)
     , locale : Locale
-    , matchCount : Maybe Int
+    , matchCount : Remote Int
     , totalCount : Maybe Int
-    , counting : Bool
+    , onRetry : Maybe msg
     , today : Maybe Date
     , json : Bool
     , importJson : Bool
     , maxDepth : Int
-    , label : Maybe String
+    , ariaLabel : Maybe String
+    , field : Field.Config
     , actions : List (Html msg)
     }
 
@@ -955,14 +1010,15 @@ configure attributes =
     List.foldl (\(Attribute change) config -> change config)
         { fields = []
         , locale = Locale.default
-        , matchCount = Nothing
+        , matchCount = NotAsked
         , totalCount = Nothing
-        , counting = False
+        , onRetry = Nothing
         , today = Nothing
         , json = False
         , importJson = False
         , maxDepth = 4
-        , label = Nothing
+        , ariaLabel = Nothing
+        , field = Field.empty
         , actions = []
         }
         attributes
@@ -992,11 +1048,24 @@ locale value =
     Attribute (\config -> { config | locale = value })
 
 
-{-| How many rows the rule matches, counted by the application (for example
-with `Rule.matches`). Shown next to the summary as "1,482 matches". `Nothing`,
-the default, shows no count.
+{-| How many rows the rule matches, shown next to the summary as "1,482
+matches". Give `Remote.Loaded n` for a count you have (`Rule.matches`), or the
+`Remote` of a count that takes time:
+
+  - `Loading`: a spinner and "Counting ...".
+  - `Failed`: "The count failed", with a retry button when there is `onRetry`.
+  - Refreshing (`Remote.refresh` of a count): the old count stays, dimmed, with
+    a spinner.
+  - Old (`Remote.Kept` after a failed refresh): the old count, marked old, with
+    the retry; while that retry runs the button stays, busy, and keeps focus.
+
+`NotAsked`, the default, shows no count. The count is in a polite live region, so
+a screen reader hears the new number.
+
+    RuleBuilder.matchCount (Remote.Loaded (List.length matching))
+
 -}
-matchCount : Maybe Int -> Attribute row msg
+matchCount : Remote Int -> Attribute row msg
 matchCount value =
     Attribute (\config -> { config | matchCount = value })
 
@@ -1009,12 +1078,12 @@ totalCount value =
     Attribute (\config -> { config | totalCount = Just value })
 
 
-{-| While `True` the builder shows a spinner and "Running ..." instead of the
-count, for a large data set that takes time to filter. The default is `False`.
+{-| The message of the retry button that a failed or old `matchCount` shows.
+Without it there is no retry button.
 -}
-counting : Bool -> Attribute row msg
-counting value =
-    Attribute (\config -> { config | counting = value })
+onRetry : msg -> Attribute row msg
+onRetry msg =
+    Attribute (\config -> { config | onRetry = Just msg })
 
 
 {-| Today's date, for the date pickers of date fields: it marks the day, powers
@@ -1027,7 +1096,9 @@ today value =
 
 
 {-| Adds a "Show JSON" button to the toolbar. It opens the rule as JSON
-(`Rule.encode`, indented) with a "Download" link that saves it as `rule.json`.
+(`Rule.encode`, indented) with a "Download" button that saves it as `rule.json`
+(`regel.json` in Norwegian) through `File.Download`, so `update` returns the
+command that does it.
 -}
 json : Attribute row msg
 json =
@@ -1056,11 +1127,64 @@ maxDepth value =
     Attribute (\config -> { config | maxDepth = max 1 value })
 
 
-{-| The accessible name of the builder. The default is "Rule builder".
+{-| The name of the builder for screen readers, when it has no visible `label`.
+The default is "Rule builder".
+-}
+ariaLabel : String -> Attribute row msg
+ariaLabel value =
+    Attribute (\config -> { config | ariaLabel = Just value })
+
+
+updateField : (Field.Config -> Field.Config) -> Attribute row msg
+updateField change =
+    Attribute (\config -> { config | field = change config.field })
+
+
+{-| A visible label above the builder, as a form field has; it also names the
+builder for screen readers. The default is no label.
 -}
 label : String -> Attribute row msg
 label value =
-    Attribute (\config -> { config | label = Just value })
+    updateField (Field.setLabel value)
+
+
+{-| A line of help under the builder (after its footer, where a form field puts
+its hint), read with the builder by screen readers.
+-}
+hint : String -> Attribute row msg
+hint value =
+    updateField (Field.setHint value)
+
+
+{-| A problem with the rule as a whole, in red under the builder, such as "Add a
+condition" for a required rule. The problems of single conditions are the
+builder's own (see `issues`).
+-}
+error : String -> Attribute row msg
+error value =
+    updateField (Field.setError (Just value))
+
+
+{-| Like `error`, with `Nothing` for no problem.
+-}
+errorMaybe : Maybe String -> Attribute row msg
+errorMaybe value =
+    updateField (Field.setError value)
+
+
+{-| Marks the rule as required: a `*` after the label. The builder checks
+nothing itself.
+-}
+required : Attribute row msg
+required =
+    updateField (Field.setRequired True)
+
+
+{-| A text after the label of a rule that is not required, such as "(optional)".
+-}
+optionalText : String -> Attribute row msg
+optionalText value =
+    updateField (Field.setOptionalText value)
 
 
 {-| Extra buttons at the end of the builder's toolbar, such as a "Save rule"
@@ -1118,22 +1242,61 @@ view toMsg attributes (State s) =
             , issues = visibleIssues config s
             , texts = t
             }
+
+        field =
+            Field.setId s.id config.field
+
+        name =
+            case field.label of
+                Just _ ->
+                    Attr.attribute "aria-labelledby" (Field.labelId field)
+
+                Nothing ->
+                    Attr.attribute "aria-label" (Maybe.withDefault t.builder config.ariaLabel)
+
+        builder =
+            Html.div
+                ([ Internal.cls [ "klar-rules" ]
+                 , Attr.id s.id
+                 , Attr.attribute "role" "group"
+                 , name
+                 , Attr.tabindex -1
+                 ]
+                    ++ Field.describedByAttributes field
+                )
+                [ viewGroup ctx 0 Nothing (rootGroup s.rule)
+                , viewFooter ctx
+                ]
     in
-    Html.div
-        [ Internal.cls [ "klar-rules" ]
-        , Attr.id s.id
-        , Attr.attribute "role" "group"
-        , Attr.attribute "aria-label" (Maybe.withDefault t.builder config.label)
-        , Attr.tabindex -1
-        ]
-        [ viewGroup ctx 0 Nothing (rootGroup s.rule)
-        , viewFooter ctx
-        ]
+    -- the label stands above the builder, as it does above any other field
+    Field.viewGroup field
+        (case field.label of
+            Just text ->
+                Html.div []
+                    [ Html.div [ Internal.cls [ "klar-field__label" ], Attr.id (Field.labelId field) ]
+                        [ Html.text text
+                        , if field.required then
+                            Html.span [ Internal.cls [ "klar-field__required" ], Attr.attribute "aria-hidden" "true" ] [ Html.text "*" ]
+
+                          else
+                            case field.optionalText of
+                                Just optional ->
+                                    Html.span [ Internal.cls [ "klar-field__optional" ] ] [ Html.text optional ]
+
+                                Nothing ->
+                                    Html.text ""
+                        ]
+                    , builder
+                    ]
+
+            Nothing ->
+                builder
+        )
 
 
 visibleIssues : Config row msg -> Inner -> Dict Int String
 visibleIssues config s =
-    (Editor.extraIssues config.locale config.fields s.rule ++ Rule.validate config.locale config.fields s.rule)
+    Rule.validate config.locale config.fields s.rule
         |> List.filter (\issue -> s.revealed || Set.member issue.nodeId s.touched)
         |> List.foldl
             (\issue found ->
@@ -1288,6 +1451,13 @@ viewHead ctx depth position group collapsed =
         , Html.span [ Internal.cls [ "klar-rules__negate" ] ]
             [ Checkbox.view
                 [ Checkbox.label t.not
+                , Checkbox.ariaLabel
+                    (if depth == 0 then
+                        t.negateRule
+
+                     else
+                        t.negateGroup
+                    )
                 , Checkbox.checked group.negated
                 , Checkbox.onCheck (\_ -> ctx.toMsg (NegationToggled group.id))
                 , Checkbox.id (nodeDomId prefix group.id ++ "-not")
@@ -1508,7 +1678,7 @@ viewCondition ctx position condition =
             ]
         , Attr.id base
         , Attr.attribute "role" "group"
-        , Attr.attribute "aria-label" (t.ruleN (position.index + 1))
+        , Attr.attribute "aria-label" (t.ruleOf (position.index + 1) position.count)
         ]
         [ Html.div [ Internal.cls [ "klar-rules__editor" ] ]
             [ Editor.viewField settings condition
@@ -1714,34 +1884,14 @@ viewFooter ctx =
 
 viewCount : Ctx row msg -> Html msg
 viewCount ctx =
-    let
-        config =
-            ctx.config
-
-        number =
-            Format.int config.locale
-    in
-    Html.span [ Internal.cls [ "klar-rules__matches", "klar-tabular" ], Attr.attribute "aria-live" "polite" ]
-        (if config.counting then
-            [ Spinner.view [ Spinner.size Small ], Html.text ctx.texts.counting ]
-
-         else
-            case config.matchCount of
-                Just n ->
-                    case config.totalCount of
-                        Just total ->
-                            [ Html.strong [] [ Html.text (number n) ]
-                            , Html.text (" " ++ ctx.texts.of_ ++ " " ++ number total ++ " " ++ ctx.texts.hits)
-                            ]
-
-                        Nothing ->
-                            [ Html.strong [] [ Html.text (number n) ]
-                            , Html.text (" " ++ ctx.texts.hits)
-                            ]
-
-                Nothing ->
-                    []
-        )
+    Count.view
+        { locale = ctx.config.locale
+        , count = ctx.config.matchCount
+        , total = ctx.config.totalCount
+        , onRetry = ctx.config.onRetry
+        , retryId = ctx.state.id ++ "-count-retry"
+        , classes = [ "klar-rules__matches" ]
+        }
 
 
 undoText : Texts -> UndoReason -> String
@@ -1773,7 +1923,7 @@ viewJson ctx =
                 [ Button.ghost
                 , Button.small
                 , Button.icon Icon.download
-                , Button.href (Link.download { fileName = ctx.texts.fileName, mimeType = "application/json", content = text })
+                , Button.onClick (ctx.toMsg (DownloadClicked ctx.texts.fileName))
                 ]
                 ctx.texts.download
             ]
@@ -1881,12 +2031,11 @@ type alias Texts =
     , rootEmpty : String
     , groupEmpty : String
     , noComplete : String
-    , ruleN : Int -> String
+    , ruleOf : Int -> Int -> String
     , groupN : Int -> String
+    , negateRule : String
+    , negateGroup : String
     , summary : String
-    , of_ : String
-    , hits : String
-    , counting : String
     , reset : String
     , showJson : String
     , hideJson : String
@@ -1952,12 +2101,11 @@ texts lang =
             , rootEmpty = "Ingen regler ennå. Alle rader tas med."
             , groupEmpty = "Gruppen er tom."
             , noComplete = "Ingen fullstendige regler"
-            , ruleN = \n -> "Regel " ++ String.fromInt n
+            , ruleOf = \n count -> "Regel " ++ String.fromInt n ++ " av " ++ String.fromInt count
             , groupN = \n -> "Gruppe " ++ String.fromInt n
+            , negateRule = "Ikke: snu hele regelen"
+            , negateGroup = "Ikke: snu gruppen"
             , summary = "Sammendrag"
-            , of_ = "av"
-            , hits = "treff"
-            , counting = "Kjører ..."
             , reset = "Nullstill"
             , showJson = "Vis JSON"
             , hideJson = "Skjul JSON"
@@ -2024,12 +2172,11 @@ texts lang =
             , rootEmpty = "No conditions yet. Every row is included."
             , groupEmpty = "The group is empty."
             , noComplete = "No complete conditions"
-            , ruleN = \n -> "Condition " ++ String.fromInt n
+            , ruleOf = \n count -> "Condition " ++ String.fromInt n ++ " of " ++ String.fromInt count
             , groupN = \n -> "Group " ++ String.fromInt n
+            , negateRule = "Not: negate the whole rule"
+            , negateGroup = "Not: negate the group"
             , summary = "Summary"
-            , of_ = "of"
-            , hits = "matches"
-            , counting = "Running ..."
             , reset = "Reset"
             , showJson = "Show JSON"
             , hideJson = "Hide JSON"

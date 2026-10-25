@@ -857,7 +857,7 @@ idsInRules =
         [ test "the choices of a rule field are the options, written with the same keys" <|
             \_ ->
                 Rule.fieldKind field
-                    |> Expect.equal (Rule.ChoiceKind [ { value = "perishables", label = "Perishables" }, { value = "machinery", label = "Machinery" } ])
+                    |> Expect.equal (Rule.choiceKind [ { value = "perishables", label = "Perishables" }, { value = "machinery", label = "Machinery" } ])
         , test "a row is matched by its typed id" <|
             \_ ->
                 let

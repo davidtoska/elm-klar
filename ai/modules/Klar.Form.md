@@ -1092,17 +1092,18 @@ ruleBuilder :
     -> Html msg
 ```
 
-A rule builder for a `conditions` field. The label, the language and the DOM
-ids are set by the form; the fields (what a rule can talk about, now with the
-options the user chooses among) are an argument, so a rule builder without fields
-cannot be drawn. The other settings (`RuleBuilder.maxDepth`, `RuleBuilder.json`)
-are the application's attributes.
+A rule builder for a `conditions` field. The label, hint, required mark,
+language and DOM ids are set by the form; the fields (what a rule can talk about,
+now with the options the user chooses among) are an argument, so a rule builder
+without fields cannot be drawn. The other settings (`RuleBuilder.maxDepth`,
+`RuleBuilder.json`) are the application's attributes.
 
     Form.ruleBuilder v row.conditions (priceFields options) []
 
 Issues of the rule show on the node that has them once the step has been tried
-(`advance`, `reveal`, `rejected`); the summary leads to the control that needs
-attention.
+(`advance`, `reveal`, `rejected`); a problem with the rule as a whole (a required
+rule without conditions) shows under the builder. The summary leads to the
+control that needs attention.
 
 ### `addRow`
 

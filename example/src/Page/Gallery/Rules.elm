@@ -853,7 +853,7 @@ viewDialog locale model =
             [ RuleBuilder.fields orderFields
             , RuleBuilder.locale locale
             , RuleBuilder.today Sample.today
-            , RuleBuilder.label "Rule for the review list"
+            , RuleBuilder.ariaLabel "Rule for the review list"
             ]
             model.draft
         ]
@@ -897,13 +897,19 @@ viewBench options bench =
         , RuleBuilder.view (BuilderMsg >> options.toMsg)
             [ RuleBuilder.fields options.fields
             , RuleBuilder.locale options.locale
-            , RuleBuilder.matchCount (Just options.matchCount)
+            , RuleBuilder.matchCount
+                (if options.counting then
+                    -- the old count stays, dimmed, while the new one is worked out
+                    Remote.refresh (Remote.Loaded options.matchCount)
+
+                 else
+                    Remote.Loaded options.matchCount
+                )
             , RuleBuilder.totalCount (List.length Sample.orders)
-            , RuleBuilder.counting options.counting
             , RuleBuilder.today Sample.today
             , RuleBuilder.json
             , RuleBuilder.importJson
-            , RuleBuilder.label options.label
+            , RuleBuilder.ariaLabel options.label
             ]
             bench.builder
         ]
@@ -925,7 +931,7 @@ workbench locale model =
         )
         [ Doc.example
             { title = orderCount ++ " orders, one rule"
-            , description = Just "Preloaded: Status is Confirmed and (Priority is Urgent or Total > 5000). The application runs the rule a quarter of a second after you stop typing; switch on the slow count to see the “Running ...” state that a large data set gives. A condition that is not complete yet shows as a dashed chip in the filter bar and does not filter. “Show JSON” and “Import JSON” in the toolbar of the rule builder take the rule out and in as JSON."
+            , description = Just "Preloaded: Status is Confirmed and (Priority is Urgent or Total > 5000). The application runs the rule a quarter of a second after you stop typing; switch on the slow count to see the refreshing count (the old number, dimmed, with a spinner) that a large data set gives. A condition that is not complete yet shows as a dashed chip in the filter bar and does not filter. “Show JSON” and “Import JSON” in the toolbar of the rule builder take the rule out and in as JSON."
             , code = Just workbenchCode
             }
             (Layout.stack [ Layout.gap 4 ]
@@ -942,7 +948,7 @@ workbench locale model =
                 , Checkbox.view
                     [ Checkbox.id "rules-slow-count"
                     , Checkbox.label "Simulate a slow count (large data set)"
-                    , Checkbox.hint "The rule runs 0.9 seconds after the last change; meanwhile the rule builder says “Running ...” and the table is dimmed."
+                    , Checkbox.hint "The rule runs 0.9 seconds after the last change; meanwhile the rule builder keeps the old count, dimmed, and the table is dimmed too."
                     , Checkbox.checked model.slow
                     , Checkbox.onCheck SlowToggled
                     ]
@@ -1063,9 +1069,8 @@ SavedViews.view ViewsMsg [ SavedViews.current model.rule ] model.views
 
 RuleBuilder.view BuilderMsg
     [ RuleBuilder.fields orderFields
-    , RuleBuilder.matchCount (Just model.matches)
+    , RuleBuilder.matchCount model.matches -- a Remote Int: Remote.refresh keeps the old count while counting
     , RuleBuilder.totalCount (List.length orders)
-    , RuleBuilder.counting model.counting
     , RuleBuilder.today today
     , RuleBuilder.json
     , RuleBuilder.importJson
@@ -1134,7 +1139,7 @@ ruleBuilders locale model =
                     [ RuleBuilder.fields orderFields
                     , RuleBuilder.locale locale
                     , RuleBuilder.today Sample.today
-                    , RuleBuilder.matchCount (Just model.narrowCount)
+                    , RuleBuilder.matchCount (Remote.Loaded model.narrowCount)
                     ]
                     model.narrow
                 , Layout.stack [ Layout.gap 2 ]
@@ -1191,14 +1196,17 @@ invalidCode =
 { model | rules = RuleBuilder.hideIssues model.rules }
 
 -- the issues themselves, one for each node that has a problem
-Rule.validate locale orderFields (RuleBuilder.rule model.rules)  -- List Rule.Issue"""
+RuleBuilder.issues locale orderFields model.rules  -- List Rule.Problem, one for each node
+
+-- move the focus to the first one, so a Save never leaves the user on a button
+RuleBuilder.focusIssue orderFields model.rules |> Cmd.map RulesMsg"""
 
 
 narrowCode : String
 narrowCode =
     """RuleBuilder.view NarrowMsg
     [ RuleBuilder.fields orderFields
-    , RuleBuilder.matchCount (Just model.matches)
+    , RuleBuilder.matchCount (Remote.Loaded (List.length matching))
     ]
     model.narrow
 
@@ -1240,7 +1248,7 @@ DialogApplied ->
 filterBars : Locale -> Model -> Html Msg
 filterBars locale model =
     Doc.section "Filter bar"
-        "Quick filters above a table: the active conditions as chips, “Add filter” opens a small editor (field, operator, value), and ready-made filters as toggle pills. The filters are an ordinary Rule (an “all of” group), so they can be given to Rule.matches or opened in the rule builder. Keyboard: Tab moves through the pills, chips and buttons; Enter on a chip opens it; in the editor, Enter in the value field applies the filter, and Escape closes the editor and gives focus back."
+        "Quick filters above a table: the active conditions as chips, “Add filter” opens a small editor (field, operator, value), and ready-made filters as toggle pills. The filters are an ordinary Rule (an “all of” group), so they can be given to Rule.matches or opened in the rule builder. Keyboard: Tab moves through the pills and buttons, and the chips are one tab stop: ArrowLeft and ArrowRight move along them, Home and End jump, Enter on a condition chip opens it, Delete removes a chip; in the editor, Enter in a text or number field applies the filter, Ctrl+Enter (Cmd+Enter) applies it from any control, and Escape closes the editor and gives focus back. Removing a chip or “Clear all” can be undone."
         [ Doc.example
             { title = "Quick filters and match count"
             , description = Just "Click a chip to change it. An incomplete condition is shown dashed and does not filter."
@@ -1249,7 +1257,7 @@ filterBars locale model =
             (FilterBar.view QuickMsg
                 [ FilterBar.fields orderFields
                 , FilterBar.quick presets
-                , FilterBar.matchCount (Just model.quickCount)
+                , FilterBar.matchCount (Remote.Loaded model.quickCount)
                 , FilterBar.totalCount (List.length Sample.orders)
                 , FilterBar.today Sample.today
                 , FilterBar.locale locale
@@ -1264,7 +1272,7 @@ filterCode =
     """FilterBar.view FiltersMsg
     [ FilterBar.fields orderFields
     , FilterBar.quick [ ( "Urgent", urgent ), ( "Confirmed", confirmed ) ]
-    , FilterBar.matchCount (Just model.matches)
+    , FilterBar.matchCount (Remote.Loaded (List.length matching))
     , FilterBar.totalCount (List.length orders)
     , FilterBar.today today
     ]
@@ -1355,9 +1363,10 @@ api =
                 [ { name = "textField / numberField / dateField / boolField / choiceField", type_ = "String -> String -> (row -> value) -> Field row", description = "A field: its id (what saved rules refer to), its label and how to read the value from a row. A choice field also takes its choices, and the getter of a number or date field returns a Maybe." }
                 , { name = "inGroup", type_ = "String -> Field row -> Field row", description = "Lists the field under a heading in the field picker." }
                 , { name = "matches", type_ = "Date -> List (Field row) -> Rule -> row -> Bool", description = "Does the row satisfy the rule? Incomplete conditions and conditions on unknown fields are ignored, so an empty rule matches every row." }
-                , { name = "validate", type_ = "Locale -> List (Field row) -> Rule -> List Issue", description = "What is missing or wrong, for each node, in the language of the locale." }
+                , { name = "validate", type_ = "Locale -> List (Field row) -> Rule -> List Problem", description = "What is missing or wrong, for each node, in the language of the locale." }
                 , { name = "describe", type_ = "Locale -> List (Field row) -> Rule -> String", description = "The rule as a sentence: “Status is Confirmed and (Priority is Urgent or Total > 5000)”." }
                 , { name = "encode / decoder", type_ = "Rule -> Value / Decoder Rule", description = "The rule as JSON, to store it or send it to a backend." }
+                , { name = "settled", type_ = "List (Field row) -> Rule -> Rule", description = "The rule for a server: only what matches uses, numbers written plainly, ends low first, choices sorted. A server then needs none of the forgiveness of matches." }
                 , { name = "emptyGroup", type_ = "Rule", description = "A group with nothing in it: the usual starting point, and it matches every row." }
                 ]
             )
@@ -1368,22 +1377,22 @@ api =
                 , { name = "clear", type_ = "State -> State", description = "An empty rule, without an offer to undo." }
                 , { name = "showIssues / hideIssues", type_ = "State -> State", description = "Show all issues now (for example when saving), or hide them until the user touches a condition again." }
                 , { name = "fields", type_ = "List (Rule.Field row) -> Attribute", description = "The fields a rule can use. The first one is the field a new condition starts with." }
-                , { name = "matchCount / totalCount", type_ = "Maybe Int / Int", description = "The number of matches, counted by the application: “1,482 of 3,000 matches”." }
-                , { name = "counting", type_ = "Bool", description = "Shows “Running ...” while the application works." }
-                , { name = "json / importJson", type_ = "Attribute", description = "“Show JSON” with a download link, and “Import JSON” with an error message and undo." }
+                , { name = "matchCount / totalCount / onRetry", type_ = "Remote Int / Int / msg", description = "The number of matches, in every state: “Counting ...”, “1,482 of 3,000 matches”, the old count dimmed while it is refreshed, a failure with a retry." }
+                , { name = "json / importJson", type_ = "Attribute", description = "“Show JSON” with a download button, and “Import JSON” with an error message and undo." }
+                , { name = "label / hint / error / required", type_ = "Attribute", description = "A visible label, a hint, an error for the rule as a whole and a required mark, as in a form (Form.ruleBuilder sets them)." }
                 , { name = "maxDepth", type_ = "Int", description = "How deep groups may nest (4 by default)." }
-                , { name = "today / locale / label / actions", type_ = "Attribute", description = "Today's date for the date pickers, the language, the accessible name and your own buttons in the toolbar." }
+                , { name = "today / locale / ariaLabel / actions", type_ = "Attribute", description = "Today's date for the date pickers, the language, the name for screen readers and your own buttons in the toolbar." }
                 ]
             )
         , Doc.example { title = "Klar.FilterBar", description = Nothing, code = Nothing }
             (Doc.props
                 [ { name = "rule", type_ = "State -> Rule", description = "The filters as a Rule, for Rule.matches. Compare it before and after update to find out whether the filters changed." }
                 , { name = "setRule / clear", type_ = "Rule -> State -> State / State -> State", description = "Show these filters, or remove them all. setRule also shows rules from the rule builder: conditions become chips and groups become chips that can only be removed." }
-                , { name = "isOpen / close", type_ = "State -> Bool / State -> State", description = "Is the editor open; close it without applying." }
+                , { name = "isOpen / close", type_ = "State -> Bool / State -> ( State, Cmd Msg )", description = "Is the editor open; close it without applying, with focus back on the chip or the add button." }
                 , { name = "fields", type_ = "List (Rule.Field row) -> Attribute", description = "The fields that can be filtered on." }
                 , { name = "quick", type_ = "List ( String, Rule ) -> Attribute", description = "Ready-made filters as toggle pills." }
-                , { name = "matchCount / totalCount", type_ = "Maybe Int / Int", description = "The number of matches at the end of the bar." }
-                , { name = "today / locale / label / addLabel", type_ = "Attribute", description = "Today's date, the language, the accessible name and the text of the add button." }
+                , { name = "matchCount / totalCount / onRetry", type_ = "Remote Int / Int / msg", description = "The number of matches at the end of the bar, in every state of the Remote." }
+                , { name = "today / locale / ariaLabel / addLabel", type_ = "Attribute", description = "Today's date, the language, the name for screen readers and the text of the add button." }
                 ]
             )
         , Doc.example { title = "Klar.SavedViews", description = Nothing, code = Nothing }

@@ -4,7 +4,7 @@ Rules as plain data: a tree of conditions and groups that you can edit, check, r
 
 Import: `import Klar.Rule as Rule` | Group: Rules and filters
 
-Types: `Rule`, `Field`, `Operands`, `Operator`, `FieldKind`, `Combinator`, `Group`, `Issue`, `Choice`, `Condition`
+Types: `Rule`, `Field`, `Operands`, `Operator`, `Combinator`, `Group`, `Choice`, `Problem`, `Condition`, `FieldKind`
 
 ## Signatures
 
@@ -30,10 +30,16 @@ fieldById : List (Field row) -> String -> Maybe (Field row)
 fieldId : Field row -> String
 fieldLabel : Field row -> String
 fieldKind : Field row -> FieldKind
+fieldChoices : Field row -> List Choice
 fieldGroup : Field row -> Maybe String
 fieldOperators : Field row -> List Operator
-type FieldKind = TextKind | NumberKind | DateKind | BooleanKind | ChoiceKind (List Choice)
+type alias FieldKind = Rule.Vocabulary.FieldKind
 type alias Choice = { value : String, label : String }
+textKind : FieldKind
+numberKind : FieldKind
+dateKind : FieldKind
+booleanKind : FieldKind
+choiceKind : List Choice -> FieldKind
 
 -- Operators and operands
 type Operator
@@ -43,19 +49,21 @@ type Operator
     | NotContains
     | StartsWith
     | EndsWith
-    | Equals
-    | NotEquals
     | LessThan
     | LessOrEqual
     | GreaterThan
     | GreaterOrEqual
     | Between
+    | NotBetween
     | Before
     | After
     | OnOrBefore
     | OnOrAfter
     | InLastDays
     | InNextDays
+    | MoreThanDaysAgo
+    | MoreThanDaysAhead
+    | InPeriod
     | IsAnyOf
     | IsNoneOf
     | IsEmpty
@@ -85,8 +93,8 @@ isComplete : Field row -> Condition -> Bool
 parseNumber : String -> Maybe Float
 
 -- Checking and describing
-type alias Issue = { nodeId : Int, message : String }
-validate : Locale.Locale -> List (Field row) -> Rule -> List Issue
+type alias Problem = { nodeId : Int, message : String }
+validate : Locale.Locale -> List (Field row) -> Rule -> List Problem
 describe : Locale.Locale -> List (Field row) -> Rule -> String
 quote : Locale.Locale -> String -> String
 
@@ -111,7 +119,8 @@ depth : Rule -> Int
 conditionCount : Rule -> Int
 isEmpty : Rule -> Bool
 
--- JSON
+-- JSON and servers
+settled : List (Field row) -> Rule -> Rule
 encode : Rule -> Json.Encode.Value
 decoder : Json.Decode.Decoder Rule
 ```
@@ -178,6 +187,9 @@ filter rows with a rule that your backend has stored.
     Rule.describe Locale.en fields paidAndLarge
     -- "Status is Paid and Total > 100"
 
+    -- 4. Send it to a server: only what matches uses, operands in one form
+    Encode.encode 0 (Rule.encode (Rule.settled fields paidAndLarge))
+
     Encode.encode 0 (Rule.encode paidAndLarge)
     -- {"type":"group","combinator":"all","not":false,"children":[ ... ]}
 
@@ -210,7 +222,7 @@ type Field row  -- opaque: no constructors are exposed
 
 Something rules can talk about, and how to read it from a row of type
 `row`. Make fields with `textField`, `numberField`, `dateField`, `boolField` or
-`choiceField` (or `field`, when there are no rows to read), adjust them with
+`choiceField` (or `bareField`, when there are no rows to read), adjust them with
 `inGroup` and `withOperators`, and read them with `fieldId`, `fieldLabel`,
 `fieldKind`, `fieldGroup` and `fieldOperators`. The type is opaque, so that a
 field can get more settings in a later version.
@@ -226,7 +238,7 @@ from a row. It is what you need when the rows are not in the browser (a server
 filters them) and the fields only decide what a rule builder or filter bar
 offers. `matches` finds no value in a row for such a field.
 
-    Rule.bareField "status" "Status" (Rule.ChoiceKind statuses)
+    Rule.bareField "status" "Status" (Rule.choiceKind statuses)
 
 ### `textField`
 
@@ -249,7 +261,7 @@ numberField : String -> String -> (row -> Maybe Float) -> Field row
 ```
 
 A field with number values. `Nothing` means that the row has no number; such
-a row only satisfies `IsEmpty` and `NotEquals`.
+a row only satisfies `IsEmpty`, `IsNot` and `NotBetween`.
 
     Rule.numberField "total" "Total" (.total >> Just)
 
@@ -263,12 +275,15 @@ dateField : String -> String -> (row -> Maybe Date.Date) -> Field row
 ```
 
 A field with calendar dates ([Klar.Date](Klar.Date.md)). `Nothing` means that
-the row has no date; such a row only satisfies `IsEmpty` and `IsNot`.
+the row has no date; such a row only satisfies `IsEmpty`, `IsNot` and
+`NotBetween`.
 
     Rule.dateField "created" "Created" (.created >> Just)
 
-Operands are ISO dates (`2026-10-20`), or a number of days for `InLastDays` and
-`InNextDays`.
+Operands are ISO dates (`2026-10-20`), a whole number of days for `InLastDays`,
+`InNextDays`, `MoreThanDaysAgo` and `MoreThanDaysAhead`, or the key of a period
+for `InPeriod`. Rules with relative dates stay right as time passes, so a saved
+view says "in the last 30 days" rather than a fixed date.
 
 ### `boolField`
 
@@ -378,6 +393,19 @@ fieldKind : Field row -> FieldKind
 
 The kind of a field.
 
+### `fieldChoices`
+
+```elm
+fieldChoices : Field row -> List Choice
+```
+
+The choices of a choice field, in the order a picker lists them, and an
+empty list for every other kind. `FieldKind` is opaque: this is how you read the
+choices back, for a legend or a filter of your own.
+
+    Rule.fieldChoices (Rule.choiceField "status" "Status" statuses .status)
+    -- statuses
+
 ### `fieldGroup`
 
 ```elm
@@ -399,14 +427,17 @@ with `withOperators` that fit the kind of the field, or all those that fit it
 ### `FieldKind`
 
 ```elm
-type FieldKind = TextKind | NumberKind | DateKind | BooleanKind | ChoiceKind (List Choice)
+type alias FieldKind = Rule.Vocabulary.FieldKind
 ```
 
-The kind of value a field holds.
+The kind of value a field holds: text, a number, a date, yes or no, or one
+of a set of choices.
 
 It decides which operators are on offer (see `operatorsFor`) and which editor
-a rule builder shows for the operands. A `ChoiceKind` carries the choices the
-user can pick from.
+a rule builder shows for the operands. The field functions (`textField` ...)
+set it; for a `bareField` make it with `textKind`, `numberKind`, `dateKind`,
+`booleanKind` or `choiceKind`. The type is opaque, so that new kinds (date and
+time, several values, lookups) can come without a breaking change.
 
 ### `Choice`
 
@@ -420,17 +451,61 @@ reads.
 
     { value = "paid", label = "Paid" }
 
+### `textKind`
+
+```elm
+textKind : FieldKind
+```
+
+The kind of a text field.
+
+### `numberKind`
+
+```elm
+numberKind : FieldKind
+```
+
+The kind of a number field.
+
+### `dateKind`
+
+```elm
+dateKind : FieldKind
+```
+
+The kind of a date field.
+
+### `booleanKind`
+
+```elm
+booleanKind : FieldKind
+```
+
+The kind of a yes or no field.
+
+### `choiceKind`
+
+```elm
+choiceKind : List Choice -> FieldKind
+```
+
+The kind of a field with a fixed set of values, which the user picks from.
+
+    Rule.bareField "status" "Status" (Rule.choiceKind statuses)
+
 ## Operators and operands
 
 An `Operator` says how a condition compares the field with its operands. Which
 operators make sense depends on the `FieldKind`, see `operatorsFor`: a text
 field offers `Contains`, a number field `GreaterThan`, a date field `InLastDays`
-and so on.
+and so on. Equality is `Is` and `IsNot` for every kind, numbers included.
 
 Operands are kept as text, exactly what the user typed or picked, and are read
 when the rule runs: numbers with a decimal comma or point (`parseNumber`), dates
-as ISO `YYYY-MM-DD`, choices as the `value` of a `Choice`. That is why a rule
-that is not finished yet can still be stored and shown.
+as ISO `YYYY-MM-DD`, choices as the `value` of a `Choice`, a whole number of days
+for the relative date operators and the key of a period ("thisMonth") for
+`InPeriod`. That is why a rule that is not finished yet can still be stored and
+shown.
 
 ### `Operator`
 
@@ -442,19 +517,21 @@ type Operator
     | NotContains
     | StartsWith
     | EndsWith
-    | Equals
-    | NotEquals
     | LessThan
     | LessOrEqual
     | GreaterThan
     | GreaterOrEqual
     | Between
+    | NotBetween
     | Before
     | After
     | OnOrBefore
     | OnOrAfter
     | InLastDays
     | InNextDays
+    | MoreThanDaysAgo
+    | MoreThanDaysAhead
+    | InPeriod
     | IsAnyOf
     | IsNoneOf
     | IsEmpty
@@ -468,11 +545,20 @@ which kind of field is listed by `operatorsFor`; `operatorLabel` gives the
 words the user reads and `operandsOf` how many operands an operator takes.
 
   - Text: `Is`, `IsNot`, `Contains`, `NotContains`, `StartsWith`, `EndsWith`
-  - Numbers: `Equals`, `NotEquals`, `LessThan`, `LessOrEqual`, `GreaterThan`,
-    `GreaterOrEqual`, `Between` (both ends included)
+  - Numbers: `Is`, `IsNot`, `LessThan`, `LessOrEqual`, `GreaterThan`,
+    `GreaterOrEqual`, `Between` and `NotBetween` (both ends included)
   - Dates: `Is`, `IsNot`, `Before`, `After`, `OnOrBefore`, `OnOrAfter`,
-    `Between` (both ends included), `InLastDays` and `InNextDays` (today
-    counts, the operand is a number of days)
+    `Between` and `NotBetween` (both ends included), and the relative ones,
+    which stay right as time passes:
+      - `InLastDays` and `InNextDays`: today and the N days before or after it
+        (the operand is a whole number of days);
+      - `MoreThanDaysAgo` and `MoreThanDaysAhead`: earlier than N days before
+        today, later than N days after it;
+      - `InPeriod`: within a calendar period around today. The operand is the
+        key of the period: "today", "yesterday", "tomorrow", "thisWeek",
+        "lastWeek", "nextWeek", "thisMonth", "lastMonth", "nextMonth",
+        "thisQuarter", "lastQuarter", "nextQuarter", "thisYear", "lastYear" or
+        "nextYear". Weeks start on Monday.
   - Choices: `Is`, `IsNot`, `IsAnyOf`, `IsNoneOf`
   - Yes or no: `IsTrue`, `IsFalse`
   - Every kind except yes or no: `IsEmpty`, `IsNotEmpty`
@@ -488,7 +574,7 @@ How many operands an operator takes, and so how many entries of the
 
   - `NoOperand`: `IsEmpty`, `IsNotEmpty`, `IsTrue` and `IsFalse`.
   - `OneOperand`: most operators, such as `Contains` or `GreaterThan`.
-  - `TwoOperands`: `Between`, with the two ends.
+  - `TwoOperands`: `Between` and `NotBetween`, with the two ends.
   - `ManyOperands`: `IsAnyOf` and `IsNoneOf`, with any number of choices.
 
 ### `operatorsFor`
@@ -500,7 +586,7 @@ operatorsFor : FieldKind -> List Operator
 The operators that fit a kind of field, in the order a picker should list
 them. A new condition on a field starts with the first one.
 
-    Rule.operatorsFor Rule.BooleanKind -- [ IsTrue, IsFalse ]
+    Rule.operatorsFor Rule.booleanKind -- [ IsTrue, IsFalse ]
 
 ### `operandsOf`
 
@@ -518,17 +604,18 @@ How many operands an operator takes.
 operatorLabel : Locale.Locale -> FieldKind -> Operator -> String
 ```
 
-The words (or the symbol) for an operator in the language of the locale,
-for showing it to the user.
+The words (or the symbol) for an operator on a kind of field, in the
+language of the locale, for showing it to the user.
 
-    Rule.operatorLabel Locale.en Rule.TextKind Rule.NotContains -- "does not contain"
+    Rule.operatorLabel Locale.en Rule.textKind Rule.NotContains -- "does not contain"
 
-    Rule.operatorLabel Locale.en Rule.NumberKind Rule.GreaterOrEqual -- "≥"
+    Rule.operatorLabel Locale.en Rule.numberKind Rule.GreaterOrEqual -- "≥"
 
-The `FieldKind` argument is reserved: pass the kind of the field the operator is
-used on, so that a later version can word an operator differently for a kind of
-field. Today the label does not depend on it. The comparison operators for
-numbers are the same symbols in every language.
+    Rule.operatorLabel Locale.en Rule.numberKind Rule.Is -- "="
+
+Give the kind of the field the operator is used on: equality reads "is" on
+text, dates and choices and `=` on numbers. The comparison symbols for numbers
+are the same in every language.
 
 ## Rules
 
@@ -664,6 +751,10 @@ and a group without any complete condition lets every row through. The result
 therefore makes sense after every step the user takes. `validate` is where the
 user hears about what is missing.
 
+`matches` prepares the rule once (it looks up the fields and reads the operands)
+when it is given the rule, so `List.filter (Rule.matches today fields rule) rows`
+does that work once and not once for every row.
+
 ### `matches`
 
 ```elm
@@ -671,10 +762,15 @@ matches : Date.Date -> List (Field row) -> Rule -> row -> Bool
 ```
 
 Does this row satisfy the rule? The arguments are today's date, the fields,
-the rule and the row. `today` is what `InLastDays` and `InNextDays` count from;
-get it with `Date.fromPosix` ([Klar.Date](Klar.Date.md)).
+the rule and the row. `today` is what the relative date operators (`InLastDays`,
+`InPeriod` ...) count from; get it with `Date.fromPosix` ([Klar.Date](Klar.Date.md)).
 
     List.filter (Rule.matches today fields rule) orders
+
+Given the first three arguments, `matches` prepares the rule once: it looks up
+each field, leaves out what does not take part and reads the operands (numbers,
+dates, day counts, text without case and diacritics). The function it returns
+only reads the rows, so filtering 100 000 rows does that work once.
 
 Conditions that are not complete (see `isComplete`) and conditions on fields
 that are not in the list do not take part. A group is decided by the nodes that
@@ -685,12 +781,13 @@ through, so an empty rule matches all rows.
 Operands are compared in the way that fits the kind of the field:
 
   - Text ignores case, diacritics and surrounding spaces.
-  - Numbers and dates compare by value, and `Between` includes both ends (it
-    does not matter which end is the lower one).
+  - Numbers and dates compare by value, and `Between` and `NotBetween` include
+    both ends (it does not matter which end is the lower one).
   - `InLastDays` with the operand 30 includes today and the 30 days before it;
-    `InNextDays` goes forward from today in the same way.
-  - A row without a number or a date satisfies only `IsEmpty` and `NotEquals`
-    (numbers) or `IsEmpty` and `IsNot` (dates).
+    `InNextDays` goes forward from today in the same way. `MoreThanDaysAgo` with
+    30 takes the days before those, `MoreThanDaysAhead` the days after the next 30.
+  - A row without a value satisfies only `IsEmpty` and the negative operators:
+    `IsNot`, `NotContains`, `NotBetween` and `IsNoneOf`.
 
 ### `isComplete`
 
@@ -701,8 +798,9 @@ isComplete : Field row -> Condition -> Bool
 Does the condition have everything it needs to filter? The arguments are the
 field the condition is on and the condition. Its operator has to fit the field
 (see `operatorsFor`), and every operand it needs has to be usable: a number that
-`parseNumber` can read, an ISO date, a number of days that is not negative, or
-text that is not blank (one choice is enough for `IsAnyOf` and `IsNoneOf`).
+`parseNumber` can read, an ISO date, a whole number of days that is not
+negative, the key of a period, or text that is not blank (one choice is enough
+for `IsAnyOf` and `IsNoneOf`).
 
 `matches` ignores conditions that are not complete, as it ignores conditions on
 unknown fields. Otherwise an operator that does not fit the field (from old or
@@ -754,10 +852,10 @@ The rules:
 
 ## Checking and describing
 
-### `Issue`
+### `Problem`
 
 ```elm
-type alias Issue = { nodeId : Int, message : String }
+type alias Problem = { nodeId : Int, message : String }
 ```
 
 A problem with one node of the rule, for showing next to it: the `nodeId`
@@ -767,20 +865,23 @@ to `validate`.
 ### `validate`
 
 ```elm
-validate : Locale.Locale -> List (Field row) -> Rule -> List Issue
+validate : Locale.Locale -> List (Field row) -> Rule -> List Problem
 ```
 
 What is wrong with the rule, for showing next to the nodes that have a
-problem. An empty list means that the rule is fine.
+problem, in the order of the tree. An empty list means that the rule is fine.
 
   - A condition on a field that is not in the list ("Choose a field").
   - An operator that does not fit the field.
   - An operand that is missing or cannot be read: not a number, not a date, not
-    a number of days.
-  - A `Between` whose ends are the wrong way round.
+    a whole number of days, not a period.
+  - A choice that is no longer among the choices of the field (a saved rule
+    can outlive a choice). A choice field with no choices yet, whose options
+    are still loading, is not checked.
+  - A `Between` or `NotBetween` whose ends are the wrong way round.
   - A group with nothing in it. The root group may be empty.
 
-A node has at most one issue. The messages follow the locale.
+A node has at most one problem. The messages follow the locale.
 
     Rule.validate Locale.en fields rule
     -- [ { nodeId = 2, message = "Enter a valid number" } ]
@@ -989,7 +1090,40 @@ isEmpty : Rule -> Bool
 Does the rule have no conditions at all? Empty groups do not count as
 conditions.
 
-## JSON
+## JSON and servers
+
+A server that filters the rows itself should get the `settled` rule: it keeps only
+what `matches` uses and writes the operands in one form, so the server needs none
+of the forgiveness of `matches`. What the server must do with it:
+
+  - Text compares without regard to case, diacritics and surrounding spaces.
+  - Numbers are written as `String.fromFloat` writes them: "1234.5", with
+    exponent notation ("1e+21", "1e-7") from 10^21 up and below 10^-6. Dates
+    are ISO `YYYY-MM-DD`, day counts whole numbers, periods one of the keys
+    listed under `InPeriod`.
+  - `Between` and `NotBetween` include both ends, low first.
+  - A row without a value satisfies only `IsEmpty` and the negative operators
+    (`IsNot`, `NotContains`, `NotBetween`, `IsNoneOf`).
+  - A group with no children matches every row.
+
+### `settled`
+
+```elm
+settled : List (Field row) -> Rule -> Rule
+```
+
+The rule as a server should get it: only what `matches` uses, with every
+operand in one form. Conditions that are not complete or are on unknown fields
+are left out, and so are groups with nothing left; numbers are written as
+`String.fromFloat` writes them ("1 234,5" becomes "1234.5"), the ends of `Between` and `NotBetween` low first,
+text trimmed, choices exactly as they are but sorted and without repeats, and only the operands the
+operator reads are kept. The root is a group, numbered 0, 1, 2 ... from the top
+down. `matches` gives the same rows for the settled rule as for the rule itself.
+
+    Rule.settled fields rule |> Rule.encode
+
+Send it with the rule that the user sees kept as it is: `settled` is for the
+server, not for the editor (rule 7 of the library: what the user typed stays).
 
 ### `encode`
 
@@ -998,7 +1132,8 @@ encode : Rule -> Json.Encode.Value
 ```
 
 The rule as JSON, for storing it or sending it to a backend. The ids of the
-nodes are not written; `decoder` gives the nodes new ones.
+nodes are not written; `decoder` gives the nodes new ones. For a server that
+filters, encode the `settled` rule.
 
     Encode.encode 0 (Rule.encode rule)
     -- {"type":"group","combinator":"all","not":false,"children":[
@@ -1010,9 +1145,11 @@ boolean) and `children`. A condition has a `type` ("condition"), a `field`, an
 `operator` and `values` (a list of texts).
 
 The operator is written as a short key. For most operators it is the name of the
-constructor with a lowercase first letter: "isNot", "startsWith", "onOrBefore",
-"inLastDays". The others are "eq", "neq", "lt", "lte", "gt" and "gte" (the number
-comparisons), "anyOf" and "noneOf", "empty" and "notEmpty", "true" and "false".
+constructor with a lowercase first letter: "is", "isNot", "startsWith",
+"notBetween", "onOrBefore", "inLastDays", "moreThanDaysAgo", "inPeriod". The
+others are "lt", "lte", "gt" and "gte" (the number comparisons), "anyOf" and
+"noneOf", "empty" and "notEmpty", "true" and "false". Equality is "is" and
+"isNot" for numbers too.
 
 ### `decoder`
 
@@ -1025,8 +1162,10 @@ fresh id: 0 for the root, then counting up from the top down.
 
     Decode.decodeString Rule.decoder text
 
-`not` may be left out of a group (meaning false), and a `combinator` other than
-"any" is read as "all". An unknown `type` or operator makes the decoder fail.
+`not` may be left out of a group (meaning false), `values` may be left out of a
+condition (meaning none), and a `combinator` other than "any" is read as "all".
+The keys "eq" and "neq" of earlier versions are read as `Is` and `IsNot`. An
+unknown `type` or operator makes the decoder fail.
 
 Groups nested more than 32 deep are refused (nobody writes that, and it keeps a
 hostile text from running the decoder out of stack). Check a limit of your own

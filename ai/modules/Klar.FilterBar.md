@@ -23,21 +23,21 @@ rule : State -> Rule.Rule
 setRule : Rule.Rule -> State -> State
 clear : State -> State
 isOpen : State -> Bool
-close : State -> State
+close : State -> ( State, Cmd Msg )
 
 -- Attributes
 type Attribute row msg  -- opaque: no constructors are exposed
 fields : List (Rule.Field row) -> Attribute row msg
 quick : List ( String, Rule.Rule ) -> Attribute row msg
 today : Date.Date -> Attribute row msg
-label : String -> Attribute row msg
+ariaLabel : String -> Attribute row msg
 addLabel : String -> Attribute row msg
 locale : Locale.Locale -> Attribute row msg
 
 -- Match count
-matchCount : Maybe Int -> Attribute row msg
+matchCount : Remote.Remote Int -> Attribute row msg
 totalCount : Int -> Attribute row msg
-counting : Bool -> Attribute row msg
+onRetry : msg -> Attribute row msg
 ```
 
 ## Documentation
@@ -51,6 +51,7 @@ Do not use when: users need nested groups of conditions (use `Klar.RuleBuilder`)
 Quick path: `init`, `update`, `view`, `rule`
 
     import Klar.FilterBar as FilterBar
+    import Klar.Remote as Remote
     import Klar.Rule as Rule
 
     -- model
@@ -68,7 +69,7 @@ Quick path: `init`, `update`, `view`, `rule`
     FilterBar.view FiltersMsg
         [ FilterBar.fields orderFields
         , FilterBar.quick [ ( "Unpaid", unpaid ), ( "Large orders", large ) ]
-        , FilterBar.matchCount (Just (List.length visible))
+        , FilterBar.matchCount (Remote.Loaded (List.length visible))
         , FilterBar.today today
         ]
         model.filters
@@ -80,15 +81,16 @@ Quick path: `init`, `update`, `view`, `rule`
     -- the presets are rules: "Status is Open" and "Total > 1000"
     unpaid : Rule.Rule
     unpaid =
-        Rule.ConditionRule { id = 0, field = "status", operator = Rule.Is, values = [ "open" ] }
+        Rule.is "status" "open"
 
     large : Rule.Rule
     large =
-        Rule.ConditionRule { id = 0, field = "total", operator = Rule.GreaterThan, values = [ "1000" ] }
+        Rule.when "total" Rule.GreaterThan [ "1000" ]
 
 `orderFields` is a `List (Rule.Field Order)` made with `Rule.textField` and
-friends. For a large data set the application can show `counting True` while it
-works out the count.
+friends. A count that takes time (a server, a large data set) is the `Remote` it
+is: `Loading` shows "Counting ...", `Remote.refresh` keeps the old count, dimmed,
+while the new one is on its way, and a failed count offers `onRetry`.
 
 The filters are a [Klar.Rule](Klar.Rule.md) `Rule`: a root group with one child for
 each chip, combined with "and". The same rule can be handed to `Rule.matches` or
@@ -102,15 +104,24 @@ what is there.
 Clicking a chip opens the editor for it, in a popover under the chip. The
 filter is only changed when the user applies it; a filter that is not complete
 is not added, and the editor says what is missing. A chip whose condition is not
-complete (possible after `setRule`) says so in its tooltip and does not filter.
+complete (possible after `setRule`) says so (to screen readers too) and does not
+filter. Removing a chip and "Clear all" can be undone with the "Undo" button that
+appears at the end of the bar. A preset whose rule does not fit the fields (a
+misspelled field id, an operator of another kind) is drawn disabled, with the
+problem as its tooltip, so the mistake shows at once.
 
-**Keyboard**: `Tab` moves through the pills, chips and buttons, and `Enter` or
-`Space` on a chip opens its editor. In the editor `Enter` in a text, number or
-choice field applies; in a date field `Enter` takes the date that was typed (and a
-second `Enter` opens the calendar), so apply a date filter with its "Add" (or "Apply") button.
-`Escape` closes it without applying and gives focus back to the chip or
-the add button (`Escape` in an open picker closes only the picker), and moving
-focus out of the editor closes it too.
+**Keyboard**: `Tab` moves through the pills and buttons; the chips are one stop.
+Among the chips `ArrowLeft` and `ArrowRight` move, `Home` and `End` go to the
+first and the last, `Enter` or `Space` opens the editor of a condition chip, and
+`Delete` or `Backspace` removes a chip (focus goes to its neighbour, and the
+removal can be undone). A group chip (a group made in a `RuleBuilder` or a
+preset) is edited where it was made: `Enter` does nothing on it, and it can only
+be removed. The remove buttons are for the mouse; they are not tab stops. In the editor `Enter` in a text or number
+field applies, and `Ctrl+Enter` (`Cmd+Enter` on a Mac) applies from any control,
+also from a choice or a date; in a date field `Enter` takes the date that was
+typed. `Escape` closes the editor without applying and gives focus back to the
+chip or the add button (`Escape` in an open picker closes only the picker), and
+moving focus out of the editor closes it too.
 
 **State and text**: the state holds the filters and the editor that is open,
 with the draft the user is working on. The built-in text follows `locale`, which
@@ -203,7 +214,8 @@ Closes the editor.
 clear : State -> State
 ```
 
-Removes every filter and closes the editor, like the "Clear all" button.
+Removes every filter and closes the editor. Unlike the "Clear all" button it
+does not offer to undo.
 
 ### `isOpen`
 
@@ -216,10 +228,14 @@ Is the filter editor open, for a new filter or for a chip?
 ### `close`
 
 ```elm
-close : State -> State
+close : State -> ( State, Cmd Msg )
 ```
 
-Closes the filter editor without applying what the user has entered.
+Closes the filter editor without applying what the user has entered, and
+gives focus back to the chip or the add button it was opened from (as `Escape`
+does). Map the command with the constructor you wrap the bar's messages in.
+
+    FilterBar.close model.filters
 
 ## Attributes
 
@@ -261,7 +277,9 @@ a name and a `Rule`.
 A pill is on when the conditions of its rule are among the filters. Turning it
 on adds them (the ones that are missing), turning it off removes them. A preset
 that is an "all of" group adds each of its conditions as a chip of its own; any
-other preset is added as one chip. The ids of a preset do not matter.
+other preset is added as one chip. The ids of a preset do not matter. A preset
+that `Rule.validate` finds a problem in, for the fields of the bar, is drawn
+disabled with the problem as its tooltip.
 
 ### `today`
 
@@ -273,13 +291,13 @@ Today's date, for the date picker in the editor: it marks the day, powers its
 "Today" button and completes short input. It does not change what the filters
 match; give the same date to `Rule.matches`.
 
-### `label`
+### `ariaLabel`
 
 ```elm
-label : String -> Attribute row msg
+ariaLabel : String -> Attribute row msg
 ```
 
-The accessible name of the bar. The default is "Filters".
+The name of the bar for screen readers. The default is "Filters".
 
 ### `addLabel`
 
@@ -304,12 +322,24 @@ labels and choices come from the application.
 ### `matchCount`
 
 ```elm
-matchCount : Maybe Int -> Attribute row msg
+matchCount : Remote.Remote Int -> Attribute row msg
 ```
 
-How many rows the filters let through, counted by the application (for
-example with `Rule.matches`). Shown at the end of the bar as "1,482 matches".
-`Nothing`, the default, shows no count.
+How many rows the filters let through, shown at the end of the bar as
+"1,482 matches". Give `Remote.Loaded n` for a count you have (`Rule.matches`), or
+the `Remote` of a count that takes time:
+
+  - `Loading`: a spinner and "Counting ...".
+  - `Failed`: "The count failed", with a retry button when there is `onRetry`.
+  - Refreshing (`Remote.refresh` of a count): the old count stays, dimmed, with
+    a spinner.
+  - Old (`Remote.Kept` after a failed refresh): the old count, marked old, with
+    the retry; while that retry runs the button stays, busy, and keeps focus.
+
+`NotAsked`, the default, shows no count. The count is in a polite live region,
+which is in the page from the start, so a screen reader hears the first count too.
+
+    FilterBar.matchCount (Remote.Loaded (List.length visible))
 
 ### `totalCount`
 
@@ -320,12 +350,11 @@ totalCount : Int -> Attribute row msg
 The number of rows before filtering. With a `matchCount` the count reads
 "1,482 of 3,000 matches". Without a `matchCount` nothing is shown.
 
-### `counting`
+### `onRetry`
 
 ```elm
-counting : Bool -> Attribute row msg
+onRetry : msg -> Attribute row msg
 ```
 
-While `True` the bar shows a spinner and "Running ..." instead of the count
-(also when there is no `matchCount` yet), for a large data set that takes time to
-filter. The default is `False`.
+The message of the retry button that a failed or old `matchCount` shows.
+Without it there is no retry button.

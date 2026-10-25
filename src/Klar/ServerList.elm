@@ -675,20 +675,15 @@ viewTable toMsg attributes (State inner) =
         inner.table
 
 
-{-| The filter bar. It gets the match count (while the answer is fresh) and the
-"counting" mark (while it is on its way); give it `FilterBar.fields` and the rest.
+{-| The filter bar. It gets the match count, in the state of the rows (counting
+while the first answer is on its way, the old count dimmed while a new one is,
+a retry when it failed); give it `FilterBar.fields` and the rest.
 -}
 viewFilterBar : (Msg row -> msg) -> List (FilterBar.Attribute r msg) -> State id row -> Html msg
 viewFilterBar toMsg attributes (State inner) =
     FilterBar.view (FilterBarMsg >> toMsg)
-        ([ FilterBar.matchCount
-            (if Remote.isLoaded inner.rows then
-                Just inner.total
-
-             else
-                Nothing
-            )
-         , FilterBar.counting (Remote.isRefreshing inner.rows || Remote.isLoading inner.rows)
+        ([ FilterBar.matchCount (Remote.map (\_ -> inner.total) inner.rows)
+         , FilterBar.onRetry (toMsg Refresh)
          ]
             ++ attributes
         )

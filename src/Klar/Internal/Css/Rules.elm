@@ -72,6 +72,7 @@ css =
   --_indent: 18px;  /* from the trunk to the child: elbow + air */
   --_gap: 18px;     /* between siblings, room for the quiet "og" / "eller" */
   --_lead: 5px;     /* from the chevron's lower edge to the first child */
+  --_nest: var(--klar-space-1);  /* the top and left padding of a nested group */
   min-width: 0;
   background: var(--klar-surface);
   border: 1px solid var(--klar-border);
@@ -91,7 +92,7 @@ css =
 }
 
 .klar-rules__group--nested {
-  padding: 4px 8px 8px 4px;
+  padding: var(--_nest) calc(var(--_nest) + var(--klar-space-1)) calc(var(--_nest) + var(--klar-space-1)) var(--_nest);
   border: 1px solid var(--klar-border);
   border-radius: var(--klar-radius);
 }
@@ -107,7 +108,7 @@ css =
   flex-wrap: wrap;
   align-items: center;
   gap: 4px 8px;
-  min-height: 28px;
+  min-height: max(28px, var(--klar-control-sm));
   min-width: 0;
 }
 
@@ -166,9 +167,9 @@ css =
 .klar-rules__child:first-child { margin-top: var(--_lead); }
 .klar-rules__child + .klar-rules__child { margin-top: var(--_gap); }
 
-.klar-rules__child--condition { --_elbow: 16px; }  /* middle of a 32px control */
-.klar-rules__child--group { --_elbow: 19px; }      /* middle of a nested group's header */
-.klar-rules__child--add { --_elbow: 13px; }        /* middle of a 26px button */
+.klar-rules__child--condition { --_elbow: calc(var(--klar-control) / 2); }  /* middle of a control, at every density */
+.klar-rules__child--group { --_elbow: calc(1px + var(--_nest) + max(28px, var(--klar-control-sm)) / 2); } /* middle of a nested group's header: border, padding, half the header */
+.klar-rules__child--add { --_elbow: calc(var(--klar-control-sm) / 2); }     /* middle of a small button */
 
 /* the trunk piece next to a child: up to its previous sibling (or the
    chevron), down to the next sibling, or only to the elbow for the last */
@@ -200,10 +201,10 @@ css =
   border-top: 1px solid var(--_line);
 }
 
-/* "og" / "eller" sits on the trunk between two siblings */
+/* "og" / "eller" sits on the trunk between two siblings; it comes after the
+   trunk piece of its own child in the page, so it is drawn over the line */
 .klar-rules__joiner {
   position: absolute;
-  z-index: 1;
   top: calc(var(--_gap) / -2);
   left: 0;
   padding: 0 3px;
@@ -443,6 +444,31 @@ css =
   gap: 6px;
 }
 
+/* Density: the tree, the header lines and the footer follow the application */
+:where([data-klar-density="compact"]) .klar-rules {
+  --_gap: calc(var(--klar-space-3) + var(--klar-space-1) / 2);
+  --_lead: calc(var(--klar-space-1) * 0.75);
+  --_nest: calc(var(--klar-space-1) / 2);
+}
+:where([data-klar-density="compact"]) .klar-rules__group--root { padding: var(--klar-space-2) var(--klar-space-2) var(--klar-space-2) calc(var(--klar-space-1) * 1.5); }
+:where([data-klar-density="compact"]) .klar-rules__footer { gap: var(--klar-space-1); padding: calc(var(--klar-space-1) * 1.5) calc(var(--klar-space-1) * 2.5); }
+:where([data-klar-density="comfortable"]) .klar-rules {
+  --_gap: calc(var(--klar-space-5) + var(--klar-space-1) / 2);
+  --_lead: calc(var(--klar-space-1) * 1.75);
+  --_nest: calc(var(--klar-space-1) * 1.5);
+}
+:where([data-klar-density="comfortable"]) .klar-rules__group--root { padding: calc(var(--klar-space-3) + var(--klar-space-1) / 2) var(--klar-space-4) var(--klar-space-4) calc(var(--klar-space-3) + var(--klar-space-1) / 2); }
+:where([data-klar-density="comfortable"]) .klar-rules__footer { gap: var(--klar-space-2); padding: calc(var(--klar-space-1) * 2.5) var(--klar-space-4); }
+
+/* Forced colors: the states that are only a color or a shadow get a system color */
+@media (forced-colors: active) {
+  .klar-rules__group--invalid { border: 2px dashed CanvasText; }
+  .klar-rules__json:focus-visible,
+  .klar-rules__import:focus { outline: 2px solid Highlight; outline-offset: 1px; }
+  .klar-rules__import--invalid { border: 2px dashed CanvasText; }
+  .klar-rules__issue { color: CanvasText; }
+}
+
 /* ---- Filter bar --------------------------------------------------------- */
 
 .klar-filterbar {
@@ -510,6 +536,15 @@ css =
 
 .klar-filterbar__pill--on .klar-filterbar__pill-check { color: var(--klar-blue-600); }
 .klar-filterbar__pill--on:hover { border-color: var(--klar-blue-400); color: var(--klar-blue-800); }
+
+/* A preset that does not fit the fields: drawn, but it cannot be turned on */
+.klar-filterbar__pill--invalid,
+.klar-filterbar__pill--invalid:hover {
+  border-style: dashed;
+  border-color: var(--klar-border-strong);
+  color: var(--klar-text-muted);
+  cursor: not-allowed;
+}
 
 .klar-filterbar__divider {
   width: 1px;
@@ -651,11 +686,13 @@ css =
   font-weight: var(--klar-weight-bold);
 }
 
-/* While the application counts: a spinner in front of the text. */
-.klar-filterbar__count--running {
+/* The offer to undo a removal, in a status region that is always in the page */
+.klar-filterbar__undo {
   display: inline-flex;
   align-items: center;
-  gap: 6px;
+  gap: var(--klar-space-2);
+  color: var(--klar-text-secondary);
+  font-size: var(--klar-text-sm);
 }
 
 /* The editor popover */
@@ -718,6 +755,59 @@ css =
 
 .klar-filterbar__popup-footer > .klar-button--ghost { margin-left: -8px; }
 .klar-filterbar__spacer { flex: 1 1 auto; }
+
+:where([data-klar-density="compact"]) .klar-filterbar { gap: var(--klar-space-1); }
+:where([data-klar-density="compact"]) .klar-filterbar__popup { gap: var(--klar-space-2); }
+:where([data-klar-density="comfortable"]) .klar-filterbar { gap: var(--klar-space-2); }
+:where([data-klar-density="comfortable"]) .klar-filterbar__popup { gap: var(--klar-space-3); }
+
+@media (forced-colors: active) {
+  .klar-filterbar__pill--on { border: 2px solid Highlight; }
+  .klar-filterbar__pill--on .klar-filterbar__pill-check { color: Highlight; }
+  .klar-filterbar__pill:focus-visible { outline: 2px solid Highlight; outline-offset: 1px; }
+  .klar-filterbar__pill--invalid { color: GrayText; border-color: GrayText; }
+  .klar-filterbar__chip--open { outline: 2px solid Highlight; outline-offset: 1px; }
+  .klar-filterbar__chip-main:focus-visible,
+  .klar-filterbar__chip-remove:focus-visible { outline-color: Highlight; }
+  .klar-filterbar__issue { color: CanvasText; }
+}
+
+/* ---- Match count (rule builder and filter bar) -------------------------- */
+
+.klar-rule-count {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--klar-space-2);
+  min-width: 0;
+}
+
+.klar-rule-count__text {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  white-space: nowrap;
+}
+
+/* the old count stays while the new one is worked out, dimmed */
+.klar-rule-count--refreshing .klar-rule-count__text > strong { opacity: 0.6; }
+
+.klar-rule-count__problem {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--klar-space-1);
+  color: var(--klar-danger);
+}
+
+.klar-rule-count__problem .klar-icon { --klar-icon-size: 13px; }
+
+.klar-rule-count__old {
+  color: var(--klar-text-muted);
+  font-size: var(--klar-text-xs);
+}
+
+@media (forced-colors: active) {
+  .klar-rule-count__problem { color: CanvasText; }
+}
 
 /* ---- Saved views -------------------------------------------------------- */
 

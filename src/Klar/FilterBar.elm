@@ -2,8 +2,8 @@ module Klar.FilterBar exposing
     ( view
     , State, init, Msg, update
     , rule, setRule, clear, isOpen, close
-    , Attribute, fields, quick, today, label, addLabel, locale
-    , matchCount, totalCount, counting
+    , Attribute, fields, quick, today, ariaLabel, addLabel, locale
+    , matchCount, totalCount, onRetry
     )
 
 {-| Quick filters above a table: the conditions that are on, shown as chips
@@ -15,6 +15,7 @@ Do not use when: users need nested groups of conditions (use `Klar.RuleBuilder`)
 Quick path: `init`, `update`, `view`, `rule`
 
     import Klar.FilterBar as FilterBar
+    import Klar.Remote as Remote
     import Klar.Rule as Rule
 
     -- model
@@ -32,7 +33,7 @@ Quick path: `init`, `update`, `view`, `rule`
     FilterBar.view FiltersMsg
         [ FilterBar.fields orderFields
         , FilterBar.quick [ ( "Unpaid", unpaid ), ( "Large orders", large ) ]
-        , FilterBar.matchCount (Just (List.length visible))
+        , FilterBar.matchCount (Remote.Loaded (List.length visible))
         , FilterBar.today today
         ]
         model.filters
@@ -44,15 +45,16 @@ Quick path: `init`, `update`, `view`, `rule`
     -- the presets are rules: "Status is Open" and "Total > 1000"
     unpaid : Rule.Rule
     unpaid =
-        Rule.ConditionRule { id = 0, field = "status", operator = Rule.Is, values = [ "open" ] }
+        Rule.is "status" "open"
 
     large : Rule.Rule
     large =
-        Rule.ConditionRule { id = 0, field = "total", operator = Rule.GreaterThan, values = [ "1000" ] }
+        Rule.when "total" Rule.GreaterThan [ "1000" ]
 
 `orderFields` is a `List (Rule.Field Order)` made with `Rule.textField` and
-friends. For a large data set the application can show `counting True` while it
-works out the count.
+friends. A count that takes time (a server, a large data set) is the `Remote` it
+is: `Loading` shows "Counting ...", `Remote.refresh` keeps the old count, dimmed,
+while the new one is on its way, and a failed count offers `onRetry`.
 
 The filters are a [Klar.Rule](Klar-Rule) `Rule`: a root group with one child for
 each chip, combined with "and". The same rule can be handed to `Rule.matches` or
@@ -66,15 +68,24 @@ what is there.
 Clicking a chip opens the editor for it, in a popover under the chip. The
 filter is only changed when the user applies it; a filter that is not complete
 is not added, and the editor says what is missing. A chip whose condition is not
-complete (possible after `setRule`) says so in its tooltip and does not filter.
+complete (possible after `setRule`) says so (to screen readers too) and does not
+filter. Removing a chip and "Clear all" can be undone with the "Undo" button that
+appears at the end of the bar. A preset whose rule does not fit the fields (a
+misspelled field id, an operator of another kind) is drawn disabled, with the
+problem as its tooltip, so the mistake shows at once.
 
-**Keyboard**: `Tab` moves through the pills, chips and buttons, and `Enter` or
-`Space` on a chip opens its editor. In the editor `Enter` in a text, number or
-choice field applies; in a date field `Enter` takes the date that was typed (and a
-second `Enter` opens the calendar), so apply a date filter with its "Add" (or "Apply") button.
-`Escape` closes it without applying and gives focus back to the chip or
-the add button (`Escape` in an open picker closes only the picker), and moving
-focus out of the editor closes it too.
+**Keyboard**: `Tab` moves through the pills and buttons; the chips are one stop.
+Among the chips `ArrowLeft` and `ArrowRight` move, `Home` and `End` go to the
+first and the last, `Enter` or `Space` opens the editor of a condition chip, and
+`Delete` or `Backspace` removes a chip (focus goes to its neighbour, and the
+removal can be undone). A group chip (a group made in a `RuleBuilder` or a
+preset) is edited where it was made: `Enter` does nothing on it, and it can only
+be removed. The remove buttons are for the mouse; they are not tab stops. In the editor `Enter` in a text or number
+field applies, and `Ctrl+Enter` (`Cmd+Enter` on a Mac) applies from any control,
+also from a choice or a date; in a date field `Enter` takes the date that was
+typed. `Escape` closes the editor without applying and gives focus back to the
+chip or the add button (`Escape` in an open picker closes only the picker), and
+moving focus out of the editor closes it too.
 
 **State and text**: the state holds the filters and the editor that is open,
 with the draft the user is working on. The built-in text follows `locale`, which
@@ -98,12 +109,12 @@ is English by default; field labels and choices come from the application.
 
 # Attributes
 
-@docs Attribute, fields, quick, today, label, addLabel, locale
+@docs Attribute, fields, quick, today, ariaLabel, addLabel, locale
 
 
 # Match count
 
-@docs matchCount, totalCount, counting
+@docs matchCount, totalCount, onRetry
 
 -}
 
@@ -112,15 +123,14 @@ import Html.Attributes as Attr
 import Html.Events as Events
 import Klar.Button as Button
 import Klar.Date exposing (Date)
-import Klar.Format as Format
 import Klar.Icon as Icon
 import Klar.Internal as Internal
 import Klar.Locale as Locale exposing (Locale)
+import Klar.Remote exposing (Remote(..))
 import Klar.Rule as Rule exposing (Combinator(..), Condition, Field, Group, Operator(..), Rule(..))
+import Klar.RuleBuilder.Count as Count
 import Klar.RuleBuilder.Editor as Editor
 import Klar.RuleBuilder.Support as Support
-import Klar.Spinner as Spinner
-import Klar.Theme as Theme
 
 
 
@@ -140,6 +150,17 @@ type alias Inner =
     , rule : Rule
     , editing : Maybe Editing
     , controls : Editor.Controls
+    , undo : Maybe Undo
+    , current : Maybe Int
+    }
+
+
+{-| The filters before the last removal, and where focus goes when they come back.
+-}
+type alias Undo =
+    { rule : Rule
+    , cleared : Bool
+    , focus : String
     }
 
 
@@ -168,6 +189,8 @@ init id =
         , rule = Rule.emptyGroup
         , editing = Nothing
         , controls = Editor.emptyControls (draftPrefix id)
+        , undo = Nothing
+        , current = Nothing
         }
 
 
@@ -188,14 +211,15 @@ Closes the editor.
 -}
 setRule : Rule -> State -> State
 setRule newRule (State s) =
-    State { s | rule = Support.normalize newRule, editing = Nothing }
+    State { s | rule = Support.normalize newRule, editing = Nothing, undo = Nothing }
 
 
-{-| Removes every filter and closes the editor, like the "Clear all" button.
+{-| Removes every filter and closes the editor. Unlike the "Clear all" button it
+does not offer to undo.
 -}
 clear : State -> State
 clear (State s) =
-    State { s | rule = Rule.emptyGroup, editing = Nothing }
+    State { s | rule = Rule.emptyGroup, editing = Nothing, undo = Nothing }
 
 
 {-| Is the filter editor open, for a new filter or for a chip?
@@ -205,11 +229,16 @@ isOpen (State s) =
     s.editing /= Nothing
 
 
-{-| Closes the filter editor without applying what the user has entered.
+{-| Closes the filter editor without applying what the user has entered, and
+gives focus back to the chip or the add button it was opened from (as `Escape`
+does). Map the command with the constructor you wrap the bar's messages in.
+
+    FilterBar.close model.filters
+
 -}
-close : State -> State
-close (State s) =
-    State { s | editing = Nothing }
+close : State -> ( State, Cmd Msg )
+close state =
+    update Cancelled state
 
 
 rootGroup : Rule -> Group
@@ -348,6 +377,9 @@ type Msg
     | Left
     | RemovedInEditor
     | ClearedAll
+    | UndoClicked
+    | ChipFocused Int
+    | MovedTo Int
     | NoOp
 
 
@@ -397,7 +429,7 @@ update msg (State s) =
             removeFilter id (neighbourFocus id s) s
 
         PresetToggled preset ->
-            ( State { s | rule = togglePreset preset s.rule, editing = Nothing }, Cmd.none )
+            ( State { s | rule = togglePreset preset s.rule, editing = Nothing, undo = Nothing }, Cmd.none )
 
         EditorMsg inner ->
             case s.editing of
@@ -434,12 +466,12 @@ update msg (State s) =
                     else
                         case editing.target of
                             NewFilter ->
-                                ( State { s | rule = addFilter (ConditionRule editing.draft) s.rule, editing = Nothing }
+                                ( State { s | rule = addFilter (ConditionRule editing.draft) s.rule, editing = Nothing, undo = Nothing }
                                 , Internal.focus (addDomId s.id) NoOp
                                 )
 
                             ExistingFilter id ->
-                                ( State { s | rule = Support.replaceCondition editing.draft s.rule, editing = Nothing }
+                                ( State { s | rule = Support.replaceCondition editing.draft s.rule, editing = Nothing, undo = Nothing }
                                 , Internal.focus (chipDomId s.id id) NoOp
                                 )
 
@@ -471,7 +503,32 @@ update msg (State s) =
                     ( State { s | editing = Nothing }, Internal.focus (addDomId s.id) NoOp )
 
         ClearedAll ->
-            ( State { s | rule = Rule.emptyGroup, editing = Nothing }, Internal.focus (addDomId s.id) NoOp )
+            if Rule.isEmpty s.rule && List.isEmpty (rootGroup s.rule).children then
+                ( State s, Cmd.none )
+
+            else
+                ( State
+                    { s
+                        | rule = Rule.emptyGroup
+                        , editing = Nothing
+                        , undo = Just { rule = s.rule, cleared = True, focus = addDomId s.id }
+                    }
+                , Internal.focus (undoDomId s.id) NoOp
+                )
+
+        ChipFocused id ->
+            ( State { s | current = Just id }, Cmd.none )
+
+        MovedTo id ->
+            ( State { s | current = Just id }, Internal.focus (chipDomId s.id id) NoOp )
+
+        UndoClicked ->
+            case s.undo of
+                Just undo ->
+                    ( State { s | rule = undo.rule, undo = Nothing, editing = Nothing }, Internal.focus undo.focus NoOp )
+
+                Nothing ->
+                    ( State s, Cmd.none )
 
         NoOp ->
             ( State s, Cmd.none )
@@ -479,6 +536,11 @@ update msg (State s) =
 
 removeFilter : Int -> String -> Inner -> ( State, Cmd Msg )
 removeFilter id focusId s =
+    let
+        -- the chip comes back where it was, and so does focus
+        back =
+            chipDomId s.id id
+    in
     ( State
         { s
             | rule = Rule.remove id s.rule
@@ -488,6 +550,7 @@ removeFilter id focusId s =
 
                 else
                     s.editing
+            , undo = Just { rule = s.rule, cleared = False, focus = back }
         }
     , Internal.focus focusId NoOp
     )
@@ -522,11 +585,8 @@ neighbourFocus id s =
                     List.head (List.drop (index - 1) others)
     in
     case neighbour of
-        Just (ConditionRule condition) ->
-            chipDomId s.id condition.id
-
-        Just (GroupRule group) ->
-            chipDomId s.id group.id ++ "-remove"
+        Just next ->
+            chipDomId s.id (Rule.idOf next)
 
         Nothing ->
             addDomId s.id
@@ -556,6 +616,11 @@ popupDomId id =
     id ++ "-popup"
 
 
+undoDomId : String -> String
+undoDomId id =
+    id ++ "-undo"
+
+
 
 -- ATTRIBUTES
 
@@ -565,33 +630,33 @@ list to `view`; later attributes win over earlier ones. The type parameters are
 the row type of your fields and your message type.
 -}
 type Attribute row msg
-    = Attribute (Config row -> Config row)
+    = Attribute (Config row msg -> Config row msg)
 
 
-type alias Config row =
+type alias Config row msg =
     { fields : List (Field row)
     , locale : Locale
     , quick : List ( String, Rule )
-    , matchCount : Maybe Int
+    , matchCount : Remote Int
     , totalCount : Maybe Int
-    , counting : Bool
+    , onRetry : Maybe msg
     , today : Maybe Date
-    , label : Maybe String
+    , ariaLabel : Maybe String
     , addLabel : Maybe String
     }
 
 
-configure : List (Attribute row msg) -> Config row
+configure : List (Attribute row msg) -> Config row msg
 configure attributes =
     List.foldl (\(Attribute change) config -> change config)
         { fields = []
         , locale = Locale.default
         , quick = []
-        , matchCount = Nothing
+        , matchCount = NotAsked
         , totalCount = Nothing
-        , counting = False
+        , onRetry = Nothing
         , today = Nothing
-        , label = Nothing
+        , ariaLabel = Nothing
         , addLabel = Nothing
         }
         attributes
@@ -628,7 +693,9 @@ a name and a `Rule`.
 A pill is on when the conditions of its rule are among the filters. Turning it
 on adds them (the ones that are missing), turning it off removes them. A preset
 that is an "all of" group adds each of its conditions as a chip of its own; any
-other preset is added as one chip. The ids of a preset do not matter.
+other preset is added as one chip. The ids of a preset do not matter. A preset
+that `Rule.validate` finds a problem in, for the fields of the bar, is drawn
+disabled with the problem as its tooltip.
 
 -}
 quick : List ( String, Rule ) -> Attribute row msg
@@ -636,11 +703,24 @@ quick value =
     Attribute (\config -> { config | quick = value })
 
 
-{-| How many rows the filters let through, counted by the application (for
-example with `Rule.matches`). Shown at the end of the bar as "1,482 matches".
-`Nothing`, the default, shows no count.
+{-| How many rows the filters let through, shown at the end of the bar as
+"1,482 matches". Give `Remote.Loaded n` for a count you have (`Rule.matches`), or
+the `Remote` of a count that takes time:
+
+  - `Loading`: a spinner and "Counting ...".
+  - `Failed`: "The count failed", with a retry button when there is `onRetry`.
+  - Refreshing (`Remote.refresh` of a count): the old count stays, dimmed, with
+    a spinner.
+  - Old (`Remote.Kept` after a failed refresh): the old count, marked old, with
+    the retry; while that retry runs the button stays, busy, and keeps focus.
+
+`NotAsked`, the default, shows no count. The count is in a polite live region,
+which is in the page from the start, so a screen reader hears the first count too.
+
+    FilterBar.matchCount (Remote.Loaded (List.length visible))
+
 -}
-matchCount : Maybe Int -> Attribute row msg
+matchCount : Remote Int -> Attribute row msg
 matchCount value =
     Attribute (\config -> { config | matchCount = value })
 
@@ -653,13 +733,12 @@ totalCount value =
     Attribute (\config -> { config | totalCount = Just value })
 
 
-{-| While `True` the bar shows a spinner and "Running ..." instead of the count
-(also when there is no `matchCount` yet), for a large data set that takes time to
-filter. The default is `False`.
+{-| The message of the retry button that a failed or old `matchCount` shows.
+Without it there is no retry button.
 -}
-counting : Bool -> Attribute row msg
-counting value =
-    Attribute (\config -> { config | counting = value })
+onRetry : msg -> Attribute row msg
+onRetry msg =
+    Attribute (\config -> { config | onRetry = Just msg })
 
 
 {-| Today's date, for the date picker in the editor: it marks the day, powers its
@@ -671,11 +750,11 @@ today value =
     Attribute (\config -> { config | today = Just value })
 
 
-{-| The accessible name of the bar. The default is "Filters".
+{-| The name of the bar for screen readers. The default is "Filters".
 -}
-label : String -> Attribute row msg
-label value =
-    Attribute (\config -> { config | label = Just value })
+ariaLabel : String -> Attribute row msg
+ariaLabel value =
+    Attribute (\config -> { config | ariaLabel = Just value })
 
 
 {-| The text of the add button. The default is "Add filter".
@@ -691,7 +770,7 @@ addLabel value =
 
 type alias Ctx row msg =
     { toMsg : Msg -> msg
-    , config : Config row
+    , config : Config row msg
     , state : Inner
     , texts : Texts
     }
@@ -727,7 +806,7 @@ view toMsg attributes (State s) =
         [ Internal.cls [ "klar-filterbar" ]
         , Attr.id s.id
         , Attr.attribute "role" "group"
-        , Attr.attribute "aria-label" (Maybe.withDefault t.filters config.label)
+        , Attr.attribute "aria-label" (Maybe.withDefault t.filters config.ariaLabel)
         ]
         [ viewPresets ctx
         , viewPrefix ctx root
@@ -742,6 +821,7 @@ view toMsg attributes (State s) =
             Button.view
                 [ Button.ghost
                 , Button.small
+                , Button.id (s.id ++ "-clear")
                 , Button.onClick (toMsg ClearedAll)
                 ]
                 t.clearAll
@@ -749,6 +829,29 @@ view toMsg attributes (State s) =
           else
             Html.text ""
         , viewCount ctx
+        , Html.span [ Internal.cls [ "klar-filterbar__undo" ], Attr.attribute "role" "status" ]
+            (case s.undo of
+                Just undo ->
+                    [ Html.span []
+                        [ Html.text
+                            (if undo.cleared then
+                                t.cleared
+
+                             else
+                                t.removed
+                            )
+                        ]
+                    , Button.view
+                        [ Button.link
+                        , Button.id (undoDomId s.id)
+                        , Button.onClick (toMsg UndoClicked)
+                        ]
+                        t.undo
+                    ]
+
+                Nothing ->
+                    []
+            )
         ]
 
 
@@ -769,12 +872,22 @@ viewPresets ctx =
                         let
                             on =
                                 isPresetOn preset ctx.state.rule
+
+                            problem =
+                                Rule.validate ctx.config.locale ctx.config.fields (Support.normalize preset)
+                                    |> List.head
+                                    |> Maybe.map .message
                         in
                         Html.button
                             [ Internal.cls
                                 [ "klar-filterbar__pill"
                                 , if on then
                                     "klar-filterbar__pill--on"
+
+                                  else
+                                    ""
+                                , if problem /= Nothing then
+                                    "klar-filterbar__pill--invalid"
 
                                   else
                                     ""
@@ -788,6 +901,8 @@ viewPresets ctx =
                                  else
                                     "false"
                                 )
+                            , Attr.disabled (problem /= Nothing)
+                            , Internal.attrMaybe (\message -> Attr.title (name ++ ": " ++ message)) problem
                             , Events.onClick (ctx.toMsg (PresetToggled preset))
                             ]
                             [ Html.span [ Internal.cls [ "klar-filterbar__pill-check" ] ] [ Icon.sized Icon.ExtraSmall Icon.check ]
@@ -859,6 +974,63 @@ viewChip ctx root index child =
             else
                 Html.text ""
 
+        ids =
+            List.map Rule.idOf root.children
+
+        -- one chip is the tab stop: the one the user was on, else the first
+        currentId =
+            case s.current of
+                Just id ->
+                    if List.member id ids then
+                        id
+
+                    else
+                        List.head ids |> Maybe.withDefault -1
+
+                Nothing ->
+                    List.head ids |> Maybe.withDefault -1
+
+        roving id =
+            let
+                at offset =
+                    List.drop (index + offset) ids |> List.head
+
+                move key target =
+                    Maybe.map (\other -> ( key, ctx.toMsg (MovedTo other) )) target
+            in
+            [ Attr.tabindex
+                (if id == currentId then
+                    0
+
+                 else
+                    -1
+                )
+            , Events.onFocus (ctx.toMsg (ChipFocused id))
+            , Internal.onKeys
+                (List.filterMap identity
+                    [ if index > 0 then
+                        move "ArrowLeft" (at -1)
+
+                      else
+                        Nothing
+                    , move "ArrowRight" (at 1)
+                    , if index > 0 then
+                        move "Home" (List.head ids)
+
+                      else
+                        Nothing
+                    , if index < List.length ids - 1 then
+                        move "End" (List.reverse ids |> List.head)
+
+                      else
+                        Nothing
+                    , Just ( "Delete", ctx.toMsg (ChipRemoved id) )
+                    , Just ( "Backspace", ctx.toMsg (ChipRemoved id) )
+                    ]
+                )
+            ]
+
+        -- for the mouse: the keyboard removes a chip with Delete
         removeButton id name =
             Html.button
                 [ Internal.cls [ "klar-filterbar__chip-remove" ]
@@ -867,6 +1039,7 @@ viewChip ctx root index child =
                 , Attr.attribute "aria-label" (t.removeFilter ++ ": " ++ name)
                 , Attr.title (t.removeFilter ++ ": " ++ name)
                 , Events.onClick (ctx.toMsg (ChipRemoved id))
+                , Attr.tabindex -1
                 ]
                 [ Icon.sized Icon.ExtraSmall Icon.close ]
     in
@@ -905,23 +1078,27 @@ viewChip ctx root index child =
                             ]
                         ]
                         [ Html.button
-                            [ Internal.cls [ "klar-filterbar__chip-main" ]
-                            , Attr.type_ "button"
-                            , Attr.id (chipDomId s.id condition.id)
-                            , Attr.title title
-                            , Attr.attribute "aria-haspopup" "dialog"
-                            , Attr.attribute "aria-expanded"
+                            ([ Internal.cls [ "klar-filterbar__chip-main" ]
+                             , Attr.type_ "button"
+                             , Attr.id (chipDomId s.id condition.id)
+                             , Attr.title title
+                             , Attr.attribute "aria-haspopup" "dialog"
+                             , Attr.attribute "aria-expanded"
                                 (if open then
                                     "true"
 
                                  else
                                     "false"
                                 )
-                            , Events.onClick
+                             , Internal.attrIf open (Attr.attribute "aria-controls" (popupDomId s.id))
+                             , Attr.attribute "aria-keyshortcuts" "Delete"
+                             , Events.onClick
                                 (ctx.toMsg
                                     (ChipOpened condition.id (Editor.focusDomId (draftPrefix s.id) config.fields condition))
                                 )
-                            ]
+                             ]
+                                ++ roving condition.id
+                            )
                             [ Html.span [ Internal.cls [ "klar-filterbar__chip-field" ] ] [ Html.text parts.field ]
                             , if parts.operator /= "" then
                                 Html.span [ Internal.cls [ "klar-filterbar__chip-op" ] ] [ Html.text parts.operator ]
@@ -933,6 +1110,11 @@ viewChip ctx root index child =
 
                               else
                                 Html.text ""
+                            , if parts.complete then
+                                Html.text ""
+
+                              else
+                                Html.span [ Internal.cls [ "klar-sr-only" ] ] [ Html.text (" (" ++ t.incomplete ++ ")") ]
                             ]
                         , removeButton condition.id title
                         ]
@@ -953,16 +1135,46 @@ viewChip ctx root index child =
                     words =
                         Rule.describe config.locale config.fields (GroupRule group)
 
+                    -- nothing in the group filters: it reads "All rows", which is no filter
+                    complete =
+                        not (Rule.isEmpty (Rule.settled config.fields (GroupRule group)))
+
                     described =
-                        if group.negated then
+                        if not complete then
+                            t.emptyGroup ++ " (" ++ t.incomplete ++ ")"
+
+                        else if group.negated then
                             -- already reads "not (...)"
                             words
 
                         else
                             "(" ++ words ++ ")"
                 in
-                Html.span [ Internal.cls [ "klar-filterbar__chip", "klar-filterbar__chip--group" ] ]
-                    [ Html.span [ Internal.cls [ "klar-filterbar__chip-main", "klar-filterbar__chip-main--static" ], Attr.title described ]
+                Html.span
+                    [ Internal.cls
+                        [ "klar-filterbar__chip"
+                        , "klar-filterbar__chip--group"
+                        , if complete then
+                            ""
+
+                          else
+                            "klar-filterbar__chip--incomplete"
+                        ]
+                    ]
+                    -- The group is edited where it was made (a RuleBuilder, a preset): its
+                    -- main part is the chip's tab stop, a button that is unavailable,
+                    -- so Enter does nothing, and Delete removes the group as on any chip.
+                    [ Html.span
+                        ([ Internal.cls [ "klar-filterbar__chip-main", "klar-filterbar__chip-main--static" ]
+                         , Attr.id (chipDomId s.id group.id)
+                         , Attr.attribute "role" "button"
+                         , Attr.attribute "aria-disabled" "true"
+                         , Attr.attribute "aria-label" described
+                         , Attr.attribute "aria-keyshortcuts" "Delete"
+                         , Attr.title described
+                         ]
+                            ++ roving group.id
+                        )
                         [ Html.span [ Internal.cls [ "klar-filterbar__chip-value" ] ] [ Html.text described ] ]
                     , removeButton group.id described
                     ]
@@ -984,7 +1196,10 @@ viewAdd ctx =
             , Button.icon Icon.plus
             , Button.id (addDomId s.id)
             , Button.expanded open
-            , Button.htmlAttrs [ Attr.attribute "aria-haspopup" "dialog" ]
+            , Button.htmlAttrs
+                [ Attr.attribute "aria-haspopup" "dialog"
+                , Internal.attrIf open (Attr.attribute "aria-controls" (popupDomId s.id))
+                ]
             , Button.onClick (ctx.toMsg AddOpened)
             ]
             (Maybe.withDefault ctx.texts.addFilter ctx.config.addLabel)
@@ -1017,8 +1232,7 @@ viewPopup ctx editing =
             editing.draft
 
         issues =
-            Editor.extraIssues config.locale config.fields (ConditionRule draft)
-                ++ Rule.validate config.locale config.fields (ConditionRule draft)
+            Rule.validate config.locale config.fields (ConditionRule draft)
 
         valid =
             List.isEmpty issues
@@ -1079,6 +1293,11 @@ viewPopup ctx editing =
             , Attr.attribute "aria-label" title
             , Attr.tabindex -1
             , Internal.onClickStop (ctx.toMsg NoOp)
+            , if Editor.anyOpen s.controls then
+                Internal.noAttr
+
+              else
+                Internal.onKeys [ ( "Ctrl+Enter", applyMsg ), ( "Meta+Enter", applyMsg ) ]
             , Support.onFocusLeave (popupDomId s.id) (ctx.toMsg Left)
             ]
             [ Html.div [ Internal.cls [ "klar-filterbar__popup-title" ] ] [ Html.text title ]
@@ -1095,7 +1314,7 @@ viewPopup ctx editing =
                 Html.text ""
             , case issue of
                 Just message ->
-                    Html.p [ Internal.cls [ "klar-filterbar__issue" ] ]
+                    Html.p [ Internal.cls [ "klar-filterbar__issue" ], Attr.attribute "role" "alert" ]
                         [ Icon.sized Icon.Small Icon.errorCircle
                         , Html.span [] [ Html.text message ]
                         ]
@@ -1130,35 +1349,14 @@ viewPopup ctx editing =
 
 viewCount : Ctx row msg -> Html msg
 viewCount ctx =
-    let
-        number =
-            Format.int ctx.config.locale
-    in
-    if ctx.config.counting then
-        Html.span
-            [ Internal.cls [ "klar-filterbar__count", "klar-filterbar__count--running", "klar-tabular" ]
-            , Attr.attribute "aria-live" "polite"
-            ]
-            [ Spinner.view [ Spinner.size Theme.Small ], Html.text ctx.texts.counting ]
-
-    else
-        case ctx.config.matchCount of
-            Just n ->
-                Html.span [ Internal.cls [ "klar-filterbar__count", "klar-tabular" ], Attr.attribute "aria-live" "polite" ]
-                    (case ctx.config.totalCount of
-                        Just total ->
-                            [ Html.strong [] [ Html.text (number n) ]
-                            , Html.text (" " ++ ctx.texts.of_ ++ " " ++ number total ++ " " ++ ctx.texts.hits)
-                            ]
-
-                        Nothing ->
-                            [ Html.strong [] [ Html.text (number n) ]
-                            , Html.text (" " ++ ctx.texts.hits)
-                            ]
-                    )
-
-            Nothing ->
-                Html.text ""
+    Count.view
+        { locale = ctx.config.locale
+        , count = ctx.config.matchCount
+        , total = ctx.config.totalCount
+        , onRetry = ctx.config.onRetry
+        , retryId = ctx.state.id ++ "-count-retry"
+        , classes = [ "klar-filterbar__count" ]
+        }
 
 
 
@@ -1184,10 +1382,11 @@ type alias Texts =
     , notAllOf : String
     , noneOf : String
     , or : String
-    , of_ : String
-    , hits : String
-    , counting : String
     , incomplete : String
+    , emptyGroup : String
+    , undo : String
+    , cleared : String
+    , removed : String
     }
 
 
@@ -1213,10 +1412,11 @@ texts lang =
             , notAllOf = "Ikke alle av:"
             , noneOf = "Ingen av:"
             , or = "eller"
-            , of_ = "av"
-            , hits = "treff"
-            , counting = "Kjører ..."
             , incomplete = "ufullstendig, filtrerer ikke"
+            , emptyGroup = "Gruppe uten fullstendige filtre"
+            , undo = "Angre"
+            , cleared = "Alle filtre ble fjernet."
+            , removed = "Filteret ble fjernet."
             }
         , en =
             { filters = "Filters"
@@ -1237,9 +1437,10 @@ texts lang =
             , notAllOf = "Not all of:"
             , noneOf = "None of:"
             , or = "or"
-            , of_ = "of"
-            , hits = "matches"
-            , counting = "Running ..."
             , incomplete = "incomplete, not filtering"
+            , emptyGroup = "Group without complete filters"
+            , undo = "Undo"
+            , cleared = "All filters were cleared."
+            , removed = "The filter was removed."
             }
         }

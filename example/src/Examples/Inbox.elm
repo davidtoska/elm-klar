@@ -84,13 +84,14 @@ initialViews =
 
 type alias Model =
     { orders : ServerList.State String OrderRow
-    , today : Date
+    , today : Date -- for the date picker of the filter bar; it comes with GotToday right after start
     }
 
 
 type Msg
     = OrdersMsg (ServerList.Msg OrderRow)
     | SaveView
+    | GotToday Date
 
 
 main : Program () Model Msg
@@ -108,8 +109,18 @@ init =
     let
         step =
             ServerList.init "orders" initialViews
+
+        ( model, cmd ) =
+            follow { orders = step.state, today = Date.fromPosix Time.utc (Time.millisToPosix 0) } step
     in
-    follow { orders = step.state, today = Date.fromPosix Time.utc (Time.millisToPosix 0) } step
+    ( model, Cmd.batch [ cmd, Task.perform GotToday today ] )
+
+
+{-| Today in the time zone of the user.
+-}
+today : Task.Task Never Date
+today =
+    Task.map2 Date.fromPosix Time.here Time.now
 
 
 
@@ -126,6 +137,9 @@ update msg model =
             -- the same form as "Save current view ...", opened from a button
             follow model (ServerList.startSaveView model.orders)
 
+        GotToday date ->
+            ( { model | today = date }, Cmd.none )
+
 
 {-| The one place that turns what the list says into commands: its own command, the request
 for the server (when the query changed), and the saved views to store (here nothing is stored,
@@ -138,7 +152,7 @@ follow model step =
         [ Cmd.map OrdersMsg step.cmd
         , case step.request of
             Just request ->
-                search model.today request
+                search request
                     |> Task.andThen (\result -> Time.now |> Task.map (\at -> ( result, at )))
                     |> Task.perform (\( result, at ) -> OrdersMsg (ServerList.gotPage request result at))
 
@@ -254,11 +268,12 @@ pick items n =
 {-| Filter by the rule and the search text, sort, cut out one page, after a pause.
 Searching for `fail` answers with a problem.
 -}
-search : Date -> ServerList.Request -> Task.Task Never (Result Remote.Problem (ServerList.Page OrderRow))
-search today req =
+search : ServerList.Request -> Task.Task Never (Result Remote.Problem (ServerList.Page OrderRow))
+search req =
     Process.sleep 400
+        |> Task.andThen (\_ -> today)
         |> Task.map
-            (\_ ->
+            (\now ->
                 if String.toLower req.query.search == "fail" then
                     Err (Remote.problem Remote.server)
 
@@ -269,7 +284,7 @@ search today req =
 
                         matching =
                             allOrders
-                                |> List.filter (Rule.matches today fields req.rule)
+                                |> List.filter (Rule.matches now fields req.rule)
                                 |> List.filter (\o -> String.contains needle (String.toLower (o.id ++ " " ++ o.customer)))
                                 |> sortBy req.query.sort
                     in
