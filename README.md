@@ -149,6 +149,7 @@ every module has an example.
 | **Navigation** | `AppShell`, `SideNav`, `PageHeader`, `Breadcrumbs`, `Tabs`, `Stepper` |
 | **Structure** | `Accordion`, `Toolbar`, `DescriptionList` |
 | **Arranging** | `Sortable`, `Splitter`, `Kanban` (validated moves and work-in-progress limits) |
+| **Processes and state** | `Workflow`, `Workflow.Engine`, `Workflow.Codec`, `WorkflowNode`, `WorkflowBuilder`, `WorkflowRun`, `StateMachine` |
 | **Pages and flow** | `StatusPage`, `BulkBar`, `LeaveGuard`, `History` |
 | **Text and change** | `Markdown`, `MarkdownEditor`, `Diff`, `Compare`, `AuditLog`, `ConflictResolver`, `CodeBlock`, `CommentThread` |
 | **Access and approval** | `PermissionMatrix`, `ApprovalFlow` |
@@ -272,3 +273,12 @@ values of an opaque type, so adding to them is never a breaking change.
 
 [BSD 3-Clause](LICENSE). The icons are based on [Feather](https://feathericons.com)
 and [Lucide](https://lucide.dev); their license texts are at the end of [LICENSE](LICENSE).
+
+## Process studio
+
+Run `npm start` and open `#/applications/process-studio` to build and execute
+vertical AI/human workflows, including role-assigned membership admission and
+managing-director approval. Each workflow module has its own gallery page.
+Definitions import/export as JSON. Per-node state, outputs and attempt history
+stay visible through review, bounded returns, waits, failure and retry. The server
+and AI are simulated in Elm. See [WORKFLOWS.md](WORKFLOWS.md).

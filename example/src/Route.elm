@@ -27,6 +27,7 @@ type Route
     | Orders
     | OrderDetail OrderId
     | Products
+    | ProcessStudio
     | Components (Maybe String)
     | NotFound
 
@@ -44,6 +45,7 @@ parser =
         [ Parser.map Overview Parser.top
         , Parser.map Orders (Parser.s "orders")
         , Parser.map (orderId >> OrderDetail) (Parser.s "orders" </> Parser.string)
+        , Parser.map ProcessStudio (Parser.s "applications" </> Parser.s "process-studio")
         , Parser.map Products (Parser.s "products")
         , Parser.map (Components Nothing) (Parser.s "components")
         , Parser.map (\slug -> Components (Just slug)) (Parser.s "components" </> Parser.string)
@@ -64,6 +66,9 @@ path route =
 
                 OrderDetail id ->
                     "orders/" ++ orderIdText id
+
+                ProcessStudio ->
+                    "applications/process-studio"
 
                 Products ->
                     "products"
@@ -90,6 +95,9 @@ title route =
 
         OrderDetail _ ->
             "Order"
+
+        ProcessStudio ->
+            "Process studio"
 
         Products ->
             "Products"

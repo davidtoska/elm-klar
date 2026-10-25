@@ -187,6 +187,15 @@
         ],
         "Files and media": [
             "Klar.UploadQueue"
+        ],
+        "Processes and state": [
+            "Klar.Workflow",
+            "Klar.Workflow.Engine",
+            "Klar.Workflow.Codec",
+            "Klar.WorkflowNode",
+            "Klar.WorkflowBuilder",
+            "Klar.WorkflowRun",
+            "Klar.StateMachine"
         ]
     },
     "elm-version": "0.19.0 <= v < 0.20.0",

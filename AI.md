@@ -338,12 +338,11 @@ Each module is `Klar.<Name>`; details in `ai/modules/Klar.<Name>.md`.
 - Text diff, JSON diff, record diff: `Diff`. Records side by side: `Compare`. Safe Markdown to HTML: `Markdown`. Edit Markdown with preview: `MarkdownEditor`.
 - Responsive record cards with selection: `CardList`. Keyboard work list with a detail pane: `WorkQueue`. Actor, timestamp and expandable change history: `AuditLog`. Three-way field merge with decisions bound to the reviewed versions: `ConflictResolver`. Persistent unread/read notification history: `NotificationCenter`. See `Examples/ReviewDesk.elm` for all five in one application. Ordered work stages with validated moves and WIP limits: `Kanban`. Threaded safe-Markdown discussion with revision-bound draft acknowledgement: `CommentThread`. Exact source inspection/download with bounded JSON/Elm highlighting: `CodeBlock`. Local file staging and explicit transfer statuses: `UploadQueue` (the application sends files). Raw number text plus an application's own unit id: `QuantityInput` (no implicit conversion).
 - Roles by permissions grid: `PermissionMatrix`. Approval steps and decisions: `ApprovalFlow`.
-
+- Graphical processes: `Workflow` definitions, `WorkflowBuilder`, `WorkflowNode`, `WorkflowRun`, `Workflow.Engine`, `Workflow.Codec` and `StateMachine`. See [WORKFLOWS.md](WORKFLOWS.md) for the studio, roles and server boundary.
 **Forms and inputs**
 - The whole form (fields, dirty, server problems, steps, rows): `Form`; its declaration: `Form.Spec`; its tests: `Form.Check`. The frame (sections, grid, buttons, submit state): `Form.Layout`. The wrapper of one control (label, hint, error): `Field`. Validators: `Validate`. How your id type is written as text, once, for every component: `Ids`.
 - Text: `TextInput`, `TextArea`, `PasswordInput`, `SearchInput` (waits for a pause), `TagInput`, `InlineEdit` (click to edit), `MaskedInput` (IBAN, postal code, phone). Number: `NumberInput`, `Slider`. Money: `Money`, `MoneyInput`. Files: `FileDrop`.
 - Choose: `Checkbox`, `CheckboxGroup`, `Radio`, `Switch`, `SegmentedControl` (one of a few). `Select` (one of many, searchable; `Select.Option` is its option type), `MultiSelect`, `Autocomplete` (suggestions), `TreeSelect`, `Cascader` (a path through levels), `Transfer` (two lists), `Picking` (the nodes of `TreeSelect` and `Cascader`; `Picking.fromFlat` builds them from rows that name their parent).
-
 **Date and time**
 - The date type: `Date`. A date field: `DatePicker`. A period: `DateRangePicker`. Time: `TimePicker`. Both: `DateTimePicker`. A month with marks: `Calendar`. "Every second Tuesday": `Recurrence` with `RecurrencePicker`.
 

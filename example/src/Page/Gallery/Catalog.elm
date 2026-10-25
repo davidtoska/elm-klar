@@ -43,16 +43,44 @@ type Section
     | ServerLists
     | Workbench
     | NextComponents
+    | Processes
+    | ProcessComponent String
 
 
 all : List Section
 all =
-    [ Examples, Foundations, Basics, Selects, Tables, Forms, FormModel, DateTime, Overlays, Navigation, DataDisplay, Rules, Arranging, Actions, Flow, Markdown, Review, Structured, Picking, Access, Recurring, StaleData, ServerLists, Workbench, NextComponents ]
+    [ Examples, Foundations, Basics, Selects, Tables, Forms, FormModel, DateTime, Overlays, Navigation, DataDisplay, Rules, Arranging, Actions, Flow, Markdown, Review, Structured, Picking, Access, Recurring, StaleData, ServerLists, Workbench, NextComponents, Processes ] ++ List.map ProcessComponent [ "Workflow", "Workflow.Engine", "Workflow.Codec", "WorkflowNode", "WorkflowBuilder", "WorkflowRun", "StateMachine" ]
 
 
 slug : Section -> String
 slug section =
     case section of
+        Processes ->
+            "processes"
+
+        ProcessComponent name ->
+            case name of
+                "Workflow.Engine" ->
+                    "workflow-engine"
+
+                "Workflow.Codec" ->
+                    "workflow-codec"
+
+                "WorkflowNode" ->
+                    "workflow-node"
+
+                "WorkflowBuilder" ->
+                    "workflow-builder"
+
+                "WorkflowRun" ->
+                    "workflow-run"
+
+                "StateMachine" ->
+                    "state-machine"
+
+                _ ->
+                    "workflow"
+
         Foundations ->
             "foundations"
 
@@ -137,6 +165,12 @@ fromSlug value =
 title : Section -> String
 title section =
     case section of
+        Processes ->
+            "Processes & state"
+
+        ProcessComponent name ->
+            name
+
         Foundations ->
             "Foundations"
 
@@ -216,6 +250,12 @@ title section =
 icon : Section -> Icon
 icon section =
     case section of
+        Processes ->
+            Icon.gitBranch
+
+        ProcessComponent _ ->
+            Icon.gitBranch
+
         Foundations ->
             Icon.layers
 
@@ -295,6 +335,12 @@ icon section =
 description : Section -> String
 description section =
     case section of
+        Processes ->
+            "Build and run visual AI/human workflows, approval and state machines."
+
+        ProcessComponent name ->
+            "Explore Klar." ++ name ++ " with a working process studio."
+
         Foundations ->
             "Colors, typography, icons and layout."
 
@@ -376,6 +422,12 @@ description section =
 components : Section -> List String
 components section =
     case section of
+        Processes ->
+            []
+
+        ProcessComponent name ->
+            [ name ]
+
         Foundations ->
             [ "Layout (Stack, Row, Grid)", "Card", "Text", "Icon" ]
 

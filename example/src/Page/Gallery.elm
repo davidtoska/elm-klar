@@ -1,4 +1,4 @@
-module Page.Gallery exposing (Model, Msg, ensure, init, subscriptions, update, view)
+module Page.Gallery exposing (Model, Msg, ensure, init, leave, subscriptions, update, view)
 
 {-| The component gallery: the index and one page per component group. A page is
 created the first time it is visited and then kept, so its state (filters, open
@@ -10,6 +10,7 @@ mechanical.
 
 -}
 
+import Dict
 import Html exposing (Html)
 import Klar.Locale exposing (Locale)
 import Klar.Settings exposing (Settings)
@@ -31,6 +32,7 @@ import Page.Gallery.Navigation as Navigation
 import Page.Gallery.NextComponents as NextComponents
 import Page.Gallery.Overlays as Overlays
 import Page.Gallery.Picking as Picking
+import Page.Gallery.Processes as Processes
 import Page.Gallery.Recurring as Recurring
 import Page.Gallery.Review as Review
 import Page.Gallery.Rules as Rules
@@ -40,6 +42,7 @@ import Page.Gallery.StaleData as StaleData
 import Page.Gallery.Structured as Structured
 import Page.Gallery.Tables as Tables
 import Page.Gallery.Workbench as Workbench
+import Showcase.Doc as Doc
 
 
 
@@ -47,7 +50,8 @@ import Page.Gallery.Workbench as Workbench
 
 
 type alias Model =
-    { index : Index.Model
+    { processes : Maybe Processes.Model
+    , index : Index.Model
     , foundations : Maybe Foundations.Model
     , basics : Maybe Basics.Model
     , selects : Maybe Selects.Model
@@ -77,7 +81,8 @@ type alias Model =
 
 init : Model
 init =
-    { index = Index.init
+    { processes = Nothing
+    , index = Index.init
     , foundations = Nothing
     , basics = Nothing
     , selects = Nothing
@@ -110,7 +115,8 @@ init =
 
 
 type Msg
-    = IndexMsg Index.Msg
+    = ProcessesMsg Processes.Msg
+    | IndexMsg Index.Msg
     | FoundationsMsg Foundations.Msg
     | BasicsMsg Basics.Msg
     | SelectsMsg Selects.Msg
@@ -143,6 +149,12 @@ the route changes.
 ensure : Section -> Model -> ( Model, Cmd Msg )
 ensure section model =
     case section of
+        Processes ->
+            create model.processes Processes.init (\page -> { model | processes = page }) ProcessesMsg model
+
+        ProcessComponent _ ->
+            create model.processes Processes.init (\page -> { model | processes = page }) ProcessesMsg model
+
         Foundations ->
             create model.foundations Foundations.init (\page -> { model | foundations = page }) FoundationsMsg model
 
@@ -232,6 +244,9 @@ create existing ( page, cmd ) store toMsg model =
 update : Msg -> Model -> ( Model, Cmd Msg )
 update msg model =
     case msg of
+        ProcessesMsg inner ->
+            step model.processes (Processes.update inner) (\page -> { model | processes = page }) ProcessesMsg model
+
         IndexMsg inner ->
             ( { model | index = Index.update inner model.index }, Cmd.none )
 
@@ -336,6 +351,12 @@ view settings locale maybeSection model =
 
         Just section ->
             case section of
+                Processes ->
+                    show ProcessesMsg (Processes.view { component = "", values = Dict.empty } settings locale) model.processes
+
+                ProcessComponent name ->
+                    Doc.page { title = name, description = "Workflow components, interactive examples and execution state." } [ show ProcessesMsg (Processes.view { component = name, values = Dict.empty } settings locale) model.processes ]
+
                 Foundations ->
                     show FoundationsMsg (Foundations.view locale) model.foundations
 
@@ -436,6 +457,12 @@ subscriptions maybeSection model =
 
         Just section ->
             case section of
+                Processes ->
+                    Sub.none
+
+                ProcessComponent _ ->
+                    Sub.none
+
                 Foundations ->
                     sub FoundationsMsg Foundations.subscriptions model.foundations
 
@@ -520,3 +547,8 @@ sub toMsg subscriptionsOf maybePage =
 
         Nothing ->
             Sub.none
+
+
+leave : Model -> Model
+leave model =
+    { model | processes = Maybe.map Processes.leave model.processes }
