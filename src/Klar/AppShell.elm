@@ -4,7 +4,7 @@ module Klar.AppShell exposing
     , view, Attribute
     , brand, brandLink, onSearch, searchPlaceholder, searchShortcut, actions, userName, userRole, userAvatar, userMenu, banner
     , sidebar
-    , contentMaxWidth, contentPadding
+    , pageTitle, contentMaxWidth, contentPadding
     , overlays
     , shortcuts
     , id, height, width, onStrayDrop
@@ -154,6 +154,7 @@ the content of the current page:
                         ]
                         model.userMenu
                     )
+                , AppShell.pageTitle (pageTitle model.page)
                 , AppShell.contentMaxWidth 1280
                 ]
                 [ viewPage model ]
@@ -177,8 +178,9 @@ the content of the current page:
         ]
 
 `Page` (here `Orders | Customers | Reports`) is also the key type of the menu,
-`pageToString` writes a page as text and `Ids.list` (from [Klar.Ids](Klar-Ids)) reads it back, and `pageFromUrl` and
-`viewPage` stand for your own routing and page views. `elm/url` must be a direct
+`pageToString` writes a page as text and `Ids.list` (from [Klar.Ids](Klar-Ids)) reads it back, and `pageFromUrl`,
+`pageTitle` (the title of a page, also for `Browser.Document.title` and the
+`PageHeader.title`) and `viewPage` stand for your own routing and page views. `elm/url` must be a direct
 dependency of the application, as for every `Browser.application`.
 
 A command of yours that goes to another page (the palette opened an order, a shortcut)
@@ -305,7 +307,7 @@ change without JavaScript.
 
 # Content
 
-@docs contentMaxWidth, contentPadding
+@docs pageTitle, contentMaxWidth, contentPadding
 
 
 # Overlays and modals
@@ -392,6 +394,7 @@ type alias StateParts msg =
 type alias Config msg =
     { fromState : Maybe (StateParts msg)
     , onSidebarLinkKey : Maybe msg
+    , pageTitle : String
     , id : String
     , brand : Maybe (Html msg)
     , sidebar : Maybe (Html msg)
@@ -449,6 +452,7 @@ defaults : Config msg
 defaults =
     { fromState = Nothing
     , onSidebarLinkKey = Nothing
+    , pageTitle = ""
     , id = "klar-app-shell"
     , brand = Nothing
     , sidebar = Nothing
@@ -658,6 +662,20 @@ look.
 banner : Html msg -> Attribute msg
 banner value =
     Attribute (\config -> { config | banner = Just value })
+
+
+{-| The title of the current page, such as "Orders" or "Order 10482": the text of its
+`PageHeader.title`, and of `Browser.Document.title` without the name of the application.
+The shell keeps it in a hidden polite live region, so a screen reader says the new title
+after a route change, as it would after a page load; focus has gone to the content by
+then. Without it nothing is announced. Default: none.
+
+    AppShell.pageTitle (pageTitle model.page)
+
+-}
+pageTitle : String -> Attribute msg
+pageTitle value =
+    Attribute (\config -> { config | pageTitle = value })
 
 
 {-| Limits the width of the page content, in pixels, and centers it in the content
@@ -1437,6 +1455,15 @@ view attributes content =
                     , viewBackdrop config
                     , viewContent config content
                     ]
+
+                -- Always in the page, so that a new title is a change a screen
+                -- reader announces (a region that appears with its text is not).
+                , Html.div
+                    [ Internal.cls [ "klar-sr-only" ]
+                    , Attr.attribute "aria-live" "polite"
+                    , Attr.attribute "aria-atomic" "true"
+                    ]
+                    [ Html.text config.pageTitle ]
                 ]
             , Html.div [ Internal.cls [ "klar-app-shell__overlays" ] ] layer.overlays
             ]

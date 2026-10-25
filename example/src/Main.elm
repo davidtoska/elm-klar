@@ -880,6 +880,7 @@ view model =
             ([ AppShell.state ShellMsg model.shell
              , AppShell.locale model.locale
              , AppShell.settings model.settings
+             , AppShell.pageTitle (routeTitle model.route)
              , AppShell.brand (AppShell.brandLink { name = "Klar", href = Route.path Overview, logo = Just (Icon.sized Icon.Large Icon.layers) })
              , AppShell.sidebar (AppShell.sideNav ShellMsg [ SideNav.entries menu, SideNav.locale model.locale ] model.shell)
              , AppShell.onSearch OpenPalette

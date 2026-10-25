@@ -114,6 +114,18 @@ suite =
                         |> Query.fromHtml
                         |> Query.find [ Selector.id "ops-content" ]
                         |> Query.has [ Selector.attribute (Attr.attribute "aria-label" "Innhold") ]
+            , test "the title of the page is in a polite live region" <|
+                \_ ->
+                    shell [ AppShell.pageTitle "Orders" ]
+                        |> Query.fromHtml
+                        |> Query.find [ Selector.attribute (Attr.attribute "aria-live" "polite"), Selector.class "klar-sr-only" ]
+                        |> Query.has [ Selector.text "Orders", Selector.attribute (Attr.attribute "aria-atomic" "true") ]
+            , test "the live region is there before any title, so the first title is a change" <|
+                \_ ->
+                    shell []
+                        |> Query.fromHtml
+                        |> Query.findAll [ Selector.attribute (Attr.attribute "aria-live" "polite"), Selector.class "klar-sr-only" ]
+                        |> Query.count (Expect.equal 1)
             , test "Escape in the open drawer closes it" <|
                 \_ ->
                     shell [ AppShell.drawerOpen True, AppShell.onCloseDrawer "close" ]
