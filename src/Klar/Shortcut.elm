@@ -1,5 +1,5 @@
 module Klar.Shortcut exposing
-    ( Shortcut, shortcut, inInputs, keysOf, groupOf, labelOf, firesInInputs, conflicts
+    ( Shortcut, shortcut, inInputs, repeats, keysOf, groupOf, labelOf, firesInInputs, conflicts
     , Keys, char, function, escape, enter, tab, space, backspace, delete, home, end, pageUp, pageDown, up, down, left, right
     , mod, alt, shift, sequence
     , State, init, Msg, update, listen, subscription
@@ -92,7 +92,8 @@ handled (an arrow in a menu, `Escape` that closes a dialog, `Enter` in the
 command palette) prevents its default action, and a shortcut ignores a key press
 whose default action was prevented. The `Enter` or `Escape` that ends the
 composition of an input method (Japanese, Chinese, Korean) is never a shortcut
-either. Holding a key down does not repeat a shortcut.
+either. Holding a key down does not repeat a shortcut, unless it is marked
+`repeats` (one that moves through rows, say).
 
 **Keyboards**: a symbol typed with AltGr (on a German keyboard `[` is AltGr and
 
@@ -108,7 +109,7 @@ either. Holding a key down does not repeat a shortcut.
 
 # Defining shortcuts
 
-@docs Shortcut, shortcut, inInputs, keysOf, groupOf, labelOf, firesInInputs, conflicts
+@docs Shortcut, shortcut, inInputs, repeats, keysOf, groupOf, labelOf, firesInInputs, conflicts
 
 
 # Keys
@@ -144,6 +145,7 @@ type alias Entry msg =
     , label : String
     , msg : msg
     , inInputs : Bool
+    , repeats : Bool
     }
 
 
@@ -166,7 +168,7 @@ so write them for people.
 -}
 shortcut : Keys -> String -> String -> msg -> Shortcut msg
 shortcut (Notation.Keys keys) group label msg =
-    Shortcut { keys = keys, group = group, label = label, msg = msg, inInputs = False }
+    Shortcut { keys = keys, group = group, label = label, msg = msg, inInputs = False, repeats = False }
 
 
 {-| Lets the shortcut fire while the user types in a field (a text field, a text
@@ -184,6 +186,19 @@ with or without this.
 inInputs : Shortcut msg -> Shortcut msg
 inInputs (Shortcut entry) =
     Shortcut { entry | inInputs = True }
+
+
+{-| Lets the shortcut fire again and again while its key is held down, as the
+arrows do: for a shortcut that moves (to the next row, the next page). Without it
+a held key fires once. A held key never starts or completes a sequence.
+
+    Shortcut.shortcut (Shortcut.char 'j') "Orders" "Next order" NextOrder
+        |> Shortcut.repeats
+
+-}
+repeats : Shortcut msg -> Shortcut msg
+repeats (Shortcut entry) =
+    Shortcut { entry | repeats = True }
 
 
 {-| The keys of a shortcut.
@@ -706,7 +721,7 @@ default action should be prevented.
 -}
 decide : List (Shortcut msg) -> State -> KeyInfo -> Maybe ( Msg, Bool )
 decide wrapped (State state) info =
-    if info.repeat || info.handled || info.composing || isModifierOnly info.key then
+    if info.handled || info.composing || isModifierOnly info.key then
         Nothing
 
     else
@@ -764,7 +779,7 @@ decide wrapped (State state) info =
             outcome press =
                 let
                     usable =
-                        List.filter (\( _, candidate ) -> allowed press candidate) entries
+                        List.filter (\( _, candidate ) -> allowed press candidate && (candidate.repeats || not info.repeat)) entries
 
                     sofar =
                         earlier ++ [ press.step ]
@@ -787,7 +802,7 @@ decide wrapped (State state) info =
                                 )
 
                     sequenceMatch =
-                        if List.isEmpty earlier then
+                        if List.isEmpty earlier || info.repeat then
                             Nothing
 
                         else
@@ -801,7 +816,11 @@ decide wrapped (State state) info =
                         Just ( Fired index found.keys, True )
 
                     ( Nothing, Nothing ) ->
-                        if continues sofar then
+                        if info.repeat then
+                            -- a key held down never starts or continues a sequence
+                            Nothing
+
+                        else if continues sofar then
                             Just ( Pending sofar info.time, False )
 
                         else if continues [ press.step ] then
@@ -816,7 +835,7 @@ decide wrapped (State state) info =
                 Just found
 
             Nothing ->
-                if List.isEmpty state.pending then
+                if List.isEmpty state.pending || info.repeat then
                     Nothing
 
                 else

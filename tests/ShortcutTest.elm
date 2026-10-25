@@ -472,7 +472,7 @@ check name expected actual =
 
 keycapTests : Test
 keycapTests =
-    describe "keycaps"
+    describe "the words of the keys, which Kbd turns into caps"
         [ check "mod+k" [ [ "Ctrl", "K" ] ] (KeyWords.words (Shortcut.mod (Shortcut.char 'k')))
         , check "a sequence is one list for each step" [ [ "G" ], [ "M" ] ] (KeyWords.words (Shortcut.sequence [ Shortcut.char 'g', Shortcut.char 'm' ]))
         , check "a symbol" [ [ "?" ] ] (KeyWords.words (Shortcut.char '?'))
@@ -490,6 +490,9 @@ keycapTests =
         , check "the arrow keys are arrows" [ [ "↑" ], [ "↓" ], [ "←" ], [ "→" ] ] (List.concatMap (Keys.parse >> KeyWords.words) [ "up", "down", "left", "right" ])
         , check "an arrow with a modifier" [ [ "Alt", "↓" ] ] (KeyWords.words (Shortcut.alt Shortcut.down))
         , check "a named key" [ [ "F2" ] ] (KeyWords.words (Shortcut.function 2))
+        , check "the other named keys have names, not capitals (one table with Kbd)"
+            [ [ "PageUp" ], [ "PageDown" ], [ "Delete" ], [ "Backspace" ], [ "Home" ], [ "End" ] ]
+            (List.concatMap KeyWords.words [ Shortcut.pageUp, Shortcut.pageDown, Shortcut.delete, Shortcut.backspace, Shortcut.home, Shortcut.end ])
         , check "shift with a named key" [ [ "Shift", "Enter" ] ] (KeyWords.words (Shortcut.shift Shortcut.enter))
         , check "a digit" [ [ "1" ] ] (KeyWords.words (Shortcut.char '1'))
         , check "extra spaces between the steps and around them do not matter" [ [ "G" ], [ "M" ] ] (KeyWords.words (Shortcut.sequence [ Shortcut.char 'g', Shortcut.char 'm' ]))
@@ -738,6 +741,12 @@ ignoredPressesTests =
     describe "presses that count for nothing"
         [ check "a key that is held down does not repeat the shortcut" Nothing (alone (press "n" |> held))
         , check "also with modifiers" Nothing (alone (press "k" |> ctrl |> held))
+        , check "a shortcut marked repeats fires again while its key is held"
+            (Just NextRow)
+            (firesAmong [ Shortcut.shortcut (Shortcut.char 'j') "Orders" "Next row" NextRow |> Shortcut.repeats ] (press "j" |> held))
+        , check "a held key does not complete a sequence, even one marked repeats"
+            [ Nothing, Nothing ]
+            (series [ Shortcut.shortcut (Keys.parse "g o") "Navigation" "Go to orders" GoToOrders |> Shortcut.repeats ] [ press "g", press "o" |> held ])
         , check "Shift alone" Nothing (alone (press "Shift" |> shift))
         , check "Control alone" Nothing (alone (press "Control" |> ctrl))
         , check "Alt alone" Nothing (alone (press "Alt" |> alt))
