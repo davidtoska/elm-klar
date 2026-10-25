@@ -748,7 +748,7 @@ shortMonth locale month =
         short =
             Locale.monthShort locale month
     in
-    if short == Locale.monthName locale month then
+    if short == Locale.monthLong locale month then
         short
 
     else

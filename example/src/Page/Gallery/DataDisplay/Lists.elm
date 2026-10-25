@@ -266,10 +266,10 @@ view locale model =
             (Layout.stack [ Layout.gap 3 ]
                 [ Switch.view
                     [ Switch.label "Receive new orders"
-                    , Switch.description
+                    , Switch.hint
                         (String.fromInt (arrivals - model.arrived) ++ " more orders are waiting.")
                     , Switch.checked model.polling
-                    , Switch.onToggle PollingToggled
+                    , Switch.onCheck PollingToggled
                     , Switch.disabled (model.arrived >= arrivals)
                     ]
                 , ListItem.viewRemote

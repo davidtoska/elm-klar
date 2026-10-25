@@ -19,6 +19,7 @@ Do not use when: only a history of what happened is shown, use `Klar.Timeline`, 
     import Klar.Avatar as Avatar
     import Klar.Locale as Locale
     import Klar.Remote as Remote
+    import Klar.Theme exposing (Tone(..))
     import Klar.Toast as Toast
 
     -- model
@@ -35,7 +36,7 @@ Do not use when: only a history of what happened is shown, use `Klar.Timeline`, 
         -- not recorded: the buttons stay, with the focus on them, so the viewer can try again
         let
             ( toasts, cmd ) =
-                Toast.push [ Toast.danger, Toast.key "approval", Toast.title "Your decision was not saved", Toast.message (Remote.title Locale.en problem) ] model.toasts
+                Toast.push [ Toast.tone Danger, Toast.key "approval", Toast.title "Your decision was not saved", Toast.message (Remote.title Locale.en problem) ] model.toasts
         in
         ( { model | deciding = False, toasts = toasts }, Cmd.map ToastMsg cmd )
 
