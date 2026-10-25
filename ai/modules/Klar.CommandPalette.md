@@ -297,9 +297,10 @@ setQuery : String -> State -> State
 ```
 
 Replaces the query and clears the highlight, for example to open the palette
-with a prefix. `query` reports it at once, without the pause. It does not open
-the palette and does nothing to a closed one (`open` starts with an empty query),
-so call it after `open`.
+with a prefix. `query` reports it at once, without the pause, so ask the backend
+for it in the same update (a remote section left `NotAsked` is not shown). It
+does not open the palette and does nothing to a closed one (`open` starts with
+an empty query), so call it after `open`.
 
     CommandPalette.open "" model.palette
         |> Tuple.mapFirst (CommandPalette.setQuery "customer ")
