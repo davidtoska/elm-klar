@@ -4,6 +4,7 @@ module Klar.Link.Destination exposing
     , external
     , fileName
     , href
+    , hrefAttribute
     , inactiveAttributes
     , internal
     , opensInNewTab
@@ -54,6 +55,8 @@ external text =
 UTF-8 (with `Internal.percentEncode`, which never throws on half of an emoji), and
 the name the browser saves it under. A media type that is not `type/subtype`
 becomes `application/octet-stream`, and an empty name becomes `download`.
+So does `text/html`: Elm blanks a `data:text/html` address in an attribute (it can
+run script), and the saved file is the same.
 -}
 download : { fileName : String, mimeType : String, content : String } -> Target
 download file =
@@ -81,7 +84,7 @@ mediaType text =
     in
     case String.split "/" cleaned of
         [ kind, sub ] ->
-            if kind /= "" && sub /= "" && String.all allowed cleaned then
+            if kind /= "" && sub /= "" && String.all allowed cleaned && cleaned /= "text/html" then
                 cleaned
 
             else
@@ -96,6 +99,16 @@ mediaType text =
 href : Target -> String
 href (Target target) =
     target.href
+
+
+{-| The `href` of a link that can be followed, as an attribute and not the
+property that `Html.Attributes.href` sets. When the link becomes inactive in
+place (disabled, busy) the virtual DOM removes an attribute, but it sets a
+property that goes away to `""`, and `href=""` is a link to this page.
+-}
+hrefAttribute : Target -> Html.Attribute msg
+hrefAttribute (Target target) =
+    Attr.attribute "href" target.href
 
 
 {-| Does the link open in a new tab? Only a page on the web does.

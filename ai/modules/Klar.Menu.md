@@ -4,7 +4,7 @@ A dropdown menu opened from a button.
 
 Import: `import Klar.Menu as Menu` | Group: Actions
 
-Types: `Msg`, `Item`, `State`, `Attribute`
+Types: `Item`, `Attribute`, `Msg`, `State`
 
 ## Signatures
 
@@ -13,8 +13,8 @@ Types: `Msg`, `Item`, `State`, `Attribute`
 view : (Msg -> msg) -> List (Attribute msg) -> State -> Html msg
 
 -- State
-type State  -- opaque: no constructors are exposed
-type Msg  -- opaque: no constructors are exposed
+type alias State = Menu.Core.MenuState
+type alias Msg = Menu.Core.MenuMsg
 init : String -> State
 update : Msg -> State -> ( State, Cmd Msg )
 isOpen : State -> Bool
@@ -89,8 +89,10 @@ the first item highlighted, and with `ArrowUp` with the last one; a click with
 the pointer opens it with nothing highlighted. Focus moves into the menu: the
 arrow keys move the highlight (and wrap around), `Home` and `End` jump to the
 first and last item, typing a letter jumps to the next item whose label starts
-with the letters typed, `Enter` or `Space` pick the highlighted item, and
-`Escape` or `Tab` close the menu. A click anywhere outside the menu closes it
+with the letters typed (a space typed right after letters is part of the text),
+`Enter` or `Space` pick the highlighted item, and `Escape` or `Tab` close the
+menu. The menu prevents the default of the `Escape` it handles, so a drawer
+around it or an `Escape` shortcut can ignore that key. A click anywhere outside the menu closes it
 too. When the menu closes, it gives focus back to its button, except after `Tab`
 and `Shift+Tab`: they leave the menu like any other element, `Tab` for the next
 element on the page and `Shift+Tab` for the button. Disabled items are skipped. A
@@ -131,22 +133,24 @@ the menu.
 ### `State`
 
 ```elm
-type State  -- opaque: no constructors are exposed
+type alias State = Menu.Core.MenuState
 ```
 
 The state of one menu: whether it is open and which item is highlighted.
 Create it with `init`, keep it in your model (one per menu), and change it with
-`open`, `close` and `update`.
+`open`, `close` and `update`. It is opaque; a compiler message may call it
+`Klar.Menu.Core.MenuState`, which is this same type.
 
 ### `Msg`
 
 ```elm
-type Msg  -- opaque: no constructors are exposed
+type alias Msg = Menu.Core.MenuMsg
 ```
 
 The messages of the menu (opening, closing, moving the highlight). Wrap it in
 a constructor of your own message type, such as `MenuMsg Menu.Msg`, and hand it
-to `update`.
+to `update`. A compiler message may call it `Klar.Menu.Core.MenuMsg`, which is
+this same type.
 
 ### `init`
 

@@ -1448,8 +1448,8 @@ contextRowId order =
 contextItems : Types.Order -> List (Menu.Item Msg)
 contextItems order =
     [ Menu.heading (Types.orderIdText order.id)
-    , Menu.item "Open in drawer" (OpenOrder (contextRowId order) order) |> Menu.withIcon Icon.externalLink |> Menu.withHint "Enter"
-    , Menu.item "Edit" (ContextAction ("Edit order " ++ Types.orderIdText order.id)) |> Menu.withIcon Icon.edit |> Menu.withHint "E"
+    , Menu.item "Open in drawer" (OpenOrder (contextRowId order) order) |> Menu.withIcon Icon.externalLink |> Menu.withShortcut Shortcut.enter
+    , Menu.item "Edit" (ContextAction ("Edit order " ++ Types.orderIdText order.id)) |> Menu.withIcon Icon.edit |> Menu.withShortcut (Shortcut.char 'e')
     , Menu.item "Copy email address" (ContextAction ("Copied the email address of " ++ order.customer)) |> Menu.withIcon Icon.copy
     , Menu.item "Send message" (ContextAction ("Message sent to " ++ order.customer)) |> Menu.withIcon Icon.mail |> Menu.disabledItem
     , Menu.separator
@@ -2339,7 +2339,7 @@ OpenRowMenu order ->
 itemsFor : Order -> List (Menu.Item Msg)
 itemsFor order =
     [ Menu.heading order.id
-    , Menu.item "Open in drawer" (OpenOrder order) |> Menu.withIcon Icon.externalLink |> Menu.withHint "Enter"
+    , Menu.item "Open in drawer" (OpenOrder order) |> Menu.withIcon Icon.externalLink |> Menu.withShortcut Shortcut.enter
     , Menu.item "Send message" (SendMessage order) |> Menu.disabledItem
     , Menu.separator
     , Menu.item "Delete ..." (AskDelete order) |> Menu.withIcon Icon.trash |> Menu.danger

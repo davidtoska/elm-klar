@@ -49,8 +49,10 @@ the first item highlighted, and with `ArrowUp` with the last one; a click with
 the pointer opens it with nothing highlighted. Focus moves into the menu: the
 arrow keys move the highlight (and wrap around), `Home` and `End` jump to the
 first and last item, typing a letter jumps to the next item whose label starts
-with the letters typed, `Enter` or `Space` pick the highlighted item, and
-`Escape` or `Tab` close the menu. A click anywhere outside the menu closes it
+with the letters typed (a space typed right after letters is part of the text),
+`Enter` or `Space` pick the highlighted item, and `Escape` or `Tab` close the
+menu. The menu prevents the default of the `Escape` it handles, so a drawer
+around it or an `Escape` shortcut can ignore that key. A click anywhere outside the menu closes it
 too. When the menu closes, it gives focus back to its button, except after `Tab`
 and `Shift+Tab`: they leave the menu like any other element, `Tab` for the next
 element on the page and `Shift+Tab` for the button. Disabled items are skipped. A
@@ -103,6 +105,7 @@ import Klar.Icon as Icon exposing (Icon)
 import Klar.Internal as Internal
 import Klar.Kbd as Kbd
 import Klar.Kbd.Aria as Aria
+import Klar.Menu.Core exposing (Highlight(..), MenuMsg(..), MenuState(..), openWith, popupId, triggerIdOf)
 import Klar.Menu.Scroll as Scroll
 import Klar.Menu.TypeAhead as TypeAhead
 import Klar.Shortcut exposing (Keys)
@@ -116,27 +119,11 @@ import Task
 
 {-| The state of one menu: whether it is open and which item is highlighted.
 Create it with `init`, keep it in your model (one per menu), and change it with
-`open`, `close` and `update`.
+`open`, `close` and `update`. It is opaque; a compiler message may call it
+`Klar.Menu.Core.MenuState`, which is this same type.
 -}
-type State
-    = State
-        { id : String
-        , open : Bool
-        , highlight : Highlight
-        , typed : String
-        , typedAt : Int
-        }
-
-
-{-| Which item is highlighted. The first and the last item are found when the
-items are known (in `view`, or in a message made by it), so that `open` can
-highlight the first item without knowing the items.
--}
-type Highlight
-    = NoItem
-    | FirstItem
-    | LastItem
-    | Index Int
+type alias State =
+    MenuState
 
 
 {-| A closed menu. The id must be unique on the page; the ids of the button, the
@@ -144,13 +131,13 @@ popup and the items start with it (the button's is `triggerId`).
 -}
 init : String -> State
 init id =
-    State { id = id, open = False, highlight = NoItem, typed = "", typedAt = 0 }
+    MenuState { id = id, open = False, highlight = NoItem, typed = "", typedAt = 0 }
 
 
 {-| Is the menu open?
 -}
 isOpen : State -> Bool
-isOpen (State state) =
+isOpen (MenuState state) =
     state.open
 
 
@@ -163,25 +150,17 @@ goes back to the button when the dialog closes.
 
 -}
 triggerId : State -> String
-triggerId (State state) =
+triggerId (MenuState state) =
     triggerIdOf state.id
 
 
 {-| The messages of the menu (opening, closing, moving the highlight). Wrap it in
 a constructor of your own message type, such as `MenuMsg Menu.Msg`, and hand it
-to `update`.
+to `update`. A compiler message may call it `Klar.Menu.Core.MenuMsg`, which is
+this same type.
 -}
-type Msg
-    = Toggle Highlight
-    | OpenWith Highlight
-    | Close
-    | CloseQuiet
-    | Hover Int
-    | Step Int (List Int)
-    | Jump Int (List Int)
-    | Type String (List ( Int, String ))
-    | TypedTimeout Int
-    | Noop
+type alias Msg =
+    MenuMsg
 
 
 {-| Handles opening and closing the menu and moving the highlight, and scrolls a
@@ -190,7 +169,7 @@ long menu to the highlighted item. Map its command into your own message with
 item.
 -}
 update : Msg -> State -> ( State, Cmd Msg )
-update msg ((State state) as current) =
+update msg ((MenuState state) as current) =
     case msg of
         Toggle target ->
             if state.open then
@@ -208,25 +187,25 @@ update msg ((State state) as current) =
         -- `Tab` leaves the menu: the browser moves focus on, and the menu must
         -- not pull it back to the button.
         CloseQuiet ->
-            ( State { state | open = False, highlight = NoItem, typed = "" }, Cmd.none )
+            ( MenuState { state | open = False, highlight = NoItem, typed = "" }, Cmd.none )
 
         -- The pointer is over the item: it can be seen, so the list stays put.
         Hover index ->
-            ( State { state | highlight = Index index }, Cmd.none )
+            ( MenuState { state | highlight = Index index }, Cmd.none )
 
         -- Relative to the highlight in the model, not to the one the page was
         -- last drawn with: arrow keys that come faster than a redraw add up.
         Step direction enabledIndices ->
             case neighbour direction enabledIndices (resolve enabledIndices state.highlight |> Maybe.withDefault -1) of
                 Just index ->
-                    ( State { state | highlight = Index index, typed = "" }, bringIntoView state.id enabledIndices index )
+                    ( MenuState { state | highlight = Index index, typed = "" }, bringIntoView state.id enabledIndices index )
 
                 Nothing ->
                     ( current, Cmd.none )
 
         -- `Home` and `End`: the first or the last item that can be picked.
         Jump index enabledIndices ->
-            ( State { state | highlight = Index index, typed = "" }, bringIntoView state.id enabledIndices index )
+            ( MenuState { state | highlight = Index index, typed = "" }, bringIntoView state.id enabledIndices index )
 
         -- A printable key: the typed letters so far, and the items that can be
         -- picked with their labels. The letters are forgotten after a pause.
@@ -246,16 +225,16 @@ update msg ((State state) as current) =
             in
             case TypeAhead.find { typed = typed, from = from } labelled of
                 Just index ->
-                    ( State { state | highlight = Index index, typed = typed, typedAt = counter }
+                    ( MenuState { state | highlight = Index index, typed = typed, typedAt = counter }
                     , Cmd.batch [ bringIntoView state.id (List.map Tuple.first labelled) index, forget ]
                     )
 
                 Nothing ->
-                    ( State { state | typed = typed, typedAt = counter }, forget )
+                    ( MenuState { state | typed = typed, typedAt = counter }, forget )
 
         TypedTimeout counter ->
             if counter == state.typedAt then
-                ( State { state | typed = "" }, Cmd.none )
+                ( MenuState { state | typed = "" }, Cmd.none )
 
             else
                 ( current, Cmd.none )
@@ -273,29 +252,13 @@ open =
     openWith FirstItem
 
 
-openWith : Highlight -> State -> ( State, Cmd Msg )
-openWith target (State state) =
-    ( State { state | open = True, highlight = target, typed = "" }
-    , Cmd.batch
-        [ Internal.focus (popupId state.id) Noop
-
-        -- The last item of a long menu is at the bottom of the list.
-        , if target == LastItem then
-            Scroll.reveal { list = popupId state.id, item = "", edge = Scroll.Bottom } Noop
-
-          else
-            Cmd.none
-        ]
-    )
-
-
 {-| Closes the menu and gives focus back to its button. The menu closes by itself
 when the user picks an item, clicks outside it or presses `Escape`; `Tab` closes
 it too, but lets focus move on to the next element instead.
 -}
 close : State -> ( State, Cmd Msg )
-close (State state) =
-    ( State { state | open = False, highlight = NoItem, typed = "" }
+close (MenuState state) =
+    ( MenuState { state | open = False, highlight = NoItem, typed = "" }
     , if state.open then
         Internal.focus (triggerIdOf state.id) Noop
 
@@ -339,16 +302,6 @@ bringIntoView id enabledIndices index =
         , edge = Scroll.edge enabledIndices index
         }
         Noop
-
-
-triggerIdOf : String -> String
-triggerIdOf id =
-    id ++ "-trigger"
-
-
-popupId : String -> String
-popupId id =
-    id ++ "-popup"
 
 
 optionId : String -> Int -> String
@@ -573,7 +526,7 @@ browsers get plain positioning. Picking an item sends its own message and closes
 the menu.
 -}
 view : (Msg -> msg) -> List (Attribute msg) -> State -> Html msg
-view toMsg attributes ((State state) as current) =
+view toMsg attributes ((MenuState state) as current) =
     let
         config =
             configure attributes
@@ -676,7 +629,7 @@ whenActive decoder =
 
 
 viewPopup : (Msg -> msg) -> Config msg -> State -> Html msg
-viewPopup toMsg config (State state) =
+viewPopup toMsg config (MenuState state) =
     let
         entries =
             List.indexedMap Tuple.pair config.items
@@ -709,10 +662,20 @@ viewPopup toMsg config (State state) =
                 |> List.head
                 |> Maybe.map Tuple.second
 
+        -- While letters are being typed, a space is part of the text ("save a").
+        typing =
+            state.typed /= ""
+
         activateKeys =
             case highlightedAction of
                 Just action ->
-                    [ ( "Enter", action.onClick ), ( " ", action.onClick ) ]
+                    ( "Enter", action.onClick )
+                        :: (if typing then
+                                []
+
+                            else
+                                [ ( " ", action.onClick ) ]
+                           )
 
                 Nothing ->
                     []
@@ -734,13 +697,33 @@ viewPopup toMsg config (State state) =
     Html.div
         [ Internal.cls [ "klar-layer" ]
         , Events.onClick (toMsg Close)
-        , Internal.onKeysPassive
-            [ ( "Escape", toMsg Close )
-            , ( "Tab", toMsg CloseQuiet )
-            , ( "Shift+Tab", toMsg CloseQuiet )
-            , ( "Enter", toMsg Close )
-            , ( " ", toMsg Close )
-            ]
+
+        -- The menu handles Escape, so it prevents the default: a drawer, a page
+        -- handler or an Escape shortcut ignores a key whose default is prevented.
+        -- Tab closes the menu but lets focus move on.
+        , Events.preventDefaultOn "keydown"
+            (Decode.oneOf
+                [ keyBindings
+                    (( "Escape", toMsg Close )
+                        :: ( "Enter", toMsg Close )
+                        :: (if typing then
+                                []
+
+                            else
+                                [ ( " ", toMsg Close ) ]
+                           )
+                    )
+                , Internal.keyEvent
+                    |> Decode.andThen
+                        (\event ->
+                            if event.key == "Tab" && not (event.ctrl || event.meta || event.alt) then
+                                Decode.succeed ( toMsg CloseQuiet, False )
+
+                            else
+                                Decode.fail "not a key of the menu"
+                        )
+                ]
+            )
         ]
         [ Html.div
             [ Internal.cls
@@ -760,7 +743,7 @@ viewPopup toMsg config (State state) =
             , Events.preventDefaultOn "keydown"
                 (Decode.oneOf
                     [ keyBindings (activateKeys ++ navigationKeys)
-                    , typeAhead (\letter -> toMsg (Type letter labelled))
+                    , typeAhead typing (\letter -> toMsg (Type letter labelled))
                     ]
                 )
             ]
@@ -790,15 +773,15 @@ keyBindings bindings =
 
 
 {-| A printable key without Ctrl, Cmd or Alt moves the highlight to the next item
-whose label starts with the letters typed so far. A space is not a letter here:
-it picks the highlighted item.
+whose label starts with the letters typed so far. A space is part of the text only
+while letters are being typed (`typing`); otherwise it picks the highlighted item.
 -}
-typeAhead : (String -> msg) -> Decoder ( msg, Bool )
-typeAhead toMsg =
+typeAhead : Bool -> (String -> msg) -> Decoder ( msg, Bool )
+typeAhead typing toMsg =
     Internal.keyEvent
         |> Decode.andThen
             (\event ->
-                if event.ctrl || event.meta || event.alt || String.length event.key /= 1 || event.key == " " then
+                if event.ctrl || event.meta || event.alt || String.length event.key /= 1 || (event.key == " " && not typing) then
                     Decode.fail "not a letter"
 
                 else

@@ -131,7 +131,9 @@ type alias Target = Link.Destination.Target
 
 Where a link leads. Make one with `internal`, `external` or `download`; the
 type is opaque, so it always holds an address that has been checked.
-[`Button.href`](Klar.Button.md#href) takes it too.
+[`Button.href`](Klar.Button.md#href) takes it too. A compiler message may call it
+`Klar.Link.Destination.Target`: that is this same type, and the module is not
+one to import.
 
 ### `internal`
 
@@ -185,9 +187,14 @@ in the same tab and is never taken over by `Browser.application`.
         (Link.download { fileName = "orders.csv", mimeType = "text/csv", content = ordersCsv })
         "Download orders"
 
-The `mimeType` is `type/subtype` (`text/csv`, `application/json`); anything else
-becomes `application/octet-stream`. An empty `fileName` becomes `download`. Keep
-the text to a few megabytes: it is part of the page.
+The `mimeType` is `type/subtype` (`text/csv`, `application/json`); anything else,
+and `text/html` (which Elm does not allow in a `data:` address), becomes
+`application/octet-stream`. An empty `fileName` becomes `download`.
+
+**Size.** Chrome drops a link address longer than 2 MB (2 097 152 characters), and
+the download then fails without a message. The encoded text counts: a comma, a
+space or a line break takes 3 characters, a letter like `ø` 6, an emoji 12. A few
+hundred kilobytes of CSV is safe; let a server send a larger file.
 
 ## Attributes
 

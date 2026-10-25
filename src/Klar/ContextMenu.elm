@@ -108,6 +108,7 @@ import Klar.Button as Button
 import Klar.Internal as Internal
 import Klar.Locale as Locale exposing (Locale)
 import Klar.Menu as Menu
+import Klar.Menu.Core as MenuCore
 import Task
 
 
@@ -174,6 +175,7 @@ type alias Pointer =
     , width : Int
     , height : Int
     , restore : String
+    , keyboard : Bool
     }
 
 
@@ -185,8 +187,14 @@ update msg ((State state) as current) =
     case msg of
         OpenAt what pointer ->
             let
+                -- A right-click opens with nothing highlighted, as a native context
+                -- menu does; the context menu key and Shift+F10 open at the first item.
                 ( menu, cmd ) =
-                    Menu.open state.menu
+                    if pointer.keyboard then
+                        Menu.open state.menu
+
+                    else
+                        MenuCore.openWith MenuCore.NoItem state.menu
             in
             ( State
                 { state
@@ -378,7 +386,7 @@ textTarget =
 
 pointerDecoder : Decoder Pointer
 pointerDecoder =
-    Decode.map5 Pointer
+    Decode.map6 Pointer
         (Decode.field "clientX" Decode.float |> Decode.map round)
         (Decode.field "clientY" Decode.float |> Decode.map round)
         (Decode.at [ "view", "innerWidth" ] Decode.int)
@@ -389,6 +397,20 @@ pointerDecoder =
             , Decode.succeed ""
             ]
         )
+        fromKeyboard
+
+
+{-| Was the menu asked for with the context menu key or `Shift+F10`? Chrome and
+Edge send a `PointerEvent` whose `pointerType` is empty then; a browser that sends
+a `MouseEvent` reports button 2 only for the right button.
+-}
+fromKeyboard : Decoder Bool
+fromKeyboard =
+    Decode.oneOf
+        [ Decode.field "pointerType" Decode.string |> Decode.map String.isEmpty
+        , Decode.field "button" Decode.int |> Decode.map (\button -> button /= 2)
+        , Decode.succeed False
+        ]
 
 
 {-| A non-empty element id.

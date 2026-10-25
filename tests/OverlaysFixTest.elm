@@ -1061,6 +1061,25 @@ rightClick =
             , ( "clientY", Encode.float 80 )
             , ( "view", Encode.object [ ( "innerWidth", Encode.int 1024 ), ( "innerHeight", Encode.int 768 ) ] )
             , ( "currentTarget", Encode.object [ ( "id", Encode.string "order-row" ) ] )
+            , ( "button", Encode.int 2 )
+            , ( "pointerType", Encode.string "mouse" )
+            ]
+        )
+
+
+{-| The `contextmenu` event that the context menu key or Shift+F10 sends in Chrome:
+a pointer event without a pointer type.
+-}
+contextKey : ( String, Encode.Value )
+contextKey =
+    Event.custom "contextmenu"
+        (Encode.object
+            [ ( "clientX", Encode.float 20 )
+            , ( "clientY", Encode.float 30 )
+            , ( "view", Encode.object [ ( "innerWidth", Encode.int 1024 ), ( "innerHeight", Encode.int 768 ) ] )
+            , ( "currentTarget", Encode.object [ ( "id", Encode.string "order-row" ) ] )
+            , ( "button", Encode.int 0 )
+            , ( "pointerType", Encode.string "" )
             ]
         )
 
@@ -1152,13 +1171,34 @@ contextMenuTests =
                                 state
                         )
         , describe "the keys move the highlight, as in a menu"
-            [ test "the menu opens with the first item that can be picked highlighted (Menu.open)" <|
+            [ test "a right-click opens with nothing highlighted, as a native context menu does" <|
                 \_ ->
                     rightClicked
+                        |> expectOk
+                            (drawContext
+                                >> Query.fromHtml
+                                >> Query.find [ role "menu" ]
+                                >> Query.hasNot [ Selector.attribute (Attr.attribute "aria-activedescendant" (itemId contextId 1)) ]
+                            )
+            , test "the context menu key or Shift+F10 opens at the first item that can be picked" <|
+                \_ ->
+                    let
+                        closed =
+                            ContextMenu.init contextId
+                    in
+                    send (drawContext closed) [ Selector.id "order-row" ] contextKey
+                        |> Result.andThen (inContext closed)
+                        |> Result.map Tuple.first
+                        |> expectOk (activeInContext 1)
+            , test "ArrowDown highlights the first item that can be picked" <|
+                \_ ->
+                    rightClicked
+                        |> Result.andThen (pressInContext "ArrowDown")
                         |> expectOk (activeInContext 1)
             , test "ArrowDown skips the item that cannot be picked" <|
                 \_ ->
                     rightClicked
+                        |> Result.andThen (pressInContext "ArrowDown")
                         |> Result.andThen (pressInContext "ArrowDown")
                         |> expectOk (activeInContext 3)
             , test "End highlights the last item that can be picked" <|
