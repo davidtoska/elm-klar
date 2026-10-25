@@ -871,7 +871,7 @@ nodes" by default, with a folder icon). The attributes are those of
 While a filter matches nothing the tree says "No matches" instead, which this does
 not change.
 
-    Tree.emptyState [ EmptyState.title "No warehouses yet", EmptyState.action addButton ]
+    Tree.emptyState [ EmptyState.title "No warehouses yet", EmptyState.actions [ addButton ] ]
 
 ### `locale`
 

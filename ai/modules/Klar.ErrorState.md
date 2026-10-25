@@ -129,7 +129,7 @@ for `Remote.forbidden`, "Back to orders" for `Remote.notFound`. There are none
 by default.
 
     ErrorState.view
-        [ ErrorState.actions [ Button.view [ Button.href "#/orders" ] "Back to orders" ] ]
+        [ ErrorState.actions [ Button.view [ Button.href (Link.internal "#/orders") ] "Back to orders" ] ]
         problem
 
 ### `compact`

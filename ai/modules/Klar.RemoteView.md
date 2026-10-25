@@ -158,7 +158,7 @@ one that says "Nothing to show"; your attributes are applied after it, so yours 
 Return `[]` for an empty result and let the body say so:
 
     RemoteView.view
-        [ RemoteView.emptyState [ EmptyState.title "No notes yet", EmptyState.action addNoteButton ] ]
+        [ RemoteView.emptyState [ EmptyState.title "No notes yet", EmptyState.actions [ addNoteButton ] ] ]
         model.notes
         (List.map viewNote)
 
