@@ -833,6 +833,24 @@ css =
   font-size: var(--klar-text-sm);
 }
 
+/* The status, the notice of old data and the list, one tree in every state. */
+.klar-savedviews__views {
+  min-width: 0;
+}
+
+/* Loading the views, or a failure with its retry; empty while views are shown.
+   It takes focus from "Try again" while the views load again. */
+.klar-savedviews__status {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--klar-space-2);
+}
+
+.klar-savedviews__status:focus {
+  outline: none;
+}
+
 .klar-savedviews__list {
   max-height: 300px;
   overflow-y: auto;
@@ -915,6 +933,15 @@ css =
 }
 
 .klar-savedviews__row-actions .klar-button[aria-pressed="true"] { --_fg: var(--klar-amber-600); }
+
+/* A locked view (a team view someone else owns): a lock where rename and delete are. */
+.klar-savedviews__lock {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: var(--klar-control-sm);
+  color: var(--klar-text-secondary);
+}
 
 .klar-savedviews__item--confirm {
   flex-wrap: wrap;

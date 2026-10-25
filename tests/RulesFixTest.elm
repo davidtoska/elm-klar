@@ -1352,7 +1352,7 @@ viewsView : Locale -> SavedViews.State -> Html ViewsMsg
 viewsView locale state =
     SavedViews.view ViewsMsg
         [ SavedViews.locale locale
-        , SavedViews.current Rule.emptyGroup
+        , SavedViews.currentRule Rule.emptyGroup
         ]
         state
 

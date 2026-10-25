@@ -4659,13 +4659,13 @@
         "withNote",
         "asDefault",
         "asShared",
-        "withQuery"
+        "asLocked"
       ],
       "related": [
+        "Klar.ServerList",
         "Klar.FilterBar",
         "Klar.Rule",
         "Klar.RuleBuilder",
-        "Klar.ServerList",
         "Klar.Table",
         "Klar.TextInput",
         "Klar.Theme"
@@ -4824,13 +4824,13 @@
       "quickPath": [],
       "mainFunctions": [
         "filter",
+        "filterBy",
         "rank",
         "score",
         "matches",
         "highlight",
         "prepare",
-        "prepareMany",
-        "query"
+        "prepareMany"
       ],
       "related": [],
       "keywords": [
@@ -4858,15 +4858,16 @@
       "mainFunctions": [
         "int",
         "decimal",
+        "decimalUpTo",
         "percent",
+        "abbreviated",
+        "signed",
         "currency",
-        "plural",
-        "bytes",
-        "duration",
-        "date"
+        "plural"
       ],
       "related": [
-        "Klar.Settings"
+        "Klar.Settings",
+        "Klar.Money"
       ],
       "keywords": [
         "format",

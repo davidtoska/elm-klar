@@ -1,10 +1,11 @@
 module Klar.SavedViews exposing
     ( view
     , State, init, Msg, update
-    , SavedView, savedView, withNote, asDefault, asShared, withQuery
+    , SavedView, savedView, withNote, asDefault, asShared, asLocked, withQuery, withKey
+    , Change(..), changes
     , encode, decoder
     , views, active, defaultView, revision, isOpen, setViews, setActive, apply, startSave
-    , Attribute, current, currentQuery, label, locale, size, alignEnd
+    , Attribute, currentRule, currentQuery, remote, onRetry, label, locale, size, alignEnd
     )
 
 {-| Named, saved filters ("views"): a dropdown button that lists the saved
@@ -46,7 +47,7 @@ Use it next to a [Klar.FilterBar](Klar-FilterBar) or a
             ( next, Cmd.map ViewsMsg cmd )
 
     -- view
-    SavedViews.view ViewsMsg [ SavedViews.current model.rule ] model.views
+    SavedViews.view ViewsMsg [ SavedViews.currentRule model.rule ] model.views
 
 Here `applyRule` stands for whatever puts a rule into your filters, for example
 `FilterBar.setRule`, and `model.rule` is the rule they show now.
@@ -57,13 +58,17 @@ and bumps `revision`. The application compares `revision` before and after
 again (to throw away changes) also bumps `revision`.
 
 **Storage**: the state holds the list, nothing is stored. The application saves
-`views` (and `active`) where it keeps user settings, typically through its
-backend, with `Rule.encode` for the rules, and restores them with `setViews` and
-`setActive`. Compare `views` before and after `update` to know when to save:
-the list changes when the user saves, renames, deletes or updates a view or
+`views` (and the name of `active`) where it keeps user settings, typically through
+its backend, with `encode` (see "Keeping the views" below), and restores them with
+`setViews` and `setActive`. Compare `views` before and after `update` to know when to
+save: the list changes when the user saves, renames, deletes or updates a view or
 changes the default.
 
-`current` is the rule the application shows now. It is what "Save current
+**Views from a backend** come later than the page: give `view` the `Remote` of that
+request with `remote` (and `onRetry`), so the list says it is loading instead of "No
+saved views yet", and shows a failure with a retry.
+
+`currentRule` is the rule the application shows now. It is what "Save current
 view ..." saves, and the active view is marked "modified" when its rule differs
 from it. The button shows the name of the active view, or "Views" when there is
 none.
@@ -87,7 +92,7 @@ only the rule, and a view that holds no query leaves the table as it is.
 **Open the save form from a command or a shortcut**: `startSave` opens the list
 with the "Save current view" form open and focus in its name field, so that a
 command palette entry or a shortcut needs no dialog of your own. The form saves
-what `current` is, so give `current` to `view` (without it there is no form and
+what `currentRule` is, so give `currentRule` to `view` (without it there is no form and
 the list just opens).
 
 
@@ -97,19 +102,20 @@ the list just opens).
     -- ( { model | views = views }, Cmd.map ViewsMsg cmd )
 
 **Shared views**: a view is shared when the application says so (`asShared`, or
-`isShared = True` in stored data); the list shows a "Shared" badge. Klar stores
+`isShared = True` in stored data); the list shows a "Shared" badge. A view that someone
+else owns is also `asLocked`: it can be applied and made the default, not renamed,
+updated or deleted. Klar stores
 nothing, so who may see a view is the backend's business. A link to a view is a
 route of your own that names it, and `apply` is what that route does:
-
-    -- the link a "Copy link" button copies
-    "#/orders?view=" ++ Url.percentEncode name
 
     -- when the route says view=name: marks it active and bumps `revision`
     { model | views = SavedViews.apply name model.views }
 
 Compare `revision` after `apply` as after `update` and load the rule (and query)
-of `active`. (With [Klar.ServerList](Klar-ServerList), `ServerList.applyView name` does
-both.) There is no clipboard in pure Elm, so a "Copy link" is the link in a read-only
+of `active`. With [Klar.ServerList](Klar-ServerList), `ServerList.toQueryString` writes
+the link (the view, the filters and the page, every text safely encoded: a name is user
+text, and `Url.percentEncode` throws on half of an emoji) and
+`ServerList.fromQueryString` reads it. There is no clipboard in pure Elm, so a "Copy link" is the link in a read-only
 [Klar.TextInput](Klar-TextInput) that the user selects (`TextInput.readOnly True`), shown
 in a dialog or a toast of your own.
 
@@ -140,7 +146,12 @@ text follows `locale`, which is English by default.
 
 # Defining views
 
-@docs SavedView, savedView, withNote, asDefault, asShared, withQuery
+@docs SavedView, savedView, withNote, asDefault, asShared, asLocked, withQuery, withKey
+
+
+## A backend that keeps each view
+
+@docs Change, changes
 
 
 ## Keeping the views
@@ -167,22 +178,26 @@ address, a cookie that it sets through a port of its own.
 
 # Attributes
 
-@docs Attribute, current, currentQuery, label, locale, size, alignEnd
+@docs Attribute, currentRule, currentQuery, remote, onRetry, label, locale, size, alignEnd
 
 -}
 
 import Html exposing (Html)
 import Html.Attributes as Attr
 import Html.Events as Events
+import Html.Keyed as Keyed
 import Json.Decode as Decode exposing (Decoder)
 import Json.Encode as Encode
 import Klar.Badge as Badge
 import Klar.Button as Button
 import Klar.Icon as Icon exposing (Icon)
 import Klar.Internal as Internal
+import Klar.Internal.Freshness as Freshness exposing (Freshness)
 import Klar.Locale as Locale exposing (Locale)
+import Klar.Remote as Remote exposing (Remote)
 import Klar.Rule as Rule exposing (Rule)
 import Klar.RuleBuilder.Support as Support
+import Klar.Settings as Settings
 import Klar.Table as Table
 import Klar.TextInput as TextInput
 import Klar.Theme exposing (Size(..), Tone(..))
@@ -196,7 +211,9 @@ import Klar.Theme exposing (Size(..), Tone(..))
 case. The `note` is a short description shown under the name. `isDefault` marks
 the view that "Reset" returns to; at most one view is the default. `isShared`
 is set by the application, and the list shows a badge for it. `query` is the search,
-sort, filters and page size of the table, when the view holds them.
+sort, filters and page size of the table, when the view holds them. `key` is the id your
+backend gave the view (`withKey`), `Nothing` until it is stored; a rename keeps it, so
+`changes` can tell a rename from a new view.
 
 Make views with `savedView`, or build the record yourself, for example from
 stored data.
@@ -209,11 +226,14 @@ type alias SavedView =
     , isDefault : Bool
     , isShared : Bool
     , query : Maybe Table.Query
+    , key : Maybe String
+    , isLocked : Bool
     }
 
 
-{-| One view as JSON: the name, the rule (`Rule.encode`), the note, the two flags and
-the table query (`Table.encodeQuery`) when it has one. It carries a version, `"v": 1`.
+{-| One view as JSON: the name, the rule (`Rule.encode`), the note, the two flags, the
+table query (`Table.encodeQuery`) when it has one, and the key when it has one. It carries
+a version, `"v": 1`.
 -}
 encode : SavedView -> Encode.Value
 encode saved =
@@ -225,6 +245,8 @@ encode saved =
         , ( "default", Encode.bool saved.isDefault )
         , ( "shared", Encode.bool saved.isShared )
         , ( "query", Maybe.map Table.encodeQuery saved.query |> Maybe.withDefault Encode.null )
+        , ( "key", Maybe.map Encode.string saved.key |> Maybe.withDefault Encode.null )
+        , ( "locked", Encode.bool saved.isLocked )
         ]
 
 
@@ -247,7 +269,7 @@ decoder =
                     Decode.fail ("This view was written by a newer version (v" ++ String.fromInt version ++ ")")
 
                 else
-                    Decode.map6 SavedView
+                    Decode.map8 SavedView
                         (Decode.field "name" Decode.string
                             |> Decode.andThen
                                 (\name ->
@@ -273,6 +295,8 @@ decoder =
                                             Decode.field "query" (Decode.nullable Table.queryDecoder)
                                 )
                         )
+                        (Decode.oneOf [ Decode.field "key" (Decode.nullable Decode.string), Decode.succeed Nothing ])
+                        (Decode.oneOf [ Decode.field "locked" Decode.bool, Decode.succeed False ])
             )
 
 
@@ -283,7 +307,7 @@ decoder =
 -}
 savedView : String -> Rule -> SavedView
 savedView name rule =
-    { name = name, rule = rule, note = Nothing, isDefault = False, isShared = False, query = Nothing }
+    { name = name, rule = rule, note = Nothing, isDefault = False, isShared = False, query = Nothing, key = Nothing, isLocked = False }
 
 
 {-| Adds a short description, shown under the name in the list.
@@ -313,6 +337,15 @@ asShared saved =
     { saved | isShared = True }
 
 
+{-| Locks the view: the user can apply it and make it their default, but not rename,
+update or delete it, for a team view that someone else owns. The list shows a lock in
+place of those actions. `isLocked = True` in stored data does the same.
+-}
+asLocked : SavedView -> SavedView
+asLocked saved =
+    { saved | isLocked = True }
+
+
 {-| Gives the view a table query: search text, sort, column filters and page size
 (the page is not kept). Use it for views you make yourself; the ones the user saves
 get it from `currentQuery`.
@@ -325,6 +358,103 @@ withQuery q saved =
 firstPage : Table.Query -> Table.Query
 firstPage q =
     { q | page = 1 }
+
+
+{-| Gives the view the id your backend keeps it under. Give it to every stored view
+(in the list for `setViews`), and `changes` says what to send per view.
+
+    SavedViews.savedView stored.name rule |> SavedViews.withKey stored.id
+
+-}
+withKey : String -> SavedView -> SavedView
+withKey key saved =
+    { saved | key = Just key }
+
+
+{-| What to send to a backend that keeps each view by its key:
+
+  - `Created view`: a view the user saved. It has no key yet: store it, and give the
+    list back to `setViews` with the key the backend gave it (`withKey`).
+  - `Updated view`: a view whose name, note, rule, query or default changed (a rename
+    keeps the key, so it is an update, not a new view). A view that has no key yet is
+    followed by its name, so a new view made the default before the backend answered
+    is an update of that name, not a second view.
+  - `Deleted key`: the key of a view that the user deleted.
+
+The default is the user's own choice: a locked view (`asLocked`) whose only change is
+that it became, or stopped being, the default gives nothing, so nothing is written to a
+view the user does not own. Store the name of `defaultView` per user when your views
+are shared. Give a new view its key before it is renamed: a view without a key that is
+renamed reads as a new view.
+
+-}
+type Change
+    = Created SavedView
+    | Updated SavedView
+    | Deleted String
+
+
+{-| The changes from one list of views to the next, for a backend that keeps each view
+by its key: compare `views` before and after `update` (with
+[Klar.ServerList](Klar-ServerList): the views before, and the `save` of the step).
+A view without a key and with no view of its name before is `Created`. Unchanged views
+give nothing.
+
+    SavedViews.changes (SavedViews.views model.views) (SavedViews.views views)
+        |> List.map storeChange
+
+-}
+changes : List SavedView -> List SavedView -> List Change
+changes before after =
+    let
+        keyed list =
+            List.filterMap (\saved -> Maybe.map (\key -> ( key, saved )) saved.key) list
+
+        earlier key =
+            keyed before |> List.filter (\( k, _ ) -> k == key) |> List.head |> Maybe.map Tuple.second
+
+        later =
+            keyed after |> List.map Tuple.first
+
+        -- a view without a key is followed by its name: it has nothing else yet
+        earlierByName name =
+            before |> List.filter (\saved -> saved.key == Nothing && sameName saved.name name) |> List.head
+
+        -- the default of a locked view is the user's own, not a change to the view
+        updated old saved =
+            if old == saved || (saved.isLocked && { old | isDefault = saved.isDefault } == saved) then
+                Nothing
+
+            else
+                Just (Updated saved)
+
+        createdOrUpdated =
+            List.filterMap
+                (\saved ->
+                    let
+                        previous =
+                            case saved.key of
+                                Just key ->
+                                    earlier key
+
+                                Nothing ->
+                                    earlierByName saved.name
+                    in
+                    case previous of
+                        Just old ->
+                            updated old saved
+
+                        Nothing ->
+                            Just (Created saved)
+                )
+                after
+
+        deleted =
+            keyed before
+                |> List.filter (\( key, _ ) -> not (List.member key later))
+                |> List.map (\( key, _ ) -> Deleted key)
+    in
+    createdOrUpdated ++ deleted
 
 
 
@@ -432,8 +562,9 @@ isOpen (State s) =
 {-| Replaces the list, for example with the views loaded from the backend. Names
 must be unique, ignoring case and surrounding spaces: later duplicates are
 dropped. Only the first view marked as default stays the default. The active
-view stays active if it is still in the list, and a form that is open in the
-list is closed.
+view stays active if it is still in the list. A form that is open in the list stays
+open while the view it is about is still there, so a refresh from the backend never
+throws away a name the user is typing; the name is checked again when it is saved.
 -}
 setViews : List SavedView -> State -> State
 setViews list (State s) =
@@ -455,74 +586,82 @@ setViews list (State s) =
 
         cleaned =
             List.map (\saved -> { saved | isDefault = Just saved.name == firstDefault }) unique
+
+        stillThere name =
+            List.any (\saved -> saved.name == name) cleaned
     in
     State
         { s
             | views = cleaned
-            , active =
-                s.active
-                    |> Maybe.andThen
-                        (\name ->
-                            if List.any (\saved -> saved.name == name) cleaned then
-                                Just name
+            , active = s.active |> Maybe.andThen (\name -> find name cleaned |> Maybe.map .name)
+            , mode =
+                case s.mode of
+                    Renaming original _ ->
+                        if stillThere original then
+                            s.mode
 
-                            else
-                                Nothing
-                        )
-            , mode = Browsing
+                        else
+                            Browsing
+
+                    Deleting name ->
+                        if stillThere name then
+                            s.mode
+
+                        else
+                            Browsing
+
+                    Saving _ ->
+                        s.mode
+
+                    Browsing ->
+                        Browsing
         }
 
 
 {-| Marks the view with this name as active, without applying anything: use it
-when the application has already loaded the rule, for example at start-up. A
-name that is not in the list, or `Nothing`, means that no view is active.
+when the application has already loaded the rule, for example at start-up. The name
+is matched like names are compared, ignoring case and surrounding spaces. A name that
+is not in the list, or `Nothing`, means that no view is active.
 -}
 setActive : Maybe String -> State -> State
 setActive name (State s) =
-    State
-        { s
-            | active =
-                name
-                    |> Maybe.andThen
-                        (\wanted ->
-                            if List.any (\saved -> saved.name == wanted) s.views then
-                                Just wanted
-
-                            else
-                                Nothing
-                        )
-        }
+    State { s | active = name |> Maybe.andThen (\wanted -> find wanted s.views |> Maybe.map .name) }
 
 
 {-| Applies the view with this name, as if the user had picked it: it becomes
 active and `revision` goes up, so the application loads its rule and query the
-way it does after `update`. Use it for a link that names a view. A name that is not
-in the list changes nothing.
+way it does after `update`. Use it for a link that names a view; the name is matched
+ignoring case and surrounding spaces (`?view=open%20orders` finds "Open orders"). A
+name that is not in the list changes nothing.
 -}
 apply : String -> State -> State
 apply name (State s) =
-    if List.any (\saved -> saved.name == name) s.views then
-        State { s | active = Just name, revision = s.revision + 1, open = False, mode = Browsing }
+    case find name s.views of
+        Just saved ->
+            State { s | active = Just saved.name, revision = s.revision + 1, open = False, mode = Browsing }
 
-    else
-        State s
+        Nothing ->
+            State s
 
 
 {-| Opens the list with the form for saving the current view open, and moves focus
 to its name field. Use it for a command or a shortcut ("New saved view"); map the
-`Cmd` with your wrapper of the component's `Msg`. The form needs `current` in the
-attributes of `view`.
+`Cmd` with your wrapper of the component's `Msg`. The form needs `currentRule` in the
+attributes of `view`; without it the list opens with focus on "Reset".
 -}
 startSave : State -> ( State, Cmd Msg )
 startSave (State s) =
     ( State { s | open = True, mode = Saving { name = "", note = "", problem = Nothing } }
-    , Internal.focus (nameDomId s.id) NoOp
+    , Internal.focusFirst [ nameDomId s.id, resetDomId s.id ] NoOp
     )
 
 
+{-| The view with this name, ignoring case and surrounding spaces (names are unique
+that way).
+-}
 find : String -> List SavedView -> Maybe SavedView
 find name list =
-    list |> List.filter (\saved -> saved.name == name) |> List.head
+    list |> List.filter (\saved -> sameName saved.name name) |> List.head
 
 
 sameName : String -> String -> Bool
@@ -568,6 +707,7 @@ type Msg
     | ActiveUpdated Rule (Maybe Table.Query)
     | ModeCancelled
     | FocusItem Int
+    | RetryClicked
     | NoOp
 
 
@@ -649,7 +789,7 @@ update msg (State s) =
                             in
                             ( State
                                 { s
-                                    | views = s.views ++ [ { name = name, rule = rule, note = note, isDefault = False, isShared = False, query = query } ]
+                                    | views = s.views ++ [ { name = name, rule = rule, note = note, isDefault = False, isShared = False, query = query, key = Nothing, isLocked = False } ]
                                     , active = Just name
                                     , open = False
                                     , mode = Browsing
@@ -661,17 +801,21 @@ update msg (State s) =
                     ( State s, Cmd.none )
 
         RenameStarted name ->
-            ( State
-                { s
-                    | mode =
-                        Renaming name
-                            { name = name
-                            , note = find name s.views |> Maybe.andThen .note |> Maybe.withDefault ""
-                            , problem = Nothing
-                            }
-                }
-            , Internal.focus (renameDomId s.id) NoOp
-            )
+            if isLockedView name s.views then
+                ( State s, Cmd.none )
+
+            else
+                ( State
+                    { s
+                        | mode =
+                            Renaming name
+                                { name = name
+                                , note = find name s.views |> Maybe.andThen .note |> Maybe.withDefault ""
+                                , problem = Nothing
+                                }
+                    }
+                , Internal.focus (renameDomId s.id) NoOp
+                )
 
         RenameConfirmed ->
             case s.mode of
@@ -686,6 +830,13 @@ update msg (State s) =
                             let
                                 name =
                                     String.trim form.name
+
+                                note =
+                                    if String.trim form.note == "" then
+                                        Nothing
+
+                                    else
+                                        Just (String.trim form.note)
                             in
                             ( State
                                 { s
@@ -693,7 +844,7 @@ update msg (State s) =
                                         List.map
                                             (\saved ->
                                                 if saved.name == original then
-                                                    { saved | name = name }
+                                                    { saved | name = name, note = note }
 
                                                 else
                                                     saved
@@ -714,33 +865,42 @@ update msg (State s) =
                     ( State s, Cmd.none )
 
         DeleteAsked name ->
-            ( State { s | mode = Deleting name }, Internal.focus (confirmDomId s.id) NoOp )
+            if isLockedView name s.views then
+                ( State s, Cmd.none )
+
+            else
+                ( State { s | mode = Deleting name }, Internal.focus (confirmDomId s.id) NoOp )
 
         DeleteConfirmed name ->
-            let
-                index =
-                    indexOf name s.views
+            if isLockedView name s.views then
+                ( State s, Cmd.none )
 
-                remaining =
-                    List.filter (\saved -> saved.name /= name) s.views
-            in
-            ( State
-                { s
-                    | views = remaining
-                    , active =
-                        if s.active == Just name then
-                            Nothing
+            else
+                let
+                    index =
+                        indexOf name s.views
 
-                        else
-                            s.active
-                    , mode = Browsing
-                }
-            , if List.isEmpty remaining then
-                Internal.focus (saveDomId s.id) NoOp
+                    remaining =
+                        List.filter (\saved -> saved.name /= name) s.views
+                in
+                ( State
+                    { s
+                        | views = remaining
+                        , active =
+                            if s.active == Just name then
+                                Nothing
 
-              else
-                Internal.focus (itemDomId s.id (min index (List.length remaining - 1))) NoOp
-            )
+                            else
+                                s.active
+                        , mode = Browsing
+                    }
+                , if List.isEmpty remaining then
+                    -- "Save current view" is there only with `currentRule`; "Reset" always is
+                    Internal.focusFirst [ saveDomId s.id, resetDomId s.id ] NoOp
+
+                  else
+                    Internal.focus (itemDomId s.id (min index (List.length remaining - 1))) NoOp
+                )
 
         DefaultToggled name ->
             ( State
@@ -797,8 +957,17 @@ update msg (State s) =
         FocusItem index ->
             ( State s, Internal.focus (itemDomId s.id index) NoOp )
 
+        RetryClicked ->
+            -- the retry button goes away while the views load: the status stays
+            ( State s, Internal.focus (statusDomId s.id) NoOp )
+
         NoOp ->
             ( State s, Cmd.none )
+
+
+isLockedView : String -> List SavedView -> Bool
+isLockedView name list =
+    List.any (\saved -> saved.name == name && saved.isLocked) list
 
 
 orElse : Maybe a -> Maybe a -> Maybe a
@@ -815,7 +984,7 @@ open : Inner -> ( State, Cmd Msg )
 open s =
     ( State { s | open = True, mode = Browsing }
     , if List.isEmpty s.views then
-        Internal.focus (saveDomId s.id) NoOp
+        Internal.focusFirst [ saveDomId s.id, resetDomId s.id ] NoOp
 
       else
         Internal.focus
@@ -885,6 +1054,11 @@ itemDomId id index =
     id ++ "-item-" ++ String.fromInt index
 
 
+statusDomId : String -> String
+statusDomId id =
+    id ++ "-status"
+
+
 nameDomId : String -> String
 nameDomId id =
     id ++ "-name"
@@ -910,6 +1084,16 @@ saveDomId id =
     id ++ "-save"
 
 
+resetDomId : String -> String
+resetDomId id =
+    id ++ "-reset"
+
+
+questionDomId : String -> String
+questionDomId id =
+    id ++ "-question"
+
+
 
 -- ATTRIBUTES
 
@@ -918,20 +1102,30 @@ saveDomId id =
 pass a list to `view`; later attributes win over earlier ones.
 -}
 type Attribute msg
-    = Attribute (Config -> Config)
+    = Attribute (Config msg -> Config msg)
 
 
-type alias Config =
+type alias Config msg =
     { current : Maybe Rule
     , currentQuery : Maybe Table.Query
     , locale : Locale
     , label : Maybe String
     , alignEnd : Bool
     , size : Size
+    , source : Source
+    , onRetry : Maybe msg
     }
 
 
-configure : List (Attribute msg) -> Config
+{-| How the request for the views stands, from `remote`.
+-}
+type Source
+    = Waiting
+    | FailedWith Remote.Problem
+    | Ready Freshness
+
+
+configure : List (Attribute msg) -> Config msg
 configure attributes =
     List.foldl (\(Attribute change) config -> change config)
         { current = Nothing
@@ -940,6 +1134,8 @@ configure attributes =
         , label = Nothing
         , alignEnd = False
         , size = Medium
+        , source = Ready Freshness.Fresh
+        , onRetry = Nothing
         }
         attributes
 
@@ -949,9 +1145,60 @@ saves, and what the active view is compared with: the view is marked "modified"
 when the two differ (ignoring node ids). Without it the list can only apply
 views, not save them.
 -}
-current : Rule -> Attribute msg
-current rule =
+currentRule : Rule -> Attribute msg
+currentRule rule =
     Attribute (\config -> { config | current = Just rule })
+
+
+{-| Takes loading, failure, refreshing and old data from the `Remote` of the request
+that brings the views; the views themselves are the ones of `setViews`, as always.
+While nothing has come the list says that it is loading (not "No saved views yet"),
+a failure with no views to show says what went wrong with a retry (`onRetry`), and
+views that are `Kept` stay: dimmed and busy while they are refreshed, marked "Old data"
+with a retry when the refresh failed. Without it the views count as loaded.
+
+    SavedViews.view ViewsMsg
+        [ SavedViews.currentRule model.rule
+        , SavedViews.remote model.storedViews
+        , SavedViews.onRetry LoadViews
+        ]
+        model.views
+
+-}
+remote : Remote a -> Attribute msg
+remote data =
+    Attribute
+        (\config ->
+            let
+                ( settled, freshness ) =
+                    Freshness.settle data
+            in
+            { config
+                | source =
+                    case settled of
+                        Remote.NotAsked ->
+                            Waiting
+
+                        Remote.Loading ->
+                            Waiting
+
+                        Remote.Failed problem ->
+                            FailedWith problem
+
+                        _ ->
+                            Ready freshness
+            }
+        )
+
+
+{-| The message of the "Try again" button, shown when loading the views failed (and the
+problem is worth retrying, see `Remote.isRetryable`). While the views load (the first
+time, or again after "Try again") the list says it is loading, with no button; focus
+moves from the button to that status, so it stays in the popup.
+-}
+onRetry : msg -> Attribute msg
+onRetry msg =
+    Attribute (\config -> { config | onRetry = Just msg })
 
 
 {-| The query of the table next to the filters, `Table.query model.table`. A view
@@ -1002,7 +1249,7 @@ size value =
 
 type alias Ctx msg =
     { toMsg : Msg -> msg
-    , config : Config
+    , config : Config msg
     , state : Inner
     , texts : Texts
     , modified : Bool
@@ -1014,7 +1261,7 @@ default, rename and delete a view, save the current filter, update the active
 view with the changes, and reset. The first argument turns the component's
 messages into yours.
 
-    SavedViews.view ViewsMsg [ SavedViews.current model.rule ] model.views
+    SavedViews.view ViewsMsg [ SavedViews.currentRule model.rule ] model.views
 
 -}
 view : (Msg -> msg) -> List (Attribute msg) -> State -> Html msg
@@ -1132,17 +1379,12 @@ viewPopup ctx activeView =
             , Support.onFocusLeave (popupDomId s.id) (ctx.toMsg Left)
             ]
             [ Html.div [ Internal.cls [ "klar-savedviews__heading" ] ] [ Html.text t.title ]
-            , if List.isEmpty s.views then
-                Html.p [ Internal.cls [ "klar-savedviews__empty" ] ] [ Html.text t.noViews ]
-
-              else
-                Html.ul [ Internal.cls [ "klar-savedviews__list" ] ]
-                    (List.indexedMap (viewItem ctx) s.views)
+            , viewViews ctx
             , Html.div [ Internal.cls [ "klar-savedviews__separator" ] ] []
             , viewSaveArea ctx activeView
             , Html.div [ Internal.cls [ "klar-savedviews__separator" ] ] []
             , viewAction
-                { id = s.id ++ "-reset"
+                { id = resetDomId s.id
                 , icon = Icon.undo
                 , label = t.reset
                 , hint =
@@ -1156,6 +1398,110 @@ viewPopup ctx activeView =
                 }
             ]
         ]
+
+
+{-| The views, or what stands in for them: loading, a failure with a retry, or the
+empty text. One element tree in every state: the status (a live region that is always
+there, with the retry of a failure) comes first, then the notice of old data, then the
+list, keyed by name, so the view that has focus keeps it through a refresh. "Try again"
+moves focus to the status before the button goes away, so focus stays in the popup.
+-}
+viewViews : Ctx msg -> Html msg
+viewViews ctx =
+    let
+        t =
+            ctx.texts
+
+        s =
+            ctx.state
+
+        -- the text of the status, and the retry of a failure with no views to show
+        ( statusText, retry ) =
+            case ( ctx.config.source, s.views ) of
+                ( Waiting, [] ) ->
+                    ( t.loading, Nothing )
+
+                ( FailedWith problem, [] ) ->
+                    ( Remote.title ctx.config.locale problem
+                    , if Remote.isRetryable problem then
+                        ctx.config.onRetry
+
+                      else
+                        Nothing
+                    )
+
+                _ ->
+                    ( "", Nothing )
+
+        status =
+            Html.div
+                [ Internal.cls
+                    [ "klar-savedviews__status"
+                    , if statusText == "" then
+                        ""
+
+                      else
+                        "klar-savedviews__empty"
+                    ]
+                , Attr.id (statusDomId s.id)
+                , Attr.tabindex -1
+                , Internal.attrMaybe (\_ -> Events.onClick (ctx.toMsg RetryClicked)) retry
+                ]
+                [ Html.span [ Attr.attribute "role" "status" ] [ Html.text statusText ]
+                , case retry of
+                    Just msg ->
+                        Button.view [ Button.small, Button.icon Icon.refresh, Button.onClick msg ] t.retry
+
+                    Nothing ->
+                        Html.text ""
+                ]
+
+        freshness =
+            case ctx.config.source of
+                -- views on the screen, and the request failed or is on its way
+                Ready value ->
+                    value
+
+                Waiting ->
+                    Freshness.Refreshing
+
+                FailedWith problem ->
+                    Freshness.Stale { problem = problem, at = Nothing, refreshing = False }
+    in
+    Html.div [ Internal.cls [ "klar-savedviews__views" ] ]
+        (case ( ctx.config.source, s.views ) of
+            ( Ready _, [] ) ->
+                [ status
+                , Html.text ""
+                , Html.p [ Internal.cls [ "klar-savedviews__empty" ] ] [ Html.text t.noViews ]
+                ]
+
+            ( _, [] ) ->
+                [ status, Html.text "", Html.text "" ]
+
+            ( _, list ) ->
+                [ status
+                , Freshness.notice
+                    { locale = ctx.config.locale
+                    , settings = Settings.default
+                    , onRetry = ctx.config.onRetry
+                    , inline = True
+                    }
+                    (case freshness of
+                        -- no clock here: "Old data", without a time in an unknown zone
+                        Freshness.Stale value ->
+                            Freshness.Stale { value | at = Nothing }
+
+                        other ->
+                            other
+                    )
+                , Keyed.ul
+                    [ Internal.cls [ "klar-savedviews__list", Freshness.className freshness ]
+                    , Freshness.busyAttr freshness
+                    ]
+                    (List.indexedMap (\index saved -> ( saved.name, viewItem ctx index saved )) list)
+                ]
+        )
 
 
 viewItem : Ctx msg -> Int -> SavedView -> Html msg
@@ -1189,7 +1535,7 @@ viewItem ctx index saved =
                         { nameId = renameDomId s.id
                         , nameLabel = t.newName
                         , form = form
-                        , withNote = False
+                        , withNote = True
                         , confirm = ctx.toMsg RenameConfirmed
                         , confirmLabel = t.save
                         }
@@ -1200,21 +1546,25 @@ viewItem ctx index saved =
 
         Deleting name ->
             if name == saved.name then
+                -- focus lands on Cancel: the question is its description, so a screen
+                -- reader says what is being cancelled
                 Html.li [ Internal.cls [ "klar-savedviews__item", "klar-savedviews__item--confirm" ] ]
                     [ Html.span [ Internal.cls [ "klar-savedviews__question" ] ]
                         [ Icon.sized Icon.Small Icon.warning
-                        , Html.span [ Internal.cls [ "klar-truncate" ] ] [ Html.text (t.deleteQuestion saved.name) ]
+                        , Html.span [ Internal.cls [ "klar-truncate" ], Attr.id (questionDomId s.id) ] [ Html.text (t.deleteQuestion saved.name) ]
                         ]
                     , Html.span [ Internal.cls [ "klar-savedviews__confirm-actions" ] ]
                         [ Button.view
                             [ Button.small
                             , Button.id (confirmDomId s.id)
+                            , Button.htmlAttrs [ Attr.attribute "aria-describedby" (questionDomId s.id) ]
                             , Button.onClick (ctx.toMsg ModeCancelled)
                             ]
                             t.cancel
                         , Button.view
                             [ Button.small
                             , Button.danger
+                            , Button.htmlAttrs [ Attr.attribute "aria-describedby" (questionDomId s.id) ]
                             , Button.onClick (ctx.toMsg (DeleteConfirmed saved.name))
                             ]
                             t.delete
@@ -1290,33 +1640,40 @@ viewRow ctx index saved isActive navigation =
                 ]
             ]
         , Html.span [ Internal.cls [ "klar-savedviews__row-actions" ] ]
-            [ Button.iconOnly
+            [ -- a toggle keeps its name; aria-pressed says whether it is on
+              Button.iconOnly
                 [ Button.ghost
                 , Button.small
                 , Button.pressed saved.isDefault
                 , Button.onClick (ctx.toMsg (DefaultToggled saved.name))
                 ]
                 Icon.star
-                (if saved.isDefault then
-                    t.unsetDefault ++ ": " ++ saved.name
+                (t.defaultView ++ ": " ++ saved.name)
+            , if saved.isLocked then
+                Html.span [ Internal.cls [ "klar-savedviews__lock" ], Attr.title t.locked ]
+                    [ Icon.sized Icon.Small Icon.lock
+                    , Html.span [ Internal.cls [ "klar-sr-only" ] ] [ Html.text t.locked ]
+                    ]
 
-                 else
-                    t.setDefault ++ ": " ++ saved.name
-                )
-            , Button.iconOnly
-                [ Button.ghost
-                , Button.small
-                , Button.onClick (ctx.toMsg (RenameStarted saved.name))
-                ]
-                Icon.edit
-                (t.rename ++ ": " ++ saved.name)
-            , Button.iconOnly
-                [ Button.ghost
-                , Button.small
-                , Button.onClick (ctx.toMsg (DeleteAsked saved.name))
-                ]
-                Icon.trash
-                (t.delete ++ ": " ++ saved.name)
+              else
+                Button.iconOnly
+                    [ Button.ghost
+                    , Button.small
+                    , Button.onClick (ctx.toMsg (RenameStarted saved.name))
+                    ]
+                    Icon.edit
+                    (t.rename ++ ": " ++ saved.name)
+            , if saved.isLocked then
+                Html.text ""
+
+              else
+                Button.iconOnly
+                    [ Button.ghost
+                    , Button.small
+                    , Button.onClick (ctx.toMsg (DeleteAsked saved.name))
+                    ]
+                    Icon.trash
+                    (t.delete ++ ": " ++ saved.name)
             ]
         ]
 
@@ -1354,7 +1711,7 @@ viewSaveArea ctx activeView =
                     }
                 , case activeView of
                     Just saved ->
-                        if ctx.modified then
+                        if ctx.modified && not saved.isLocked then
                             viewAction
                                 { id = s.id ++ "-update"
                                 , icon = Icon.refresh
@@ -1470,8 +1827,7 @@ type alias Texts =
     , defaultBadge : String
     , sharedBadge : String
     , modified : String
-    , setDefault : String
-    , unsetDefault : String
+    , defaultView : String
     , rename : String
     , delete : String
     , deleteQuestion : String -> String
@@ -1488,6 +1844,9 @@ type alias Texts =
     , cancel : String
     , missing : String
     , taken : String
+    , loading : String
+    , retry : String
+    , locked : String
     }
 
 
@@ -1502,8 +1861,7 @@ texts lang =
             , defaultBadge = "Standard"
             , sharedBadge = "Delt"
             , modified = "endret"
-            , setDefault = "Bruk som standardvisning"
-            , unsetDefault = "Ikke lenger standardvisning"
+            , defaultView = "Standardvisning"
             , rename = "Gi nytt navn"
             , delete = "Slett"
             , deleteQuestion = \name -> "Slette «" ++ name ++ "»?"
@@ -1520,6 +1878,9 @@ texts lang =
             , cancel = "Avbryt"
             , missing = "Skriv inn et navn."
             , taken = "Det finnes allerede en visning med dette navnet."
+            , loading = "Laster lagrede visninger …"
+            , retry = "Prøv igjen"
+            , locked = "Låst: kan ikke gis nytt navn eller slettes"
             }
         , en =
             { views = "Views"
@@ -1529,8 +1890,7 @@ texts lang =
             , defaultBadge = "Default"
             , sharedBadge = "Shared"
             , modified = "modified"
-            , setDefault = "Use as default view"
-            , unsetDefault = "No longer the default view"
+            , defaultView = "Default view"
             , rename = "Rename"
             , delete = "Delete"
             , deleteQuestion = \name -> "Delete “" ++ name ++ "”?"
@@ -1547,5 +1907,8 @@ texts lang =
             , cancel = "Cancel"
             , missing = "Enter a name."
             , taken = "There is already a view with this name."
+            , loading = "Loading saved views …"
+            , retry = "Try again"
+            , locked = "Locked: cannot be renamed or deleted"
             }
         }

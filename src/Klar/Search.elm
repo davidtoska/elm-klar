@@ -1,5 +1,5 @@
 module Klar.Search exposing
-    ( filter, rank
+    ( filter, filterBy, rank
     , score, matches, highlight
     , Prepared, Query, prepare, prepareMany, query, scorePrepared
     , normalize
@@ -23,6 +23,8 @@ treats a query as several words that must all match somewhere:
 
     Search.filter .name "ada" customers -- matching items, best first
 
+    Search.filterBy [ .name, .city ] "ada london" customers -- over several texts, the name first
+
     Search.highlight "ada" "Ada Lovelace" -- the text, with <mark> around "Ada"
 
 A smaller score is a better match:
@@ -31,8 +33,13 @@ A smaller score is a better match:
   - `1` the text starts with the query
   - `2` a word in the text starts with the query
   - `3` the query is somewhere inside the text
-  - `6` the letters of the query appear in order and close together (a typo-tolerant
-    match, only for words of three letters or more)
+  - `6` the letters of the query appear in order and close together, within about
+    twice their number: letters left out are forgiven ("brgn" finds "Bergen"), a
+    wrong or swapped letter is not. Only for words of three letters or more.
+
+Sort by the score and keep the order of equal scores (`filter` and `rank` do); do not
+rely on the numbers themselves, which a later version may spread out to fit a tier
+between them.
 
 For long lists this is fast because the texts are normalized in one go (`filter` and
 `rank` do that for you). If you search the same texts again and again, prepare them
@@ -49,7 +56,7 @@ once and keep the result:
 
 # Searching a list
 
-@docs filter, rank
+@docs filter, filterBy, rank
 
 
 # Scoring one text
@@ -70,6 +77,7 @@ once and keep the result:
 
 import Html exposing (Html)
 import Klar.Internal as Internal
+import Klar.Internal.Fuzzy as Fuzzy
 
 
 
@@ -262,7 +270,7 @@ scoreWord word (Prepared prepared) =
         else
             Just 3
 
-    else if word.fuzzy && hasEveryLetter word.distinct prepared.text && inOrder word.letters prepared.text then
+    else if word.fuzzy && hasEveryLetter word.distinct prepared.text && Fuzzy.inOrder word.letters prepared.text then
         Just 6
 
     else
@@ -286,7 +294,7 @@ distinctLetters word =
         |> List.reverse
 
 
-{-| A cheap test that comes before the typo-tolerant one: a text that lacks one of
+{-| A cheap test that comes before the letters-in-order one: a text that lacks one of
 the letters cannot match loosely, and `String.contains` is a single native
 search. Most texts fail on the first letter or two, so a query that matches
 few texts (the slow case for the walk below) costs little more than one that
@@ -302,48 +310,6 @@ hasEveryLetter letters haystack =
             String.contains letter haystack && hasEveryLetter rest haystack
 
 
-{-| Whether the letters appear in this order and reasonably close together
-(within about twice their own length), so "brgn" finds "Bergen" but "aron"
-does not find "Navigation and structure".
--}
-inOrder : List String -> String -> Bool
-inOrder letters haystack =
-    case walk letters haystack 0 Nothing of
-        Just ( first, last ) ->
-            last - first + 1 <= 2 * List.length letters + 2
-
-        Nothing ->
-            False
-
-
-{-| Follows the letters through the text, from the left. Gives the positions
-of the first and last letter found.
--}
-walk : List String -> String -> Int -> Maybe Int -> Maybe ( Int, Int )
-walk letters rest offset first =
-    case letters of
-        [] ->
-            Maybe.map (\start -> ( start, offset - 1 )) first
-
-        letter :: others ->
-            case String.indexes letter rest of
-                position :: _ ->
-                    let
-                        absolute =
-                            offset + position
-
-                        consumed =
-                            position + String.length letter
-                    in
-                    walk others
-                        (String.dropLeft consumed rest)
-                        (offset + consumed)
-                        (Just (Maybe.withDefault absolute first))
-
-                [] ->
-                    Nothing
-
-
 {-| Whether the text matches the query at all.
 
     Search.matches "ber" "Bergen" -- True
@@ -356,7 +322,8 @@ matches queryText text =
 
 {-| Keeps the items that match, best matches first. Items with equal scores
 keep their original order. A query that is empty or only spaces returns the
-list unchanged.
+list unchanged. It is the short form of `filterBy` with one text: for items with a
+name and more (a city, a description), use `filterBy`.
 
     Search.filter identity "ber" [ "Åsberg", "Oslo", "Bergen" ] -- [ "Bergen", "Åsberg" ]
 
@@ -368,6 +335,64 @@ filter toText queryText items =
 
     else
         rank toText queryText items |> List.map Tuple.second
+
+
+{-| Like `filter`, over several texts of each item: the first is the main one (a name),
+the others count less (a city, a description, keywords). Every word of the query is
+scored against each text and takes the best; a word found only in a later text scores
+3 more, so a name that starts with the word comes before a city that does. All words
+must match, each in any of the texts: `"fjord oslo"` finds the customer "Fjord Foods"
+in Oslo. With no texts nothing matches.
+
+    Search.filterBy [ .name, .city ] "acme" customers
+
+-}
+filterBy : List (a -> String) -> String -> List a -> List a
+filterBy keys queryText items =
+    if String.isEmpty (String.trim queryText) then
+        items
+
+    else
+        let
+            (Query words) =
+                query queryText
+
+            -- every key's texts are prepared in one go, then regrouped by item
+            byItem =
+                List.foldr (List.map2 (::)) (List.map (\_ -> []) items) (List.map (\key -> prepareMany (List.map key items)) keys)
+        in
+        List.map2 (\item texts -> scoreAcross words texts |> Maybe.map (\points -> ( points, item ))) items byItem
+            |> List.filterMap identity
+            |> List.sortBy Tuple.first
+            |> List.map Tuple.second
+
+
+scoreAcross : List Word -> List Prepared -> Maybe Int
+scoreAcross words texts =
+    if List.isEmpty texts then
+        Nothing
+
+    else
+        List.foldl (\word total -> Maybe.map2 (+) total (bestScore word texts)) (Just 0) words
+
+
+bestScore : Word -> List Prepared -> Maybe Int
+bestScore word texts =
+    texts
+        |> List.indexedMap
+            (\index text ->
+                scoreWord word text
+                    |> Maybe.map
+                        (\points ->
+                            if index == 0 then
+                                points
+
+                            else
+                                points + 3
+                        )
+            )
+        |> List.filterMap identity
+        |> List.minimum
 
 
 {-| Like `filter`, but keeps the scores: `( score, item )`, best first.
@@ -394,11 +419,19 @@ rank toText queryText items =
 -- HIGHLIGHTING
 
 
-{-| Splits `text` into plain parts and highlighted parts (`<mark>` elements) at
-every place a word of the query occurs, to show why a result matched. Matching
-is done on the normalized text, so `"orsted"` highlights "Ørsted".
+{-| Splits `text` into plain parts and highlighted parts (`<mark>` elements), to
+show why a result matched: for each word of the query, the place that `score`
+used. That is the start of the text, else the start of a word ("ber" marks
+"Bergen" in "Åsberg Bergen", not the "berg" inside "Åsberg"), else the first place
+inside the text; for a match of letters in order, each of those letters. Matching
+is done on the normalized text, so `"orsted"` highlights "Ørsted". The parts put
+together are always the whole text. It looks only at the text it is given: when an
+item matched through another text (`filterBy`'s city or keywords), the label may get
+no marks, or the marks of a looser match of the same letters.
 
     Search.highlight "ber" "Bergen" -- "Ber" in a <mark>, then "gen"
+
+    Search.highlight "lvlc" "Ada Lovelace" -- the L, v, l and c each in a <mark>
 
 -}
 highlight : String -> String -> List (Html msg)
@@ -409,29 +442,41 @@ highlight queryText text =
 
         Query words ->
             let
-                haystack =
-                    normalize text
-
-                ranges =
-                    words
-                        |> List.filterMap
-                            (\word ->
-                                firstIndex word.text haystack
-                                    |> Maybe.map (\start -> ( start, start + String.length word.text ))
-                            )
-                        |> mergeRanges
+                (Prepared prepared) =
+                    prepare text
             in
-            splitByRanges text ranges
+            splitByRanges text (mergeRanges (List.concatMap (\word -> wordRanges word prepared) words))
 
 
-firstIndex : String -> String -> Maybe Int
-firstIndex needle haystack =
-    case String.indexes needle haystack of
-        first :: _ ->
-            Just first
+{-| Where a word of the query matched, as the ranges to mark: the place that the
+score of the word came from.
+-}
+wordRanges : Word -> { text : String, words : String } -> List ( Int, Int )
+wordRanges word prepared =
+    let
+        at start =
+            [ ( start, start + String.length word.text ) ]
+    in
+    if String.contains word.text prepared.text then
+        if String.startsWith word.text prepared.text then
+            at 0
 
-        [] ->
-            Nothing
+        else
+            -- " word" at i in " " ++ text is the word at i in the text
+            case String.indexes word.spaced prepared.words of
+                start :: _ ->
+                    at start
+
+                [] ->
+                    List.concatMap at (List.take 1 (String.indexes word.text prepared.text))
+
+    else if word.fuzzy then
+        Fuzzy.window True word.letters prepared.text
+            |> Maybe.map (List.map2 (\letter position -> ( position, position + String.length letter )) word.letters)
+            |> Maybe.withDefault []
+
+    else
+        []
 
 
 mergeRanges : List ( Int, Int ) -> List ( Int, Int )
@@ -460,7 +505,7 @@ splitByRanges text ranges =
     let
         step ( start, end ) ( cursor, parts ) =
             ( end
-            , Html.mark [ Internal.cls [ "klar-mark" ] ] [ Html.text (String.slice start end text) ]
+            , Html.mark [ Internal.cls [ "klar-highlight" ] ] [ Html.text (String.slice start end text) ]
                 :: Html.text (String.slice cursor start text)
                 :: parts
             )

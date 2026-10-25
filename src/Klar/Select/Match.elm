@@ -32,6 +32,7 @@ searched again and again, do that once with `index` and ask the result with
 -}
 
 import Klar.Internal as Internal
+import Klar.Internal.Fuzzy as Fuzzy
 import Klar.Select.Option exposing (Option)
 
 
@@ -46,10 +47,9 @@ import Klar.Select.Option exposing (Option)
 -- "Berlin", and a word found in the description beats scattered letters in the
 -- label.
 --
--- It runs on text that is normalized once per option and uses only native
--- string operations. `Search.score` normalizes the text on every call and does
--- its fuzzy check `Char` by `Char`, which costs 200-300 ms for 3 000 options in
--- a development build; this takes a few milliseconds.
+-- It runs on text that is normalized once per option (`Search.score` normalizes
+-- on every call) and uses only native string operations. The letters-in-order
+-- match is `Klar.Internal.Fuzzy`, the one `Klar.Search` uses.
 
 
 {-| An option with its text prepared for matching, made by `index`. `option` is
@@ -281,49 +281,11 @@ scoreWord word haystack haystackWords =
     else if String.contains word.text haystack then
         Just 3
 
-    else if word.fuzzy && inOrder word.letters haystack then
+    else if word.fuzzy && Fuzzy.inOrder word.letters haystack then
         Just 6
 
     else
         Nothing
-
-
-{-| Whether the letters appear in this order and reasonably close together
-(within about twice their own length), like `Klar.Search`.
--}
-inOrder : List String -> String -> Bool
-inOrder letters haystack =
-    case walk letters haystack 0 Nothing of
-        Just ( first, last ) ->
-            last - first + 1 <= 2 * List.length letters + 2
-
-        Nothing ->
-            False
-
-
-walk : List String -> String -> Int -> Maybe Int -> Maybe ( Int, Int )
-walk letters rest offset first =
-    case letters of
-        [] ->
-            Maybe.map (\start -> ( start, offset - 1 )) first
-
-        letter :: others ->
-            case String.indexes letter rest of
-                position :: _ ->
-                    let
-                        absolute =
-                            offset + position
-
-                        consumed =
-                            position + String.length letter
-                    in
-                    walk others
-                        (String.dropLeft consumed rest)
-                        (offset + consumed)
-                        (Just (Maybe.withDefault absolute first))
-
-                [] ->
-                    Nothing
 
 
 {-| The sum over the query words of each word's best score in the label, or

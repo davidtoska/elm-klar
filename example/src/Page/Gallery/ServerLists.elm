@@ -176,8 +176,10 @@ type Msg
     | SaveView
     | SpeedChosen String
     | FailingToggled Bool
-    | GotAnswer Int ServerList.Request (Result Remote.Problem (ServerList.Page Order)) Time.Posix
+    | GotAnswer Int ServerList.Request (Result Remote.Problem (ServerList.Page Order))
     | ExportAll
+    | ShipFirst
+    | OpenAddress
     | GotZone Time.Zone
     | SupplierRetry
     | SupplierFailingToggled Bool
@@ -238,9 +240,17 @@ update msg model =
         FailingToggled on ->
             ( { model | failing = on }, Cmd.none )
 
-        GotAnswer number request result at ->
-            follow (ServerList.update (ServerList.gotPage request result at) model.orders)
+        GotAnswer number request result ->
+            follow (ServerList.update (ServerList.gotPage request result) model.orders)
                 { model | log = ("answer " ++ String.fromInt number ++ " arrived") :: model.log |> List.take 8 }
+
+        ShipFirst ->
+            -- the server accepted the change: show it at once, with no round trip
+            ( { model | orders = ServerList.mapRows (shipFirst model.orders) model.orders }, Cmd.none )
+
+        OpenAddress ->
+            -- a link from elsewhere, or Back: the list goes where the address says
+            follow (ServerList.fromQueryString "search=fjord&sort=-total&size=10" model.orders) model
 
         ExportAll ->
             ( { model | exportNote = describeTarget (ServerList.target Ids.string model.orders) }, Cmd.none )
@@ -342,8 +352,7 @@ answer model number request =
                 Ok (search model.today request)
     in
     Process.sleep (toFloat delay)
-        |> Task.andThen (\_ -> Time.now)
-        |> Task.perform (GotAnswer number request result)
+        |> Task.perform (\_ -> GotAnswer number request result)
 
 
 loadSupplier : Model -> Cmd Msg
@@ -451,8 +460,24 @@ inbox locale model =
 
           else
             Alert.view [ Alert.tone Info, Alert.title "A request for your backend" ] model.exportNote
+        , Layout.row [ Layout.gap 2, Layout.wrap, Layout.alignCenter ]
+            [ Button.view [ Button.secondary, Button.small, Button.onClick ShipFirst ] "Ship the first order (mapRows)"
+            , Button.view [ Button.secondary, Button.small, Button.onClick OpenAddress ] "Open an address (fromQueryString)"
+            ]
+        , Text.secondary ("The address of the list (toQueryString): #/orders?" ++ ServerList.toQueryString model.orders)
         , Html.pre [ Attr.id "server-log", Attr.style "font-size" "12px", Attr.style "margin" "0" ] [ Html.text (String.join "\n" (List.reverse model.log)) ]
         ]
+
+
+{-| The first order on the page, shipped.
+-}
+shipFirst : ServerList.State String Order -> Order -> Order
+shipFirst orders order =
+    if Just order.id == (ServerList.rows orders |> Remote.toMaybe |> Maybe.andThen List.head |> Maybe.map .id) then
+        { order | status = "shipped" }
+
+    else
+        order
 
 
 statusTone : String -> Tone

@@ -158,17 +158,17 @@ suite =
                     |> List.filter (\r -> String.contains "forced-colors: active" r.media && r.selector == ":focus-visible")
                     |> List.concatMap .declarations
                     |> Expect.equal [ "outline: 2px solid Highlight !important" ]
-        , test "a search highlight is a highlight, not the shape of a color dot" <|
+        , test "a search highlight has a rule of its own, with the highlight color" <|
             \_ ->
                 rules
-                    |> List.filter (\r -> r.media == "" && r.selector == "mark.klar-mark")
+                    |> List.filter (\r -> r.media == "" && r.selector == ".klar-highlight")
                     |> List.concatMap .declarations
-                    |> (\declarations -> List.filter (\d -> not (List.member d declarations)) [ "background: var(--klar-highlight)", "width: auto", "height: auto", "display: inline", "box-shadow: none" ])
+                    |> (\declarations -> List.filter (\d -> not (List.member d declarations)) [ "background: var(--klar-highlight)", "box-shadow: none" ])
                     |> Expect.equal []
         , test "a search highlight has the system colors of a mark under forced colors" <|
             \_ ->
                 rules
-                    |> List.filter (\r -> String.contains "forced-colors: active" r.media && r.selector == "mark.klar-mark")
+                    |> List.filter (\r -> String.contains "forced-colors: active" r.media && r.selector == ".klar-highlight")
                     |> List.concatMap .declarations
                     |> List.member "background: Mark"
                     |> Expect.equal True

@@ -11,6 +11,7 @@ Types: `Query`, `Prepared`
 ```elm
 -- Searching a list
 filter : (a -> String) -> String -> List a -> List a
+filterBy : List (a -> String) -> String -> List a -> List a
 rank : (a -> String) -> String -> List a -> List ( Int, a )
 
 -- Scoring one text
@@ -50,6 +51,8 @@ treats a query as several words that must all match somewhere:
 
     Search.filter .name "ada" customers -- matching items, best first
 
+    Search.filterBy [ .name, .city ] "ada london" customers -- over several texts, the name first
+
     Search.highlight "ada" "Ada Lovelace" -- the text, with <mark> around "Ada"
 
 A smaller score is a better match:
@@ -58,8 +61,13 @@ A smaller score is a better match:
   - `1` the text starts with the query
   - `2` a word in the text starts with the query
   - `3` the query is somewhere inside the text
-  - `6` the letters of the query appear in order and close together (a typo-tolerant
-    match, only for words of three letters or more)
+  - `6` the letters of the query appear in order and close together, within about
+    twice their number: letters left out are forgiven ("brgn" finds "Bergen"), a
+    wrong or swapped letter is not. Only for words of three letters or more.
+
+Sort by the score and keep the order of equal scores (`filter` and `rank` do); do not
+rely on the numbers themselves, which a later version may spread out to fit a tier
+between them.
 
 For long lists this is fast because the texts are normalized in one go (`filter` and
 `rank` do that for you). If you search the same texts again and again, prepare them
@@ -83,9 +91,25 @@ filter : (a -> String) -> String -> List a -> List a
 
 Keeps the items that match, best matches first. Items with equal scores
 keep their original order. A query that is empty or only spaces returns the
-list unchanged.
+list unchanged. It is the short form of `filterBy` with one text: for items with a
+name and more (a city, a description), use `filterBy`.
 
     Search.filter identity "ber" [ "Åsberg", "Oslo", "Bergen" ] -- [ "Bergen", "Åsberg" ]
+
+### `filterBy`
+
+```elm
+filterBy : List (a -> String) -> String -> List a -> List a
+```
+
+Like `filter`, over several texts of each item: the first is the main one (a name),
+the others count less (a city, a description, keywords). Every word of the query is
+scored against each text and takes the best; a word found only in a later text scores
+3 more, so a name that starts with the word comes before a city that does. All words
+must match, each in any of the texts: `"fjord oslo"` finds the customer "Fjord Foods"
+in Oslo. With no texts nothing matches.
+
+    Search.filterBy [ .name, .city ] "acme" customers
 
 ### `rank`
 
@@ -132,11 +156,19 @@ Whether the text matches the query at all.
 highlight : String -> String -> List (Html msg)
 ```
 
-Splits `text` into plain parts and highlighted parts (`<mark>` elements) at
-every place a word of the query occurs, to show why a result matched. Matching
-is done on the normalized text, so `"orsted"` highlights "Ørsted".
+Splits `text` into plain parts and highlighted parts (`<mark>` elements), to
+show why a result matched: for each word of the query, the place that `score`
+used. That is the start of the text, else the start of a word ("ber" marks
+"Bergen" in "Åsberg Bergen", not the "berg" inside "Åsberg"), else the first place
+inside the text; for a match of letters in order, each of those letters. Matching
+is done on the normalized text, so `"orsted"` highlights "Ørsted". The parts put
+together are always the whole text. It looks only at the text it is given: when an
+item matched through another text (`filterBy`'s city or keywords), the label may get
+no marks, or the marks of a looser match of the same letters.
 
     Search.highlight "ber" "Bergen" -- "Ber" in a <mark>, then "gen"
+
+    Search.highlight "lvlc" "Ada Lovelace" -- the L, v, l and c each in a <mark>
 
 ## Preparing texts and queries
 

@@ -4,7 +4,7 @@ Named, saved filters ("views"): a dropdown button that lists the saved views and
 
 Import: `import Klar.SavedViews as SavedViews` | Group: Rules and filters
 
-Types: `Msg`, `State`, `Attribute`, `SavedView`
+Types: `Msg`, `State`, `Change`, `Attribute`, `SavedView`
 
 ## Signatures
 
@@ -26,12 +26,20 @@ type alias SavedView =
     , isDefault : Bool
     , isShared : Bool
     , query : Maybe Table.Query
+    , key : Maybe String
+    , isLocked : Bool
     }
 savedView : String -> Rule.Rule -> SavedView
 withNote : String -> SavedView -> SavedView
 asDefault : SavedView -> SavedView
 asShared : SavedView -> SavedView
+asLocked : SavedView -> SavedView
 withQuery : Table.Query -> SavedView -> SavedView
+withKey : String -> SavedView -> SavedView
+
+-- A backend that keeps each view
+type Change = Created SavedView | Updated SavedView | Deleted String
+changes : List SavedView -> List SavedView -> List Change
 
 -- Keeping the views
 encode : SavedView -> Json.Encode.Value
@@ -50,8 +58,10 @@ startSave : State -> ( State, Cmd Msg )
 
 -- Attributes
 type Attribute msg  -- opaque: no constructors are exposed
-current : Rule.Rule -> Attribute msg
+currentRule : Rule.Rule -> Attribute msg
 currentQuery : Table.Query -> Attribute msg
+remote : Remote.Remote a -> Attribute msg
+onRetry : msg -> Attribute msg
 label : String -> Attribute msg
 locale : Locale.Locale -> Attribute msg
 size : Theme.Size -> Attribute msg
@@ -99,7 +109,7 @@ Use it next to a [Klar.FilterBar](Klar.FilterBar.md) or a
             ( next, Cmd.map ViewsMsg cmd )
 
     -- view
-    SavedViews.view ViewsMsg [ SavedViews.current model.rule ] model.views
+    SavedViews.view ViewsMsg [ SavedViews.currentRule model.rule ] model.views
 
 Here `applyRule` stands for whatever puts a rule into your filters, for example
 `FilterBar.setRule`, and `model.rule` is the rule they show now.
@@ -110,13 +120,17 @@ and bumps `revision`. The application compares `revision` before and after
 again (to throw away changes) also bumps `revision`.
 
 **Storage**: the state holds the list, nothing is stored. The application saves
-`views` (and `active`) where it keeps user settings, typically through its
-backend, with `Rule.encode` for the rules, and restores them with `setViews` and
-`setActive`. Compare `views` before and after `update` to know when to save:
-the list changes when the user saves, renames, deletes or updates a view or
+`views` (and the name of `active`) where it keeps user settings, typically through
+its backend, with `encode` (see "Keeping the views" below), and restores them with
+`setViews` and `setActive`. Compare `views` before and after `update` to know when to
+save: the list changes when the user saves, renames, deletes or updates a view or
 changes the default.
 
-`current` is the rule the application shows now. It is what "Save current
+**Views from a backend** come later than the page: give `view` the `Remote` of that
+request with `remote` (and `onRetry`), so the list says it is loading instead of "No
+saved views yet", and shows a failure with a retry.
+
+`currentRule` is the rule the application shows now. It is what "Save current
 view ..." saves, and the active view is marked "modified" when its rule differs
 from it. The button shows the name of the active view, or "Views" when there is
 none.
@@ -140,7 +154,7 @@ only the rule, and a view that holds no query leaves the table as it is.
 **Open the save form from a command or a shortcut**: `startSave` opens the list
 with the "Save current view" form open and focus in its name field, so that a
 command palette entry or a shortcut needs no dialog of your own. The form saves
-what `current` is, so give `current` to `view` (without it there is no form and
+what `currentRule` is, so give `currentRule` to `view` (without it there is no form and
 the list just opens).
 
     ( views, cmd ) =
@@ -149,19 +163,20 @@ the list just opens).
     -- ( { model | views = views }, Cmd.map ViewsMsg cmd )
 
 **Shared views**: a view is shared when the application says so (`asShared`, or
-`isShared = True` in stored data); the list shows a "Shared" badge. Klar stores
+`isShared = True` in stored data); the list shows a "Shared" badge. A view that someone
+else owns is also `asLocked`: it can be applied and made the default, not renamed,
+updated or deleted. Klar stores
 nothing, so who may see a view is the backend's business. A link to a view is a
 route of your own that names it, and `apply` is what that route does:
-
-    -- the link a "Copy link" button copies
-    "#/orders?view=" ++ Url.percentEncode name
 
     -- when the route says view=name: marks it active and bumps `revision`
     { model | views = SavedViews.apply name model.views }
 
 Compare `revision` after `apply` as after `update` and load the rule (and query)
-of `active`. (With [Klar.ServerList](Klar.ServerList.md), `ServerList.applyView name` does
-both.) There is no clipboard in pure Elm, so a "Copy link" is the link in a read-only
+of `active`. With [Klar.ServerList](Klar.ServerList.md), `ServerList.toQueryString` writes
+the link (the view, the filters and the page, every text safely encoded: a name is user
+text, and `Url.percentEncode` throws on half of an emoji) and
+`ServerList.fromQueryString` reads it. There is no clipboard in pure Elm, so a "Copy link" is the link in a read-only
 [Klar.TextInput](Klar.TextInput.md) that the user selects (`TextInput.readOnly True`), shown
 in a dialog or a toast of your own.
 
@@ -192,7 +207,7 @@ default, rename and delete a view, save the current filter, update the active
 view with the changes, and reset. The first argument turns the component's
 messages into yours.
 
-    SavedViews.view ViewsMsg [ SavedViews.current model.rule ] model.views
+    SavedViews.view ViewsMsg [ SavedViews.currentRule model.rule ] model.views
 
 ## State
 
@@ -251,6 +266,8 @@ type alias SavedView =
     , isDefault : Bool
     , isShared : Bool
     , query : Maybe Table.Query
+    , key : Maybe String
+    , isLocked : Bool
     }
 ```
 
@@ -258,7 +275,9 @@ A named rule. The `name` identifies the view and must be unique, ignoring
 case. The `note` is a short description shown under the name. `isDefault` marks
 the view that "Reset" returns to; at most one view is the default. `isShared`
 is set by the application, and the list shows a badge for it. `query` is the search,
-sort, filters and page size of the table, when the view holds them.
+sort, filters and page size of the table, when the view holds them. `key` is the id your
+backend gave the view (`withKey`), `Nothing` until it is stored; a rename keeps it, so
+`changes` can tell a rename from a new view.
 
 Make views with `savedView`, or build the record yourself, for example from
 stored data.
@@ -302,6 +321,16 @@ asShared : SavedView -> SavedView
 Marks the view as shared (with colleagues, the team ...). The list shows a
 "Shared" badge. The application decides what that means and who may see the view.
 
+### `asLocked`
+
+```elm
+asLocked : SavedView -> SavedView
+```
+
+Locks the view: the user can apply it and make it their default, but not rename,
+update or delete it, for a team view that someone else owns. The list shows a lock in
+place of those actions. `isLocked = True` in stored data does the same.
+
 ### `withQuery`
 
 ```elm
@@ -311,6 +340,56 @@ withQuery : Table.Query -> SavedView -> SavedView
 Gives the view a table query: search text, sort, column filters and page size
 (the page is not kept). Use it for views you make yourself; the ones the user saves
 get it from `currentQuery`.
+
+### `withKey`
+
+```elm
+withKey : String -> SavedView -> SavedView
+```
+
+Gives the view the id your backend keeps it under. Give it to every stored view
+(in the list for `setViews`), and `changes` says what to send per view.
+
+    SavedViews.savedView stored.name rule |> SavedViews.withKey stored.id
+
+### A backend that keeps each view
+
+### `Change`
+
+```elm
+type Change = Created SavedView | Updated SavedView | Deleted String
+```
+
+What to send to a backend that keeps each view by its key:
+
+  - `Created view`: a view the user saved. It has no key yet: store it, and give the
+    list back to `setViews` with the key the backend gave it (`withKey`).
+  - `Updated view`: a view whose name, note, rule, query or default changed (a rename
+    keeps the key, so it is an update, not a new view). A view that has no key yet is
+    followed by its name, so a new view made the default before the backend answered
+    is an update of that name, not a second view.
+  - `Deleted key`: the key of a view that the user deleted.
+
+The default is the user's own choice: a locked view (`asLocked`) whose only change is
+that it became, or stopped being, the default gives nothing, so nothing is written to a
+view the user does not own. Store the name of `defaultView` per user when your views
+are shared. Give a new view its key before it is renamed: a view without a key that is
+renamed reads as a new view.
+
+### `changes`
+
+```elm
+changes : List SavedView -> List SavedView -> List Change
+```
+
+The changes from one list of views to the next, for a backend that keeps each view
+by its key: compare `views` before and after `update` (with
+[Klar.ServerList](Klar.ServerList.md): the views before, and the `save` of the step).
+A view without a key and with no view of its name before is `Created`. Unchanged views
+give nothing.
+
+    SavedViews.changes (SavedViews.views model.views) (SavedViews.views views)
+        |> List.map storeChange
 
 ### Keeping the views
 
@@ -332,8 +411,9 @@ address, a cookie that it sets through a port of its own.
 encode : SavedView -> Json.Encode.Value
 ```
 
-One view as JSON: the name, the rule (`Rule.encode`), the note, the two flags and
-the table query (`Table.encodeQuery`) when it has one. It carries a version, `"v": 1`.
+One view as JSON: the name, the rule (`Rule.encode`), the note, the two flags, the
+table query (`Table.encodeQuery`) when it has one, and the key when it has one. It carries
+a version, `"v": 1`.
 
 ### `decoder`
 
@@ -407,8 +487,9 @@ setViews : List SavedView -> State -> State
 Replaces the list, for example with the views loaded from the backend. Names
 must be unique, ignoring case and surrounding spaces: later duplicates are
 dropped. Only the first view marked as default stays the default. The active
-view stays active if it is still in the list, and a form that is open in the
-list is closed.
+view stays active if it is still in the list. A form that is open in the list stays
+open while the view it is about is still there, so a refresh from the backend never
+throws away a name the user is typing; the name is checked again when it is saved.
 
 ### `setActive`
 
@@ -417,8 +498,9 @@ setActive : Maybe String -> State -> State
 ```
 
 Marks the view with this name as active, without applying anything: use it
-when the application has already loaded the rule, for example at start-up. A
-name that is not in the list, or `Nothing`, means that no view is active.
+when the application has already loaded the rule, for example at start-up. The name
+is matched like names are compared, ignoring case and surrounding spaces. A name that
+is not in the list, or `Nothing`, means that no view is active.
 
 ### `apply`
 
@@ -428,8 +510,9 @@ apply : String -> State -> State
 
 Applies the view with this name, as if the user had picked it: it becomes
 active and `revision` goes up, so the application loads its rule and query the
-way it does after `update`. Use it for a link that names a view. A name that is not
-in the list changes nothing.
+way it does after `update`. Use it for a link that names a view; the name is matched
+ignoring case and surrounding spaces (`?view=open%20orders` finds "Open orders"). A
+name that is not in the list changes nothing.
 
 ### `startSave`
 
@@ -439,8 +522,8 @@ startSave : State -> ( State, Cmd Msg )
 
 Opens the list with the form for saving the current view open, and moves focus
 to its name field. Use it for a command or a shortcut ("New saved view"); map the
-`Cmd` with your wrapper of the component's `Msg`. The form needs `current` in the
-attributes of `view`.
+`Cmd` with your wrapper of the component's `Msg`. The form needs `currentRule` in the
+attributes of `view`; without it the list opens with focus on "Reset".
 
 ## Attributes
 
@@ -453,10 +536,10 @@ type Attribute msg  -- opaque: no constructors are exposed
 A setting of the saved views button. Make them with the functions below and
 pass a list to `view`; later attributes win over earlier ones.
 
-### `current`
+### `currentRule`
 
 ```elm
-current : Rule.Rule -> Attribute msg
+currentRule : Rule.Rule -> Attribute msg
 ```
 
 The rule the application shows now. It is what "Save current view ..."
@@ -473,6 +556,37 @@ currentQuery : Table.Query -> Attribute msg
 The query of the table next to the filters, `Table.query model.table`. A view
 that is saved holds it with the rule (the page is left out), and the active view is
 "modified" when its query differs from it. Without it views hold only the rule.
+
+### `remote`
+
+```elm
+remote : Remote.Remote a -> Attribute msg
+```
+
+Takes loading, failure, refreshing and old data from the `Remote` of the request
+that brings the views; the views themselves are the ones of `setViews`, as always.
+While nothing has come the list says that it is loading (not "No saved views yet"),
+a failure with no views to show says what went wrong with a retry (`onRetry`), and
+views that are `Kept` stay: dimmed and busy while they are refreshed, marked "Old data"
+with a retry when the refresh failed. Without it the views count as loaded.
+
+    SavedViews.view ViewsMsg
+        [ SavedViews.currentRule model.rule
+        , SavedViews.remote model.storedViews
+        , SavedViews.onRetry LoadViews
+        ]
+        model.views
+
+### `onRetry`
+
+```elm
+onRetry : msg -> Attribute msg
+```
+
+The message of the "Try again" button, shown when loading the views failed (and the
+problem is worth retrying, see `Remote.isRetryable`). While the views load (the first
+time, or again after "Try again") the list says it is loading, with no button; focus
+moves from the button to that status, so it stays in the popup.
 
 ### `label`
 

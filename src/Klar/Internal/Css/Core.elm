@@ -700,7 +700,7 @@ css =
 /* ---- Dot: the color that marks an option or a tag ----------------------
    A status color (a tone, follows the theme) or a color of the data (--klar-dot, set from
    a checked color code). It is for the eye only; the label carries the meaning.
-   (`.klar-mark` is the highlighted match of a search, in the base rules.) */
+   (`.klar-highlight` is the highlighted match of a search, in the base rules.) */
 
 .klar-dot {
   --_c: var(--klar-gray-500);

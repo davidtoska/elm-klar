@@ -19,7 +19,7 @@ type alias Step id row =
     }
 init : String -> List SavedViews.SavedView -> Step id row
 update : Msg row -> State id row -> Step id row
-gotPage : Request -> Result Remote.Problem (Page row) -> Time.Posix -> Msg row
+gotPage : Request -> Result Remote.Problem (Page row) -> Msg row
 
 -- View
 viewTable : (Msg row -> msg) -> List (Table.Attribute id row msg) -> State id row -> Html msg
@@ -34,9 +34,14 @@ type Ticket  -- opaque: no constructors are exposed
 -- Other changes
 refresh : State id row -> Step id row
 clearFilters : State id row -> Step id row
+setRule : Rule.Rule -> State id row -> Step id row
 setViews : List SavedViews.SavedView -> State id row -> Step id row
 applyView : String -> State id row -> Step id row
 startSaveView : State id row -> Step id row
+
+-- The list in the address
+toQueryString : State id row -> String
+fromQueryString : String -> State id row -> Step id row
 
 -- Reading the state
 rows : State id row -> Remote.Remote (List row)
@@ -46,9 +51,10 @@ query : State id row -> Table.Query
 savedViews : State id row -> List SavedViews.SavedView
 activeView : State id row -> Maybe SavedViews.SavedView
 
--- The table
+-- The table and the rows
 table : State id row -> Table.State id
-mapTable : (Table.State id -> Table.State id) -> State id row -> State id row
+mapTable : (Table.State id -> Table.State id) -> State id row -> Step id row
+mapRows : (row -> row) -> State id row -> State id row
 focus : State id row -> Cmd (Msg row)
 
 -- Selected rows
@@ -72,10 +78,11 @@ query, a ticket for every request, the page of rows and its total. It does what 
 application would otherwise write by hand: compare the query and the rule before
 and after every message, go back to page 1 when the rule changed, drop an "all
 matching" selection that would now mean other rows, load a saved view into the
-filter bar and the table, ask again, and ignore an answer to a question that is no
-longer asked. The text that the user types is already waited for by the table (its
-search and its filter fields) and the filter bar changes only on "Add", so there is
-no second timer here.
+filter bar and the table, ask again, ask for the last page when rows were removed
+and the page is past the end, and ignore an answer to a question that is no longer
+asked. The text that the user types is already waited for by the table (its search
+and its filter fields) and the filter bar changes only on "Add", so there is no
+second timer here.
 
 The application keeps the part that is its own: the request to the server, the
 columns, the fields and where the saved views are stored. The library never knows how
@@ -87,14 +94,12 @@ the request is sent.
     import Html exposing (Html)
     import Klar.FilterBar as FilterBar
     import Klar.Ids as Ids
-    import Klar.Remote as Remote
     import Klar.Rule as Rule
     import Klar.SavedViews as SavedViews
     import Klar.ServerList as ServerList
     import Klar.Table as Table
     import Process
     import Task
-    import Time
 
     type alias Order =
         { id : String, customer : String, status : String }
@@ -121,15 +126,15 @@ the request is sent.
     main : Program () Model Msg
     main =
         Browser.element
-            { init = \_ -> startOrders (ServerList.init "orders" [ SavedViews.savedView "Open" (Rule.is "status" "open") ])
-            , update = \(OrdersMsg m) model -> startOrders (ServerList.update m model.orders)
+            { init = \_ -> follow (ServerList.init "orders" [ SavedViews.savedView "Open" (Rule.is "status" "open") ])
+            , update = \(OrdersMsg m) model -> follow (ServerList.update m model.orders)
             , view = view
             , subscriptions = \_ -> Sub.none
             }
 
-    -- the one place that turns what the list asks for into a command
-    startOrders : ServerList.Step String Order -> ( Model, Cmd Msg )
-    startOrders step =
+    -- the one place that turns what the list asks for into commands
+    follow : ServerList.Step String Order -> ( Model, Cmd Msg )
+    follow step =
         ( { orders = step.state }
         , Cmd.batch
             [ Cmd.map OrdersMsg step.cmd
@@ -139,6 +144,8 @@ the request is sent.
 
                 Nothing ->
                     Cmd.none
+
+            -- and step.save, when it is `Just views`: store them in your backend
             ]
         )
 
@@ -146,13 +153,11 @@ the request is sent.
     fetchOrders : ServerList.Request -> Cmd Msg
     fetchOrders request =
         Process.sleep 300
-            |> Task.andThen (\_ -> Time.now)
             |> Task.perform
-                (\at ->
+                (\_ ->
                     OrdersMsg
                         (ServerList.gotPage request
                             (Ok { rows = [ { id = "SO-1", customer = "Fjord Foods", status = "open" } ], total = 1 })
-                            at
                         )
                 )
 
@@ -169,15 +174,26 @@ the request is sent.
                 model.orders
             ]
 
-The request has the table's `Query` (search, sort, column filters, page, page size) and the
-filter bar's `Rule`: send both, and answer with `gotPage request result at`. A failed
-answer keeps the rows that are on the screen as old data, with a retry; with no rows
-yet the table shows the failure.
+The request has the table's `Query` (search, sort, page, page size) and the filter bar's
+`Rule`: send both, and answer with `gotPage request result`. With `elm/http` that is
+`Http.expectJson (\result -> OrdersMsg (ServerList.gotPage request (Result.mapError toProblem result))) pageDecoder`;
+the list notes the time of the answer itself. A failed answer keeps the rows that are on
+the screen as old data, with a retry; with no rows yet the table shows the failure.
+
+**One filter language.** In a server list the filters are the filter bar's: your backend
+reads `request.rule` for them and `request.query` for the search, the sort and the page.
+Give the columns no filter of their own (`Table.filterText`, `Table.filterSelect` ...):
+`request.query.filters` would carry them in a second language, and a backend that
+forgets them shows filter chips that filter nothing.
 
 `update` returns a `Step`: the new state, a command to map into your own message, the
 request to send (when the query changed), and the list of saved views to store (when
 the user saved, renamed, deleted or changed the default). Nothing here is a function in a
 `Msg` or in the state.
+
+**After an edit.** When the user changed one row (in a drawer, say) and the server
+accepted it, `mapRows` puts the change on the screen at once; `refresh` asks the server
+again, for a change that can move the row to another page or out of the list.
 
 **Selecting across pages.** A table in server mode only knows the rows on its page.
 `Table.exportCsv` offers the selected rows while every one of them is on the page. A
@@ -220,7 +236,10 @@ the `request` to send now (`Nothing` when nothing changed that the server must a
 the saved `views` to store (`Nothing` while the list is as it was).
 
 An application has one place that turns a `Step` into a command. Send the request even
-when the step came from `init`: it is the first page.
+when the step came from `init`: it is the first page. A backend that keeps the list as
+one setting stores `save` as it is; one that keeps each view by its key sends
+`SavedViews.changes (ServerList.savedViews model.orders) views` (the views before, and
+the ones to save).
 
 ### `init`
 
@@ -232,6 +251,11 @@ A list with nothing loaded yet, called `id` (the ids of the three parts are made
 from it: `"orders"`, `"orders-filters"`, `"orders-views"`), and the first request. The
 saved views are the ones you have stored; the one marked as default is applied (its
 rule goes into the filter bar and its query into the table).
+
+To start somewhere else (the view the user had, the address of a link), give the state
+of this step to `applyView`, `fromQueryString` or `setRule` and follow that step instead:
+it carries the first request. A view named before the views came from the backend waits
+for them: `setViews` applies it then, ahead of the default view.
 
 ### `update`
 
@@ -246,12 +270,13 @@ answer to an old request is dropped.
 ### `gotPage`
 
 ```elm
-gotPage : Request -> Result Remote.Problem (Page row) -> Time.Posix -> Msg row
+gotPage : Request -> Result Remote.Problem (Page row) -> Msg row
 ```
 
 The message for the answer to a `Request`: the rows of the page and the total, or
-the problem. `at` is when the answer came (`Time.now` in the task that sends the
-request). An answer to a request that is not the latest is dropped by `update`.
+the problem. The list notes when the answer came (for "Old data from 14:05" after a
+later refresh fails), so there is no `Time.now` to chain. An answer to a request that is
+not the latest is dropped by `update`.
 
 ## View
 
@@ -276,9 +301,9 @@ count of filters from the filter bar and the button that clears them; give it th
 viewFilterBar : (Msg row -> msg) -> List (FilterBar.Attribute r msg) -> State id row -> Html msg
 ```
 
-The filter bar. It gets the match count, in the state of the rows (counting
-while the first answer is on its way, the old count dimmed while a new one is,
-a retry when it failed); give it `FilterBar.fields` and the rest.
+The filter bar. It gets the match count (while the answer is fresh: after a failed
+refresh the count would be the one of the rule before) and the "counting" mark (while
+it is on its way); give it `FilterBar.fields` and the rest.
 
 ### `viewSavedViews`
 
@@ -297,9 +322,10 @@ current view ..." saves and what a view is compared with.
 type alias Request = { query : Table.Query, rule : Rule.Rule, ticket : Ticket }
 ```
 
-What the server is asked: the table's query (search, sort, column filters, the
-page and the page size) and the filter bar's rule. Answer with `gotPage request`; the
-ticket inside it lets the list drop an answer that is no longer wanted.
+What the server is asked: the table's query (the search, the sort, the page and the
+page size, and the column filters if the columns have any) and the filter bar's rule.
+Answer with `gotPage request`; the ticket inside it lets the list drop an answer that is
+no longer wanted.
 
 ### `Page`
 
@@ -320,7 +346,10 @@ Tells a request from the ones before it. You never make one: it is in the
 
 ## Other changes
 
-Each returns a `Step` like `update`.
+Each returns a `Step` like `update`. Before the first answer has come, `setRule`,
+`applyView`, `fromQueryString` and `mapTable` always ask (again): so the application can
+make the list with `init`, change it at once (a stored view, the address, a page size)
+and follow only the last step.
 
 ### `refresh`
 
@@ -342,6 +371,18 @@ Takes away every filter: the chips of the filter bar, the column filters and the
 search of the table. The table's own "Reset filters" button does it too; use this for a
 command or a shortcut ("Clear filters").
 
+### `setRule`
+
+```elm
+setRule : Rule.Rule -> State id row -> Step id row
+```
+
+Puts a rule into the filter bar and asks from page 1, for a link from elsewhere
+("the orders of this customer" on a dashboard) or a command. A rule that the filter bar
+shows already asks for nothing.
+
+    ServerList.setRule (Rule.allOf [ Rule.is "customer" customer.id ]) model.orders
+
 ### `setViews`
 
 ```elm
@@ -349,7 +390,11 @@ setViews : List SavedViews.SavedView -> State id row -> Step id row
 ```
 
 Replaces the saved views, for example when they came from the backend after the
-list was made. When the user has applied no view, the one marked as default is applied.
+list was made. When the views arrive for the first time, a view named before they came
+(by `applyView`, or the `view` of an address given to `fromQueryString`) is applied; else
+the default view is, if the user has not filtered or paged the list yet. A later list
+(the echo of a store, another tab) only replaces the views, so the filters that are on
+the screen stay.
 
 ### `applyView`
 
@@ -358,7 +403,9 @@ applyView : String -> State id row -> Step id row
 ```
 
 Applies the view with this name as if the user had picked it: a link that names a
-view (`#/orders?view=Open`) calls it. A name that is not in the list changes nothing.
+view (`#/orders?view=Open`) or the view the user had last time calls it. Before the views
+came from the backend the name waits for them, and `setViews` applies it when they come
+(ahead of the default view). A name that is not in the list changes nothing.
 
 ### `startSaveView`
 
@@ -368,6 +415,50 @@ startSaveView : State id row -> Step id row
 
 Opens the saved views with the form for a new view open ("New saved view", from a
 button or a shortcut). The form saves the current rule and query.
+
+## The list in the address
+
+A link to the list as the user sees it (`#/orders?view=Open&search=fjord&page=3`), and
+Back and Forward that bring the list back: write the address after every step that asks,
+and read it when the address changes.
+
+    -- in `follow`, when the step has a request
+    Nav.replaceUrl key ("#/orders?" ++ ServerList.toQueryString step.state)
+
+    -- when the address changes (a link, Back): the part after the `?`
+    UrlChanged url ->
+        follow model (ServerList.fromQueryString (queryOf url) model.orders)
+
+An address that says what the list already shows asks for nothing, so writing the address
+does not ask the server twice.
+
+### `toQueryString`
+
+```elm
+toQueryString : State id row -> String
+```
+
+The list as the query of an address, without the `?`: the active view (`view`),
+the search, the sort (`sort=-total,customer`, a `-` for descending), the filter bar's
+rule and the column filters (as JSON), the page (when it is not 1) and the page size.
+Every text is percent-encoded, so any name or search is safe in a link.
+
+    ServerList.toQueryString model.orders -- "view=Open&search=fjord&page=3&size=25"
+
+### `fromQueryString`
+
+```elm
+fromQueryString : String -> State id row -> Step id row
+```
+
+Puts the list where an address says (the part after the `?`, as `toQueryString`
+writes it) and asks when that is not what the list shows. A parameter that is missing
+takes the value of an empty list (no search, no sort, no filters, page 1), except the page
+size, which stays (a size above 500 counts as missing). An address with only `view=Name` applies that view; an address with
+none of these parameters is "Reset": the default view, or no filters. A parameter that
+cannot be read counts as missing.
+
+    ServerList.fromQueryString "view=Open&page=2" model.orders
 
 ## Reading the state
 
@@ -419,9 +510,10 @@ The saved views, in the order of the list.
 activeView : State id row -> Maybe SavedViews.SavedView
 ```
 
-The view the user applied last, if it still exists.
+The view the user applied last, if it still exists. Keep its name with the views
+to bring the user back to it next time (`applyView`).
 
-## The table
+## The table and the rows
 
 ### `table`
 
@@ -435,14 +527,35 @@ The state of the table, to read what the module does not give (`Table.selection`
 ### `mapTable`
 
 ```elm
-mapTable : (Table.State id -> Table.State id) -> State id row -> State id row
+mapTable : (Table.State id -> Table.State id) -> State id row -> Step id row
 ```
 
-Changes the table with a function of `Table`: the page size, the density, the
-selection after a bulk action, the focus. A change of the query this way is not
-noticed; use it for what is not part of the query.
+Changes the table with a function of `Table` and asks again when that changed the
+query: the page size from a stored setting, the sort, the selection after a bulk
+action, the density. A change that leaves the query alone (the density, the selection)
+asks for nothing, also before the first answer: follow the step of `init` too.
 
-    ServerList.mapTable Table.clearSelection model.orders
+    ServerList.mapTable (Table.setPageSize 50) model.orders
+
+### `mapRows`
+
+```elm
+mapRows : (row -> row) -> State id row -> State id row
+```
+
+Changes the rows on the screen without asking the server: the row the user just
+edited, as the server accepted it, with no round trip and no flicker. The total, the
+page and the freshness of the rows stay.
+
+    ServerList.mapRows
+        (\order ->
+            if order.id == saved.id then
+                saved
+
+            else
+                order
+        )
+        model.orders
 
 ### `focus`
 
@@ -476,9 +589,9 @@ target : Ids.Ids id -> State id row -> Maybe (Target id)
 ```
 
 The selection as a `Target`, or `Nothing` when nothing is selected. Needs the
-`RowIds` that the table was given with `rowId`.
+`Klar.Ids` of the row ids that the table was given with `rowId`.
 
-    case ServerList.target orderIds model.orders of
+    case ServerList.target Ids.string model.orders of
         Just (ServerList.Picked ids) ->
             packOrders ids
 

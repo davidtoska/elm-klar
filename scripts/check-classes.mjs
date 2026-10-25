@@ -32,9 +32,46 @@ function walk(dir, ext) {
 }
 
 const cssClasses = new Set();
+// A class that is the whole selector of a top-level rule belongs to one group: two groups
+// that both style `.klar-x` on its own are two components that picked the same name, and
+// the later group silently restyles the earlier one (as `.klar-mark` once turned every
+// search highlight into a colour dot).
+const bareRules = new Map(); // class -> set of stylesheet files
 for (const file of walk(path.join(root, 'src', 'Klar', 'Internal', 'Css'), '.elm')) {
   const text = fs.readFileSync(file, 'utf8').replace(/\/\*[\s\S]*?\*\//g, '');
   for (const m of text.matchAll(/\.(klar-[a-zA-Z0-9_-]+)/g)) cssClasses.add(m[1]);
+  const first = text.indexOf('"""');
+  const last = text.lastIndexOf('"""');
+  if (first < 0 || last <= first) continue;
+  let depth = 0;
+  let selector = '';
+  for (const char of text.slice(first + 3, last)) {
+    if (char === '{') {
+      if (depth === 0 && !selector.trim().startsWith('@')) {
+        for (const part of selector.split(',').map((s) => s.trim())) {
+          if (!/^\.klar-[a-zA-Z0-9_-]+$/.test(part)) continue;
+          if (!bareRules.has(part)) bareRules.set(part, new Set());
+          bareRules.get(part).add(path.basename(file));
+        }
+      }
+      depth += 1;
+      selector = '';
+    } else if (char === '}') {
+      depth = Math.max(0, depth - 1);
+      selector = '';
+    } else if (char === ';' && depth === 0) {
+      selector = '';
+    } else {
+      selector += char;
+    }
+  }
+}
+const sharedNames = [...bareRules].filter(([, files]) => files.size > 1);
+if (sharedNames.length > 0) {
+  console.log(`${sharedNames.length} class(es) styled on their own in two stylesheet groups:`);
+  for (const [name, files] of sharedNames) console.log(`  - ${name}: ${[...files].join(', ')}`);
+  console.log('Give one of the two components another class name.');
+  process.exit(1);
 }
 
 // A prefix completed by one of the suffix functions of Klar.Internal stands for every
@@ -110,55 +147,6 @@ if (process.argv.includes('--update')) {
   );
   console.log(`wrote ${names.length} hooks and ${gaps.length} known gaps to scripts/class-hooks.txt`);
   process.exit(0);
-}
-
-// One class, one owner: a bare class selector (`.klar-mark {`) that starts rules in two
-// stylesheet modules is two components that picked the same name, and the later module
-// silently restyles the earlier one's elements. Only rules at the top level of a
-// stylesheet count: the shared lists inside an at-rule (the one reduced-motion list and
-// the print block of Base) name the classes of other modules on purpose.
-function topLevelSelectors(text) {
-  const found = [];
-  let depth = 0;
-  let start = 0;
-  for (let i = 0; i < text.length; i++) {
-    const c = text[i];
-    if (c === '{') {
-      const prelude = text.slice(start, i).trim();
-      if (depth === 0 && !prelude.startsWith('@')) found.push(prelude);
-      depth++;
-      start = i + 1;
-    } else if (c === '}') {
-      depth = Math.max(0, depth - 1);
-      start = i + 1;
-    } else if (c === ';' && depth === 0) {
-      start = i + 1;
-    }
-  }
-  return found;
-}
-const owners = new Map();
-const clashes = [];
-for (const file of walk(path.join(root, 'src', 'Klar', 'Internal', 'Css'), '.elm')) {
-  const name = path.basename(file);
-  const source = fs.readFileSync(file, 'utf8');
-  // the CSS is the text of the triple-quoted strings; the Elm around it has braces of its own
-  const css = [...source.matchAll(/"""([\s\S]*?)"""/g)].map((m) => m[1]).join('\n').replace(/\/\*[\s\S]*?\*\//g, '');
-  for (const prelude of topLevelSelectors(css)) {
-    for (const selector of prelude.split(',').map((s) => s.trim())) {
-      if (!/^\.klar-[a-zA-Z0-9_-]+$/.test(selector)) continue;
-      const cls = selector.slice(1);
-      const first = owners.get(cls);
-      if (first === undefined) owners.set(cls, name);
-      else if (first !== name) clashes.push(`${cls}: ${first} and ${name}`);
-    }
-  }
-}
-if (clashes.length > 0) {
-  console.log(`${clashes.length} class(es) with rules of their own in two stylesheet modules:`);
-  for (const c of clashes) console.log(`  - ${c}`);
-  console.log('Give one of them another name.');
-  process.exit(1);
 }
 
 const problems = missing.filter((m) => !hooks.has(m.name));

@@ -198,14 +198,9 @@ table {
   user-select: none;
 }
 
-/* A highlighted match inside search results (Klar.Search.highlight, a `mark`). The
-   element in the selector keeps it a highlight, whatever another rule for a klar-mark
-   (the color dot) says later in the stylesheet: it undoes the shape of a dot. */
-mark.klar-mark {
-  display: inline;
-  flex: initial;
-  width: auto;
-  height: auto;
+/* A highlighted match inside search results (Klar.Search.highlight). Its own class:
+   `klar-dot` is the colour dot of options and tags (Core). */
+.klar-highlight {
   background: var(--klar-highlight);
   box-shadow: none;
   color: inherit;
@@ -216,7 +211,7 @@ mark.klar-mark {
 /* Forced colors drop the background: a match takes the system colors of a mark
    (Highlight where a browser does not know Mark). */
 @media (forced-colors: active) {
-  mark.klar-mark {
+  .klar-highlight {
     background: Highlight;
     color: HighlightText;
     background: Mark;

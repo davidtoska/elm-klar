@@ -13,6 +13,7 @@ that is not there is a failure, not a control that does nothing.
 import Expect exposing (Expectation)
 import Html exposing (Html)
 import Json.Encode as Encode
+import Klar.Date as Date
 import Klar.FilterBar as FilterBar
 import Klar.Ids as Ids exposing (Ids)
 import Klar.Remote as Remote exposing (Remote(..))
@@ -69,11 +70,6 @@ fields =
     [ Rule.textField "status" "Status" .status ]
 
 
-at : Time.Posix
-at =
-    Time.millisToPosix 1000
-
-
 page : Answer
 page =
     Ok { rows = [ { id = "a", status = "open" } ], total = 40 }
@@ -100,7 +96,7 @@ asked check step =
 -}
 answer : Request -> Answer -> State -> State
 answer request result state =
-    (ServerList.update (ServerList.gotPage request result at) state).state
+    (ServerList.update (ServerList.gotPage request result) state).state
 
 
 {-| The state after the first request has been answered.
@@ -161,6 +157,97 @@ suite =
         , queryTests
         , viewTests
         , selectionTests
+        , fixTests
+        , pendingTests
+        ]
+
+
+{-| A list made with no views, as when the views come from the backend after the page.
+-}
+bare : State
+bare =
+    (ServerList.init "orders" []).state
+
+
+pendingTests : Test
+pendingTests =
+    describe "a view named before the views came, and requests before the first answer"
+        [ test "a view named by an address before the views came is applied when they come, not the default" <|
+            \_ ->
+                let
+                    step =
+                        ServerList.setViews views (ServerList.fromQueryString "view=Packed" bare).state
+                in
+                Expect.all
+                    [ \_ -> Expect.equal (Maybe.map .name (ServerList.activeView step.state)) (Just "Packed")
+                    , \_ -> Expect.equal (ServerList.rule step.state) packed
+                    , \_ -> step |> asked (\request -> Expect.equal request.rule packed)
+                    ]
+                    ()
+        , test "a view applied before the views came is applied when they come" <|
+            \_ ->
+                ServerList.setViews views (ServerList.applyView "packed" bare).state
+                    |> .state
+                    |> ServerList.activeView
+                    |> Maybe.map .name
+                    |> Expect.equal (Just "Packed")
+        , test "a named view that is not among the views leaves the default view to apply" <|
+            \_ ->
+                ServerList.setViews views (ServerList.applyView "Gone" bare).state
+                    |> .state
+                    |> ServerList.activeView
+                    |> Maybe.map .name
+                    |> Expect.equal (Just "Open")
+        , test "the view of a full address is marked active when the views come, with the address's filters" <|
+            \_ ->
+                let
+                    step =
+                        ServerList.setViews views (ServerList.fromQueryString "view=Packed&search=fjord&size=25" bare).state
+                in
+                Expect.all
+                    [ \_ -> Expect.equal (Maybe.map .name (ServerList.activeView step.state)) (Just "Packed")
+                    , \_ -> Expect.equal (ServerList.rule step.state) Rule.emptyGroup
+                    , \_ -> Expect.equal (ServerList.query step.state).search "fjord"
+                    ]
+                    ()
+        , test "a full address without a view keeps its filters when the views come: no default view" <|
+            \_ ->
+                let
+                    step =
+                        ServerList.setViews views (ServerList.fromQueryString "size=25" bare).state
+                in
+                Expect.equal ( Maybe.map .name (ServerList.activeView step.state), ServerList.rule step.state ) ( Nothing, Rule.emptyGroup )
+        , test "a view named after the views came that is not there asks for nothing once the list runs" <|
+            \_ ->
+                Expect.equal (ServerList.applyView "Gone" loaded).request Nothing
+        , test "a view named right after init asks: its step may be the only one followed" <|
+            \_ ->
+                Expect.notEqual (ServerList.applyView "Gone" bare).request Nothing
+        , test "mapTable that leaves the query alone asks for nothing, also before the first answer" <|
+            \_ ->
+                Expect.equal (ServerList.mapTable Table.clearSelection started.state).request Nothing
+        , test "the active view applied again after the first answer asks for nothing" <|
+            \_ ->
+                Expect.equal (ServerList.applyView "Open" loaded).request Nothing
+        , test "an address cannot ask for a page larger than 500 rows" <|
+            \_ ->
+                (ServerList.query (ServerList.fromQueryString "size=1000000" loaded).state).pageSize
+                    |> Expect.equal (ServerList.query loaded).pageSize
+        , test "rows that come for a page past the end are shown as the last page, without asking" <|
+            \_ ->
+                let
+                    onFive =
+                        ServerList.mapTable (Table.setPage 5) loaded
+                in
+                onFive
+                    |> asked
+                        (\request ->
+                            let
+                                step =
+                                    ServerList.update (ServerList.gotPage request (Ok { rows = [ { id = "b", status = "open" } ], total = 40 })) onFive.state
+                            in
+                            Expect.equal ( step.request, (ServerList.query step.state).page ) ( Nothing, 2 )
+                        )
         ]
 
 
@@ -216,7 +303,7 @@ answerTests =
                         (\old ->
                             let
                                 late =
-                                    ServerList.update (ServerList.gotPage old (Ok { rows = [], total = 1 }) at) second.state
+                                    ServerList.update (ServerList.gotPage old (Ok { rows = [], total = 1 })) second.state
                             in
                             Expect.all
                                 [ \_ -> Expect.equal (ServerList.total late.state) 40
@@ -236,7 +323,7 @@ answerTests =
                 in
                 Maybe.map2
                     (\old latest ->
-                        ServerList.update (ServerList.gotPage old (Ok { rows = [], total = 1 }) at) second.state
+                        ServerList.update (ServerList.gotPage old (Ok { rows = [], total = 1 })) second.state
                             |> .state
                             |> answer latest (Ok { rows = [], total = 7 })
                             |> ServerList.total
@@ -281,7 +368,7 @@ queryTests =
             \_ ->
                 let
                     onPageThree =
-                        ServerList.mapTable (Table.setPage 3) loaded
+                        (ServerList.mapTable (Table.setPage 3) loaded).state
                 in
                 afterClick Event.click
                     [ Selector.class "klar-filterbar__chip-remove" ]
@@ -291,12 +378,12 @@ queryTests =
             \_ ->
                 afterClick (Orders.sortClick False)
                     (Orders.sortButton "Status")
-                    (ServerList.mapTable (Table.setPage 3) loaded)
+                    (ServerList.mapTable (Table.setPage 3) loaded).state
                     (\request -> Expect.equal ( request.query.sort, request.query.page ) ( [ ( Table.columnId "status", Table.Ascending ) ], 1 ))
         , test "an answer asks for nothing" <|
             \_ ->
                 started
-                    |> asked (\request -> Expect.equal (ServerList.update (ServerList.gotPage request page at) started.state).request Nothing)
+                    |> asked (\request -> Expect.equal (ServerList.update (ServerList.gotPage request page) started.state).request Nothing)
         , test "applying a view puts its rule and its query in place, at page 1, and stores nothing" <|
             \_ ->
                 let
@@ -344,7 +431,195 @@ selectionTests =
                 Expect.equal (ServerList.target Ids.string loaded) Nothing
         , test "rows picked one by one are a Picked target" <|
             \_ ->
-                ServerList.mapTable (Table.select Ids.string [ "a", "b" ]) loaded
+                (ServerList.mapTable (Table.select Ids.string [ "a", "b" ]) loaded).state
                     |> ServerList.target Ids.string
                     |> Expect.equal (Just (ServerList.Picked [ "a", "b" ]))
+        ]
+
+
+plainView : SavedViews.SavedView
+plainView =
+    SavedViews.savedView "Plain" packed
+
+
+today : Date.Date
+today =
+    Date.fromPosix Time.utc (Time.millisToPosix 0)
+
+
+fixTests : Test
+fixTests =
+    describe "the glue after the audit"
+        [ test "views that arrive after the user searched leave the search and the rule alone" <|
+            \_ ->
+                let
+                    first =
+                        ServerList.init "orders" []
+
+                    searched =
+                        case first.request of
+                            Just request ->
+                                (ServerList.mapTable (Table.setSearch "fjord") (answer request page first.state)).state
+
+                            Nothing ->
+                                first.state
+
+                    step =
+                        ServerList.setViews views searched
+                in
+                Expect.all
+                    [ \_ -> Expect.equal (ServerList.rule step.state) Rule.emptyGroup
+                    , \_ -> Expect.equal (ServerList.query step.state).search "fjord"
+                    , \_ -> Expect.equal (ServerList.activeView step.state) Nothing
+                    , \_ -> Expect.equal step.request Nothing
+                    ]
+                    ()
+        , test "a later list of views (the echo of a store) never applies the default" <|
+            \_ ->
+                let
+                    -- "Open" was active and is gone; "Packed" is the default now
+                    echo =
+                        [ SavedViews.savedView "Packed" packed |> SavedViews.asDefault ]
+
+                    step =
+                        ServerList.setViews echo loaded
+                in
+                Expect.all
+                    [ \_ -> Expect.equal (ServerList.rule step.state) open
+                    , \_ -> Expect.equal step.request Nothing
+                    , \_ -> Expect.equal (List.map .name (ServerList.savedViews step.state)) [ "Packed" ]
+                    ]
+                    ()
+        , test "mapTable with a new page size asks with it" <|
+            \_ ->
+                ServerList.mapTable (Table.setPageSize 50) loaded
+                    |> asked (\request -> Expect.equal request.query.pageSize 50)
+        , test "mapTable that leaves the query alone asks for nothing" <|
+            \_ ->
+                Expect.equal (ServerList.mapTable Table.clearSelection loaded).request Nothing
+        , test "a view without a query takes away the search of the view before" <|
+            \_ ->
+                let
+                    withPlain =
+                        (ServerList.setViews (views ++ [ plainView ]) loaded).state
+
+                    step =
+                        ServerList.applyView "Plain" (ServerList.applyView "Packed" withPlain).state
+                in
+                Expect.equal (ServerList.query step.state).search ""
+        , test "an empty page past the end asks for the last page" <|
+            \_ ->
+                let
+                    onFive =
+                        ServerList.mapTable (Table.setPage 5) loaded
+                in
+                onFive
+                    |> asked
+                        (\request ->
+                            ServerList.update (ServerList.gotPage request (Ok { rows = [], total = 40 })) onFive.state
+                                |> asked (\again -> Expect.equal again.query.page 2)
+                        )
+        , test "an empty answer past page 1 with nothing left goes back to page 1 without asking" <|
+            \_ ->
+                let
+                    onFive =
+                        ServerList.mapTable (Table.setPage 5) loaded
+                in
+                onFive
+                    |> asked
+                        (\request ->
+                            let
+                                step =
+                                    ServerList.update (ServerList.gotPage request (Ok { rows = [], total = 0 })) onFive.state
+                            in
+                            Expect.equal ( step.request, (ServerList.query step.state).page ) ( Nothing, 1 )
+                        )
+        , test "the filter bar shows no count after a failed refresh" <|
+            \_ ->
+                let
+                    step =
+                        ServerList.refresh loaded
+
+                    failed =
+                        case step.request of
+                            Just request ->
+                                answer request (Err (Remote.problem Remote.server)) step.state
+
+                            Nothing ->
+                                step.state
+
+                    countIn state =
+                        ServerList.viewFilterBar identity [ FilterBar.fields fields ] state
+                            |> Query.fromHtml
+                in
+                Expect.all
+                    [ \_ -> countIn loaded |> Query.has [ Selector.text "40" ]
+                    , \_ -> countIn failed |> Query.hasNot [ Selector.text "40" ]
+                    ]
+                    ()
+        , test "mapRows changes the rows on the screen and asks for nothing" <|
+            \_ ->
+                ServerList.mapRows (\order -> { order | status = "packed" }) loaded
+                    |> ServerList.rows
+                    |> Remote.toMaybe
+                    |> Expect.equal (Just [ { id = "a", status = "packed" } ])
+        , test "views that arrive while the first page is on its way and change nothing ask for nothing" <|
+            \_ ->
+                Expect.equal (ServerList.setViews views started.state).request Nothing
+        , test "a view applied right after init asks, also when nothing changed" <|
+            \_ ->
+                Expect.notEqual (ServerList.applyView "Open" started.state).request Nothing
+        , test "applyView matches the name ignoring case" <|
+            \_ ->
+                ServerList.applyView "packed" loaded
+                    |> asked (\request -> Expect.equal request.rule packed)
+        , test "the address of a list reads back as the same list and asks for nothing" <|
+            \_ ->
+                let
+                    state =
+                        (ServerList.mapTable (Table.setSort [ ( Table.columnId "status", Table.Descending ) ] >> Table.setPage 2) loaded).state
+                in
+                Expect.equal (ServerList.fromQueryString (ServerList.toQueryString state) state).request Nothing
+        , test "the address writes the view, the search, the sort, the page and the size" <|
+            \_ ->
+                let
+                    state =
+                        (ServerList.mapTable (Table.setSearch "fjord & co" >> Table.setSort [ ( Table.columnId "status", Table.Descending ) ] >> Table.setPage 2) loaded).state
+
+                    text =
+                        ServerList.toQueryString state
+                in
+                Expect.all
+                    (List.map (\part -> \_ -> Expect.equal ( part, String.contains part text ) ( part, True ))
+                        [ "view=Open", "search=fjord%20%26%20co", "sort=-status", "page=2", "size=25", "rule=" ]
+                    )
+                    ()
+        , test "an address put on another list gives it the query, the page and the rule" <|
+            \_ ->
+                let
+                    state =
+                        (ServerList.mapTable (Table.setSearch "fjord" >> Table.setPage 2) (ServerList.applyView "Packed" loaded).state).state
+                in
+                ServerList.fromQueryString (ServerList.toQueryString state) loaded
+                    |> asked
+                        (\request ->
+                            Expect.all
+                                [ \_ -> Expect.equal request.query (ServerList.query state)
+                                , \_ -> Expect.equal (Rule.conditionCount request.rule) 1
+                                , \_ -> Expect.equal (Rule.matches today fields request.rule { id = "x", status = "packed" }) True
+                                ]
+                                ()
+                        )
+        , test "an address with only a view applies the view" <|
+            \_ ->
+                ServerList.fromQueryString "view=Packed" loaded
+                    |> asked (\request -> Expect.equal ( request.rule, request.query.search ) ( packed, "ada" ))
+        , test "an address without the list's parameters is Reset: the default view" <|
+            \_ ->
+                ServerList.fromQueryString "" (ServerList.applyView "Packed" loaded).state
+                    |> asked (\request -> Expect.equal ( request.rule, request.query.search ) ( open, "" ))
+        , test "a parameter that cannot be read counts as missing" <|
+            \_ ->
+                ServerList.fromQueryString "page=abc&rule=%7Bnot%20json&size=25" loaded
+                    |> asked (\request -> Expect.equal ( request.query.page, Rule.conditionCount request.rule ) ( 1, 0 ))
         ]

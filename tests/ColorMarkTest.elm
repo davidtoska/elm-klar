@@ -157,7 +157,7 @@ renderTests =
                 Html.div [] (Search.highlight "ord" "Orders")
                     |> Query.fromHtml
                     |> Expect.all
-                        [ Query.has [ Selector.tag "mark", Selector.class "klar-mark" ]
+                        [ Query.has [ Selector.tag "mark", Selector.class "klar-highlight" ]
                         , Query.hasNot [ dot ]
                         ]
         , test "the stylesheet has one rule for the mark of a search and one for the dot" <|

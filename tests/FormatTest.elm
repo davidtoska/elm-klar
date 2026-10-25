@@ -24,6 +24,7 @@ suite =
         [ intTests
         , decimalTests
         , percentTests
+        , shortTests
         , currencyTests
         , bytesTests
         , durationTests
@@ -47,6 +48,8 @@ intTests =
         , check "groups exactly at a thousand" "1,000" (Format.int Locale.en 1000)
         , check "zero" "0" (Format.int Locale.en 0)
         , check "uses a real minus sign" (minus ++ "1,000") (Format.int Locale.en -1000)
+        , check "a number too large for plain digits has no exponent" "1,000,000,000,000,000,000,000" (Format.int Locale.en (round 1.0e21))
+        , check "a large negative number too" (minus ++ "2,000,000,000,000,000,000,000") (Format.int Locale.en (round -2.0e21))
         ]
 
 
@@ -94,6 +97,32 @@ percentTests =
         ]
 
 
+shortTests : Test
+shortTests =
+    describe "decimalUpTo, abbreviated and signed"
+        [ check "decimalUpTo leaves out the zeros at the end" "2.5" (Format.decimalUpTo Locale.en 2 2.5)
+        , check "decimalUpTo leaves out the separator with them" "3" (Format.decimalUpTo Locale.en 2 3)
+        , check "decimalUpTo rounds from the decimal text" "1.01" (Format.decimalUpTo Locale.en 2 1.005)
+        , check "decimalUpTo in Norwegian" ("1" ++ nbsp ++ "234,5") (Format.decimalUpTo Locale.nb 2 1234.5)
+        , check "decimalUpTo keeps the zeros of the whole number" "1,200" (Format.decimalUpTo Locale.en 2 1200)
+        , check "millions" "2.5M" (Format.abbreviated Locale.en 2500000)
+        , check "millions in Norwegian" ("2,5" ++ nbsp ++ "mill.") (Format.abbreviated Locale.nb 2500000)
+        , check "billions" "3B" (Format.abbreviated Locale.en 3.0e9)
+        , check "milliards in Norwegian" ("3" ++ nbsp ++ "mrd.") (Format.abbreviated Locale.nb 3.0e9)
+        , check "trillions" "1.2T" (Format.abbreviated Locale.en 1.2e12)
+        , check "999 960 000 is the next unit" "1B" (Format.abbreviated Locale.en 999960000)
+        , check "999 940 000 is not" "999.9M" (Format.abbreviated Locale.en 999940000)
+        , check "below a million in full" "12,345" (Format.abbreviated Locale.en 12345)
+        , check "with one decimal at most" "1,234.6" (Format.abbreviated Locale.en 1234.56)
+        , check "negative" (minus ++ "2.5M") (Format.abbreviated Locale.en -2500000)
+        , check "a rise gets a plus" "+4.2%" (Format.signed (Format.percent Locale.en 1) 0.042)
+        , check "a fall keeps its minus" (minus ++ "4.2%") (Format.signed (Format.percent Locale.en 1) -0.042)
+        , check "a change written as zero has no sign" "0.0%" (Format.signed (Format.percent Locale.en 1) 0.0004)
+        , check "zero has no sign" "0" (Format.signed (Format.decimalUpTo Locale.en 1) 0)
+        , check "signed with another format" "+12" (Format.signed (Format.decimalUpTo Locale.nb 1) 12)
+        ]
+
+
 currencyTests : Test
 currencyTests =
     describe "currency"
@@ -129,11 +158,11 @@ durationTests =
         , check "seconds with a decimal" (String.concat [ "1.2", nbsp, "s" ]) (Format.duration Locale.en 1200)
         , check "Norwegian decimal comma" (String.concat [ "1,2", nbsp, "s" ]) (Format.duration Locale.nb 1200)
         , check "59.96 seconds is a minute, not 60.0 seconds" (String.concat [ "1", nbsp, "min" ]) (Format.duration Locale.en 59960)
-        , check "minutes and seconds" (String.concat [ "2", nbsp, "min 5", nbsp, "s" ]) (Format.duration Locale.en 125000)
+        , check "minutes and seconds" (String.concat [ "2", nbsp, "min", nbsp, "5", nbsp, "s" ]) (Format.duration Locale.en 125000)
         , check "whole minutes" (String.concat [ "3", nbsp, "min" ]) (Format.duration Locale.en 180000)
-        , check "hours and minutes" (String.concat [ "1", nbsp, "h 2", nbsp, "min" ]) (Format.duration Locale.en 3720000)
-        , check "Norwegian hours" (String.concat [ "1", nbsp, "t 2", nbsp, "min" ]) (Format.duration Locale.nb 3720000)
-        , check "days and hours" (String.concat [ "2", nbsp, "d 7", nbsp, "h" ]) (Format.duration Locale.en 200000000)
+        , check "hours and minutes" (String.concat [ "1", nbsp, "h", nbsp, "2", nbsp, "min" ]) (Format.duration Locale.en 3720000)
+        , check "Norwegian hours" (String.concat [ "1", nbsp, "t", nbsp, "2", nbsp, "min" ]) (Format.duration Locale.nb 3720000)
+        , check "days and hours" (String.concat [ "2", nbsp, "d", nbsp, "7", nbsp, "h" ]) (Format.duration Locale.en 200000000)
         , check "negative" (String.concat [ minus, "340", nbsp, "ms" ]) (Format.duration Locale.en -340)
         ]
 
@@ -151,6 +180,10 @@ dateTests =
         , check "Norwegian date pads" "05.03.2026" (Format.date Locale.nb (day 2026 3 5))
         , check "the year has four digits in English" "0999-01-02" (Format.date Locale.en (day 999 1 2))
         , check "and in Norwegian" "02.01.0999" (Format.date Locale.nb (day 999 1 2))
+        , check "short English date" "21 Sep" (Format.dateShort Locale.en (day 2026 9 21))
+        , check "short Norwegian date has the point of the abbreviation" "21. sep." (Format.dateShort Locale.nb (day 2026 9 21))
+        , check "a Norwegian month written in full gets no point" "1. mai" (Format.dateShort Locale.nb (day 2026 5 1))
+        , check "short English date in May" "1 May" (Format.dateShort Locale.en (day 2026 5 1))
         , check "long English date" "20 October 2026" (Format.dateLong Locale.en (day 2026 10 20))
         , check "long Norwegian date" "20. oktober 2026" (Format.dateLong Locale.nb (day 2026 10 20))
         , check "time of day" "14:05" (Format.time Time.utc (Time.millisToPosix (((14 * 60) + 5) * 60 * 1000)))

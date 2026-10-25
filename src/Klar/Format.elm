@@ -1,5 +1,5 @@
 module Klar.Format exposing
-    ( int, decimal, percent, currency, plural
+    ( int, decimal, decimalUpTo, percent, abbreviated, signed, currency, plural
     , bytes, duration
     , date, dateShort, dateLong, time, dateTime, iso8601, relative
     )
@@ -18,6 +18,10 @@ Do not use when: the text is a machine format (use `iso8601` for a date in data,
     Format.decimal Locale.en 2 1234.5 -- "1,234.50"
 
     Format.percent Locale.en 1 0.127 -- "12.7%"
+
+    Format.abbreviated Locale.en 2500000 -- "2.5M"
+
+    Format.signed (Format.percent Locale.en 1) 0.042 -- "+4.2%"
 
     Format.currency Locale.en "$" 2 1234.5 -- "$1,234.50"
 
@@ -47,7 +51,7 @@ until more languages are added.
 
 # Numbers
 
-@docs int, decimal, percent, currency, plural
+@docs int, decimal, decimalUpTo, percent, abbreviated, signed, currency, plural
 
 
 # Sizes and durations
@@ -90,7 +94,11 @@ int locale n =
         grouped =
             groupThousands (Locale.thousandSeparator locale) (String.fromInt (abs n))
     in
-    if n < 0 then
+    if toFloat (abs n) >= 1.0e21 then
+        -- String.fromInt writes these with an exponent ("1e+21")
+        decimal locale 0 (toFloat n)
+
+    else if n < 0 then
         "−" ++ grouped
 
     else
@@ -137,6 +145,141 @@ decimal locale decimals value =
     signOf parts ++ parts.text
 
 
+{-| A number with at most this many decimals: the zeros at the end are left out, and the
+decimal separator with them. For figures whose precision varies, such as an average.
+
+    Format.decimalUpTo Locale.en 2 2.5 -- "2.5"
+
+    Format.decimalUpTo Locale.en 2 3 -- "3"
+
+    Format.decimalUpTo Locale.en 2 1.005 -- "1.01"
+
+    Format.decimalUpTo Locale.nb 2 1234.5 -- "1 234,5"
+
+-}
+decimalUpTo : Locale -> Int -> Float -> String
+decimalUpTo locale decimals value =
+    trimZeros locale (decimal locale decimals value)
+
+
+{-| Leaves out the zeros at the end of the decimals, and the separator when no decimal
+is left.
+-}
+trimZeros : Locale -> String -> String
+trimZeros locale text =
+    let
+        separator =
+            Locale.decimalSeparator locale
+
+        dropZeros rest =
+            if String.endsWith "0" rest then
+                dropZeros (String.dropRight 1 rest)
+
+            else
+                rest
+    in
+    if String.contains separator text then
+        let
+            trimmed =
+                dropZeros text
+        in
+        if String.endsWith separator trimmed then
+            String.dropRight (String.length separator) trimmed
+
+        else
+            trimmed
+
+    else
+        text
+
+
+{-| A large number made short for a narrow place (a chart axis, a stat): millions,
+billions (milliards in Norwegian) and trillions with one decimal at most, in the words of
+the language. A number below a million is written in full, with at most one decimal. A
+number that rounds up to the next unit is written in it (`999 960 000` is "1B", not
+"1,000M").
+
+    Format.abbreviated Locale.en 2500000 -- "2.5M"
+
+    Format.abbreviated Locale.nb 2500000 -- "2,5 mill." (with a non-breaking space)
+
+    Format.abbreviated Locale.en 999960000 -- "1B"
+
+    Format.abbreviated Locale.en 12345 -- "12,345"
+
+-}
+abbreviated : Locale -> Float -> String
+abbreviated locale value =
+    let
+        size =
+            abs value
+
+        scaled divisor unit =
+            decimalUpTo locale 1 (value / divisor) ++ unit
+
+        -- the unit the number reaches once it is rounded to one decimal
+        reaches divisor =
+            toFloat (round (size / divisor * 10)) / 10 >= 1000
+
+        trillions =
+            scaled 1.0e12 (Locale.pick locale { nb = nbsp ++ "bill.", en = "T" })
+
+        billions =
+            scaled 1.0e9 (Locale.pick locale { nb = nbsp ++ "mrd.", en = "B" })
+
+        millions =
+            scaled 1.0e6 (Locale.pick locale { nb = nbsp ++ "mill.", en = "M" })
+    in
+    if isNaN value || isInfinite value then
+        decimal locale 0 value
+
+    else if size >= 1.0e12 then
+        trillions
+
+    else if size >= 1.0e9 then
+        if reaches 1.0e9 then
+            trillions
+
+        else
+            billions
+
+    else if size >= 1.0e6 then
+        if reaches 1.0e6 then
+            billions
+
+        else
+            millions
+
+    else
+        decimalUpTo locale 1 value
+
+
+{-| The text of a change, with a plus sign when it is above zero: a delta next to a
+figure. Give it the format of the number (`percent`, `decimal`, `abbreviated` ...). A change
+that is written as zero gets no sign, and a fall keeps the minus sign of the format.
+
+    Format.signed (Format.percent Locale.en 1) 0.042 -- "+4.2%"
+
+    Format.signed (Format.percent Locale.en 1) -0.042 -- "−4.2%"
+
+    Format.signed (Format.percent Locale.en 1) 0.0004 -- "0.0%"
+
+    Format.signed (Format.decimalUpTo Locale.nb 1) 12 -- "+12"
+
+-}
+signed : (Float -> String) -> Float -> String
+signed format value =
+    let
+        text =
+            format value
+    in
+    if value > 0 && String.any (\char -> Char.isDigit char && char /= '0') text then
+        "+" ++ text
+
+    else
+        text
+
+
 {-| A ratio as a percentage: `0.127` is 12.7 percent. The decimals are those of
 the percentage. The English text has no space before the percent sign, the
 Norwegian one a non-breaking space.
@@ -160,9 +303,14 @@ percent locale decimals ratio =
     signOf parts ++ parts.text ++ suffix
 
 
-{-| An amount of money. The first argument after the locale is what to show for
-the currency, a symbol or a code, as you want it written. English puts it in
-front of the number, Norwegian after it.
+{-| A number shown as an amount of money. The first argument after the locale is what
+to show for the currency, a symbol or a code, as you want it written. English puts it
+in front of the number, Norwegian after it.
+
+Money the application keeps, adds or compares is a [Klar.Money](Klar-Money), and it is
+written with `Money.toString` (`"NOK 1,234.50"`) or `Money.toSymbolString`
+(`"$1,234.50"`), which take the decimals from the currency. Use `currency` only for a
+`Float` that is already only for show, such as a value on a chart axis.
 
 An ISO 4217 code that has a well-known symbol is written with the symbol (`"USD"`
 becomes `$`, `"EUR"` `€`, `"NOK"` `kr`; the table is the one `Klar.Money` uses). Any other
@@ -532,7 +680,7 @@ duration locale millis =
                 part bigValue bigUnit
 
             else
-                part bigValue bigUnit ++ " " ++ part smallValue smallUnit
+                part bigValue bigUnit ++ nbsp ++ part smallValue smallUnit
     in
     sign
         ++ (if magnitude < 1000 then
@@ -580,13 +728,31 @@ so use it where the year is obvious from the context.
 
     Format.dateShort Locale.nb september21 -- "21. sep."
 
+    Format.dateShort Locale.nb may1 -- "1. mai" (a whole word gets no point)
+
 -}
 dateShort : Locale -> Date -> String
 dateShort locale value =
     Locale.pick locale
-        { nb = String.fromInt (Date.day value) ++ ". " ++ Locale.monthShort locale (Date.month value) ++ "."
+        { nb = String.fromInt (Date.day value) ++ ". " ++ shortMonth locale (Date.month value)
         , en = String.fromInt (Date.day value) ++ " " ++ Locale.monthShort locale (Date.month value)
         }
+
+
+{-| The short name of a month with the point of an abbreviation, which a name that is
+already whole does not get: "sep." but "mai".
+-}
+shortMonth : Locale -> Int -> String
+shortMonth locale month =
+    let
+        short =
+            Locale.monthShort locale month
+    in
+    if short == Locale.monthName locale month then
+        short
+
+    else
+        short ++ "."
 
 
 {-| The date with the month spelled out: `20 October 2026` in English and
