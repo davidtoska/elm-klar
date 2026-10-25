@@ -926,6 +926,34 @@ presetKeyboard =
                     , ( "target", Encode.object [ ( "id", Encode.string targetId ) ] )
                     ]
                 )
+
+        -- ArrowDown on the quick choice with each id in turn, each message run
+        -- through update.
+        arrowDowns targetIds state =
+            List.foldl
+                (\targetId result ->
+                    Result.andThen
+                        (\current ->
+                            DateRangePicker.view identity attributes current
+                                |> Query.fromHtml
+                                |> Query.find [ Selector.class "klar-daterange__presets" ]
+                                |> Event.simulate (arrowDown targetId)
+                                |> Event.toResult
+                                |> Result.map (\msg -> DateRangePicker.update msg current |> Tuple.first)
+                        )
+                        result
+                )
+                (Ok state)
+                targetIds
+
+        tabStops state =
+            DateRangePicker.view identity attributes state
+                |> Query.fromHtml
+                |> Query.findAll [ Selector.class "klar-daterange__preset", Selector.attribute (Attr.tabindex 0) ]
+
+        -- From Today, three times ArrowDown: Last 7 days, Last 30 days, This week.
+        moved =
+            arrowDowns [ "period-popup-preset-0", "period-popup-preset-1", "period-popup-preset-2" ] opened
     in
     describe "the quick choices have one tab stop"
         [ test "the first is in the tab order and the others are not" <|
@@ -947,6 +975,29 @@ presetKeyboard =
                     [ tabIndexOf "This month" chosen |> Query.has [ Selector.attribute (Attr.tabindex 0) ]
                     , tabIndexOf "Today" chosen |> Query.has [ Selector.attribute (Attr.tabindex -1) ]
                     ]
+        , test "the tab stop follows the arrow keys: after three times ArrowDown it is This week, and only it" <|
+            \_ ->
+                case moved of
+                    Ok state ->
+                        allOf
+                            [ tabIndexOf "This week" state |> Query.has [ Selector.attribute (Attr.tabindex 0) ]
+                            , tabIndexOf "Today" state |> Query.has [ Selector.attribute (Attr.tabindex -1) ]
+                            , tabStops state |> Query.count (Expect.equal 1)
+                            ]
+
+                    Err message ->
+                        Expect.fail message
+        , test "opened again, the tab stop is the first quick choice again" <|
+            \_ ->
+                case Result.map (DateRangePicker.open attributes >> Tuple.first) moved of
+                    Ok state ->
+                        allOf
+                            [ tabIndexOf "Today" state |> Query.has [ Selector.attribute (Attr.tabindex 0) ]
+                            , tabStops state |> Query.count (Expect.equal 1)
+                            ]
+
+                    Err message ->
+                        Expect.fail message
         , test "ArrowDown on a quick choice is taken, and its default prevented" <|
             \_ ->
                 DateRangePicker.view identity attributes opened
