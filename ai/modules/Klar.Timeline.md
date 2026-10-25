@@ -11,6 +11,7 @@ Types: `Event`, `Attribute`
 ```elm
 -- Views
 view : List (Attribute msg) -> List (Event msg) -> Html msg
+viewRemote : List (Attribute msg) -> Remote.Remote (List (Event msg)) -> Html msg
 
 -- Events
 type Event msg  -- opaque: no constructors are exposed
@@ -22,6 +23,8 @@ withIcon : Icon.Icon -> Event msg -> Event msg
 withAuthor : String -> Event msg -> Event msg
 withAuthorImage : String -> Event msg -> Event msg
 withDetails : Html msg -> Event msg -> Event msg
+withHref : String -> Event msg -> Event msg
+withOnClick : msg -> Event msg -> Event msg
 
 -- Look and time
 type Attribute msg  -- opaque: no constructors are exposed
@@ -36,16 +39,11 @@ id : String -> Attribute msg
 locale : Locale.Locale -> Attribute msg
 
 -- Loading more
-onLoadMore : msg -> Attribute msg
-loadingMore : Bool -> Attribute msg
-moreFailed : Remote.Problem -> Attribute msg
-hasMore : Bool -> Attribute msg
+loadMore : msg -> Remote.Remote Bool -> Attribute msg
+total : Int -> Attribute msg
 
--- Loading, failure and empty
-loading : Bool -> Attribute msg
-failed : Remote.Problem -> Attribute msg
+-- Failure and empty
 onRetry : msg -> Attribute msg
-remote : Remote.Remote a -> Attribute msg
 skeletonRows : Int -> Attribute msg
 emptyTitle : String -> Attribute msg
 emptyDescription : String -> Attribute msg
@@ -56,7 +54,8 @@ emptyDescription : String -> Attribute msg
 A vertical history of events: an audit trail, an order log, an activity feed.
 
 Use when: a history of events is shown newest first, grouped by day, such as an audit trail or an order log.
-Do not use when: the events are rules and decisions of an approval process, use `Klar.ApprovalFlow`.
+Do not use when: the events are rules and decisions of an approval process, use `Klar.ApprovalFlow`; or the rows are records to sort and filter, use `Klar.Table`.
+Quick path: `viewRemote` with `Remote.map (List.map toEvent) model.history`, `onRetry`, `settings`; add `loadMore` for paging.
 
     import Klar.Icon as Icon
     import Klar.Settings as Settings
@@ -67,8 +66,6 @@ Do not use when: the events are rules and decisions of an approval process, use 
     Timeline.view
         [ Timeline.settings model.settings
         , Timeline.now model.now
-        , Timeline.onLoadMore LoadMore
-        , Timeline.loadingMore model.loadingMore
         ]
         [ Timeline.event "e2" delayedAt "Status changed to Delayed"
             |> Timeline.withTone Warning
@@ -80,9 +77,37 @@ Do not use when: the events are rules and decisions of an approval process, use 
         ]
 
 Here `model.settings` is the `Klar.Settings` of the application, and `model.now`,
-`shippedAt` and `delayedAt` are `Time.Posix` values. The clock times and the day an
-event belongs to are those of the zone in the settings (UTC, with "UTC" after the
-time, until the application has given it).
+`shippedAt` and `delayedAt` are `Time.Posix` values.
+
+From the backend, page by page: `model.history` is a `Remote (List Change)` and
+`model.morePages` the `Remote Bool` of the request for the next page (`True`:
+there is more after what is shown).
+
+    Timeline.viewRemote
+        [ Timeline.settings model.settings
+        , Timeline.onRetry ReloadHistory
+        , Timeline.loadMore LoadMoreHistory model.morePages
+        , Timeline.id "history"
+        ]
+        (Remote.map (List.map toEvent) model.history)
+
+    -- in update
+    LoadMoreHistory ->
+        ( { model | morePages = Remote.refresh model.morePages }, fetchPage model.cursor )
+
+    GotPage (Ok page) ->
+        ( { model
+            | history = Remote.map (\old -> old ++ page.changes) model.history
+            , morePages = Remote.Loaded page.hasMore
+          }
+        , Cmd.none
+        )
+
+    GotPage (Err problem) ->
+        ( { model | morePages = Remote.Failed problem }, Cmd.none )
+
+The clock times and the day an event belongs to are those of the zone in the
+settings (UTC, with "UTC" after the time, until the application has given it).
 
 Events are shown in the order you give them (newest first is usual), and grouped
 under a heading per calendar day: events that follow each other on the same day
@@ -90,23 +115,22 @@ share a heading, so give them sorted by time. The headings are `h3` elements: un
 page title with no heading in between, say `headingLevel 2`.
 Something that happened on a day, with no time of day (a delivery date, a
 deadline), is a `dayEvent`: it sits under its day and draws no clock time. Give the
-timeline `now` and the headings say "Today" and "Yesterday". A thin gray line connects the markers of a day; a marker is an icon
+timeline `now` and the headings say "Today", "Yesterday" and "Tomorrow". A thin gray line connects the markers of a day; a marker is an icon
 in the tone of the event, or a dot. The marker is decoration only (hidden from
 screen readers), so the title of an event must say what its color means.
 
 Details are folded away in a native `details` element, so they work with the
 keyboard and need no state. The footer loads more: a button and a status text
-next to it, shown when you set `onLoadMore`. The button stays in the page while the
-next page loads (it shows a spinner) and turns into "Try again" when that failed,
-so the keyboard focus is not thrown away; when there is nothing more
-(`hasMore False`) it is gone and the status text says "No more events". Give the
-timeline an `id` and move focus there with `Klar.focus` in the same update
-that starts a request again or ends the list, as for the retry button of any
-region.
+next to it, shown when you set `loadMore`. The button is the same element in every
+state, so the keyboard focus is never thrown away: it shows a spinner while the next
+page loads, turns into "Try again" when that failed, and stays, dimmed and
+unavailable (`aria-disabled`), when there is nothing more ("No more events").
 
-A loading skeleton, an empty state and a failure with retry are built in; use
-`remote` to take them from a `Remote`. The built-in text is English unless you
-set `locale`.
+`viewRemote` draws a loading skeleton, a failure with retry, an empty state, the
+events, a refresh (dimmed) and old data ("Old data from 14:05"). The "Try again"
+button of a failure is replaced when the request starts again: give the timeline an
+`id` and move focus there with `Klar.focus` in that update branch. The built-in
+text is English unless you set `locale`.
 
 ## Views
 
@@ -121,6 +145,27 @@ other on the same day (in the zone of the settings) share a day heading, so
 sort them by time first.
 
     Timeline.view [ Timeline.settings model.settings ] (List.map toEvent model.history)
+
+For events from the backend, use `viewRemote`.
+
+### `viewRemote`
+
+```elm
+viewRemote : List (Attribute msg) -> Remote.Remote (List (Event msg)) -> Html msg
+```
+
+The timeline from a `Remote`: a skeleton while it loads (see `skeletonRows`),
+the problem with "Try again" (`onRetry`) when it failed, the empty state, the
+events, the events dimmed and busy while they are refreshed, and "Old data from
+14:05" with a retry when the last refresh failed (the time is in the zone of the
+`settings`). Shape the data with `Remote.map`.
+
+    Timeline.viewRemote [ Timeline.settings model.settings, Timeline.onRetry ReloadHistory ]
+        (Remote.map (List.map toEvent) model.history)
+
+The timeline is the same element around the same events whether they are fresh,
+refreshing or old, so focus on a link in the details or on "Load more" survives a
+refresh.
 
 ## Events
 
@@ -224,6 +269,33 @@ the keyboard and whether it is open is not part of your model.
     Timeline.event "ev-7" changedAt "Address changed"
         |> Timeline.withDetails (Text.paragraph "From 1 Main Street to 5 Park Lane.")
 
+### `withHref`
+
+```elm
+withHref : String -> Event msg -> Event msg
+```
+
+Makes the title a link to this URL: the record the event is about ("Order
+1042 shipped" opens the order). It is a real `<a href>`, so it can be opened in a
+new tab, and in a `Browser.application` a click is a `UrlRequest`. `withHref` and
+`withOnClick` replace each other.
+
+    Timeline.event "ev-1042" shippedAt "Order 1042 shipped"
+        |> Timeline.withHref "/orders/1042"
+
+### `withOnClick`
+
+```elm
+withOnClick : msg -> Event msg -> Event msg
+```
+
+Makes the title a button that sends this message, for an action that is not
+a page: opening the record in a drawer. Use `withHref` when it is a page.
+`withHref` and `withOnClick` replace each other.
+
+    Timeline.event "ev-1042" shippedAt "Order 1042 shipped"
+        |> Timeline.withOnClick (OpenOrder orderId)
+
 ## Look and time
 
 ### `Attribute`
@@ -253,7 +325,7 @@ the times are written in UTC and end in "UTC".
 now : Time.Posix -> Attribute msg
 ```
 
-The current time. It lets the day headings say "Today" and "Yesterday" and
+The current time. It lets the day headings say "Today", "Yesterday" and "Tomorrow" and
 the tooltip of each time add how long ago it was ("3 hours ago"). Without it the
 headings always show the full date. The timeline does not read the clock itself:
 keep the value in your model and update it, for example with `Time.every`.
@@ -295,10 +367,12 @@ maxHeight : Int -> Attribute msg
 Makes the timeline, footer included, scroll inside itself when it is taller
 than this many pixels: for a log in a side panel. Default: no limit.
 
-A scroll area must be reachable with the keyboard. With `onLoadMore` the button
-in the footer is a tab stop inside it; without, the timeline itself takes the
-keyboard focus (`tabindex="0"`) and is a region named by `ariaLabel` ("Events" if
-you gave none), so that the arrow keys scroll it.
+A scroll area must be reachable with the keyboard. With `loadMore` the button in
+the footer is a tab stop inside it, in every state: after the last page it stays,
+unavailable (`aria-disabled`) but still focusable, so the scroll area can still be
+reached. Without `loadMore`, the timeline itself takes the keyboard focus
+(`tabindex="0"`) and is a region named by `ariaLabel` ("Events" if you gave none),
+so that the arrow keys scroll it.
 
 ### `headingLevel`
 
@@ -318,8 +392,8 @@ id : String -> Attribute msg
 ```
 
 The DOM id of the timeline, which then takes focus from a command in every state
-(loading, failed, loaded). "Try again" and "Load more" are replaced when the request
-starts or the list ends, and focus would fall back to the page; call
+(loading, failed, loaded). The "Try again" button of a failure is replaced when the
+request starts again, and focus would fall back to the page; call
 [`Klar.focus`](Klar.md#focus) with this id in the same `update`
 branch. The id must be unique on the page.
 
@@ -335,71 +409,46 @@ The language of the built-in text ("Show details", "Load more", "Today",
 
 ## Loading more
 
-### `onLoadMore`
+### `loadMore`
 
 ```elm
-onLoadMore : msg -> Attribute msg
+loadMore : msg -> Remote.Remote Bool -> Attribute msg
 ```
 
-Adds the footer under the events: a "Load more" button that sends this
-message, and a status text next to it ("Showing 20 events"). Without
-`onLoadMore` there is no footer, and `loadingMore`, `moreFailed` and `hasMore`
-have no effect.
+Adds the footer under the events: a "Load more" button that sends the message,
+and a status text next to it. The `Remote Bool` is the request for the next page,
+and its `Bool` says whether there is more after the events shown:
 
-### `loadingMore`
+  - `Loaded True` or `NotAsked`: "Load more" and "Showing 20 events".
+
+  - `Loading`, or data that is being refreshed (`Remote.refresh`): the button
+    shows a spinner and does nothing, and the status says "Loading more events ...".
+
+  - `Failed`, or data whose refresh failed: the title of the problem, and the
+    button turns into "Try again" and sends the message again, when the problem
+    is worth retrying (`Klar.Remote.isRetryable`). For any other problem (no
+    access, a refused request) the button stays, unavailable, so the keyboard
+    focus is kept. The events already loaded stay.
+
+  - `Loaded False`: that was all. The button stays, dimmed and unavailable, so
+    that the keyboard focus on it is not thrown away, and the status says "No more
+    events".
+
+    Timeline.loadMore LoadMoreHistory model.morePages
+
+The button is one element in every state. Without `loadMore` there is no footer.
+
+### `total`
 
 ```elm
-loadingMore : Bool -> Attribute msg
+total : Int -> Attribute msg
 ```
 
-Say `True` while the next page is on its way: the button shows a spinner and
-does nothing, and the status text says "Loading more events ...". Pass a field
-of your model. Default: `False`.
+How many events there are in all, when the backend says so: the footer then
+says "Showing 20 of 340 events". Without it the footer counts only the events
+shown.
 
-### `moreFailed`
-
-```elm
-moreFailed : Remote.Problem -> Attribute msg
-```
-
-The next page failed to load: the footer shows the title of the problem, and
-the button turns into "Try again" and sends the `onLoadMore` message again. The
-events already loaded stay. Pass it only while the failure applies;
-`loadingMore` wins over it.
-
-### `hasMore`
-
-```elm
-hasMore : Bool -> Attribute msg
-```
-
-Say `False` when the last page has been loaded: the button goes and the status
-text says "No more events" instead of how many are shown. Default: `True`.
-
-## Loading, failure and empty
-
-### `loading`
-
-```elm
-loading : Bool -> Attribute msg
-```
-
-While `True` a skeleton is shown instead of the events (see `skeletonRows`),
-and screen readers hear "Loading events". Pass a field of your model. Default:
-`False`.
-
-`loading`, `failed` and `remote` only add up: the timeline is busy when any of
-them says so, and shows a failure when any of them has one, whatever the order.
-
-### `failed`
-
-```elm
-failed : Remote.Problem -> Attribute msg
-```
-
-Shows the problem instead of the events, with a "Try again" button if
-`onRetry` is set and the problem is worth retrying. Make a `Problem` with
-`Klar.Remote.problem`, or use `remote`.
+## Failure and empty
 
 ### `onRetry`
 
@@ -407,26 +456,11 @@ Shows the problem instead of the events, with a "Try again" button if
 onRetry : msg -> Attribute msg
 ```
 
-The message sent by the "Try again" button in the failure state. The button
-is only shown when the problem is worth retrying (see `Klar.Remote.isRetryable`
-in [Klar.Remote](Klar.Remote.md)). A failed next page has its own retry button,
-which sends the `onLoadMore` message.
-
-### `remote`
-
-```elm
-remote : Remote.Remote a -> Attribute msg
-```
-
-Takes loading, failure, refreshing and old data from a `Remote`. The events
-themselves are passed to `view` as usual. `NotAsked` and `Loading` show the
-skeleton, `Failed` shows the problem and `Loaded` shows the events. Data that is
-`Kept` stays on the screen: dimmed and busy while it is refreshed, and with
-"Old data from 14:05" and a retry (`onRetry`) when the last refresh failed. The
-time is in the zone of the settings.
-
-    Timeline.view [ Timeline.remote model.history ]
-        (List.map toEvent (Remote.withDefault [] model.history))
+The message sent by the "Try again" button of a timeline from a `Remote`
+(`viewRemote`) that failed, and by the marker of old data. The button is only shown
+when the problem is worth retrying (see `Klar.Remote.isRetryable` in
+[Klar.Remote](Klar.Remote.md)). A failed next page has its own retry button, which sends
+the message of `loadMore`.
 
 ### `skeletonRows`
 

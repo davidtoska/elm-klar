@@ -4282,15 +4282,23 @@
       "msg": [],
       "ids": [],
       "stateful": false,
-      "quickPath": [],
+      "quickPath": [
+        "view",
+        "label",
+        "int",
+        "decimal",
+        "abbreviated",
+        "money",
+        "remote",
+        "onRetry"
+      ],
       "mainFunctions": [
         "view",
         "row"
       ],
       "related": [
-        "Klar.Chart",
         "Klar.Theme",
-        "Klar.DescriptionList",
+        "Klar.Chart",
         "Klar.Locale",
         "Klar.Remote"
       ],
@@ -4315,12 +4323,21 @@
       "group": "Data display",
       "purpose": "Line, bar, donut, gauge, meter and sparkline charts, drawn without any chart or SVG package.",
       "whenToUse": "numbers are shown as a trend, a comparison of categories, parts of a whole or one value against a scale.",
-      "whenNot": "the progress of a task is shown, use `Klar.Progress`.",
+      "whenNot": "the progress of a task is shown, use `Klar.Progress`; or the reader must look up exact values row by row, use `Klar.Table`.",
       "state": [],
       "msg": [],
       "ids": [],
       "stateful": false,
-      "quickPath": [],
+      "quickPath": [
+        "line",
+        "bar",
+        "categories",
+        "series",
+        "lineRemote",
+        "onRetry",
+        "byCategory",
+        "byDate"
+      ],
       "mainFunctions": [
         "line",
         "bar",
@@ -4328,8 +4345,8 @@
         "gauge",
         "meter",
         "sparkline",
-        "series",
-        "seriesMaybe"
+        "lineRemote",
+        "barRemote"
       ],
       "related": [
         "Klar.Stat",
@@ -4361,21 +4378,26 @@
       "group": "Data display",
       "purpose": "A vertical history of events: an audit trail, an order log, an activity feed.",
       "whenToUse": "a history of events is shown newest first, grouped by day, such as an audit trail or an order log.",
-      "whenNot": "the events are rules and decisions of an approval process, use `Klar.ApprovalFlow`.",
+      "whenNot": "the events are rules and decisions of an approval process, use `Klar.ApprovalFlow`; or the rows are records to sort and filter, use `Klar.Table`.",
       "state": [],
       "msg": [],
       "ids": [],
       "stateful": false,
-      "quickPath": [],
+      "quickPath": [
+        "viewRemote",
+        "onRetry",
+        "settings",
+        "loadMore"
+      ],
       "mainFunctions": [
         "view",
+        "viewRemote",
         "event",
         "dayEvent",
         "withDescription",
         "withTone",
         "withIcon",
-        "withAuthor",
-        "withAuthorImage"
+        "withAuthor"
       ],
       "related": [
         "Klar.Locale",
@@ -4435,7 +4457,7 @@
       "group": "Data display",
       "purpose": "A collapsible tree for looking at JSON: an API response, a stored document, a request body.",
       "whenToUse": "the application shows a JSON value, such as an API response or a stored document, that the user needs to explore.",
-      "whenNot": "a short snippet is enough (`codeBlock` of `Klar.Text`).",
+      "whenNot": "a short snippet is enough (`codeBlock` of `Klar.Text`); or the value is still on its way, put the viewer inside `Klar.RemoteView`.",
       "state": [
         "State"
       ],
@@ -4454,10 +4476,10 @@
         "init",
         "update",
         "isExpanded",
+        "expand",
+        "collapse",
         "toggle",
-        "expandAll",
-        "collapseAll",
-        "setExpanded"
+        "expandAll"
       ],
       "related": [
         "Klar.Text"

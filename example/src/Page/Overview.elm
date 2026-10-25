@@ -152,7 +152,7 @@ viewSummary context summary =
                 , Stat.icon Icon.trendUp
                 , Stat.locale context.locale
                 , Stat.settings context.settings
-                , Stat.remote summary (\s -> [ Stat.compact s.revenue, Stat.unit "USD", Stat.caption "orders that are not cancelled" ])
+                , Stat.remote summary (\s -> [ Stat.abbreviated s.revenue, Stat.unit "USD", Stat.caption "orders that are not cancelled" ])
                 ]
             , Stat.view
                 [ Stat.label "On-time delivery"
@@ -211,7 +211,7 @@ perDayChart context summary =
         , Chart.categories (List.map (Tuple.first >> dayLabel context) summary.perDay)
         , Chart.area
         , Chart.maxLabels 6
-        , Chart.includeZero True
+        , Chart.includeZero
         , Chart.locale context.locale
         , Chart.settings context.settings
         ]
@@ -281,9 +281,8 @@ attentionRow context order =
 
 activity : Context -> Remote Summary -> Html Msg
 activity context summary =
-    Timeline.view
-        [ Timeline.remote summary
-        , Timeline.skeletonRows 4
+    Timeline.viewRemote
+        [ Timeline.skeletonRows 4
         , Timeline.emptyTitle "No activity yet"
 
         -- The dummy backend pretends it is this moment, so "Today" and
@@ -294,11 +293,7 @@ activity context summary =
         , Timeline.ariaLabel "Recent activity"
         , Timeline.locale context.locale
         ]
-        (summary
-            |> Remote.toMaybe
-            |> Maybe.map (.activity >> List.map activityEvent)
-            |> Maybe.withDefault []
-        )
+        (Remote.map (.activity >> List.map activityEvent) summary)
 
 
 activityEvent : Activity -> Timeline.Event Msg

@@ -134,7 +134,7 @@ view locale model =
                     ]
                 , Stat.view
                     [ Stat.label "Revenue"
-                    , Stat.compact 4200000
+                    , Stat.abbreviated 4200000
                     , Stat.unit "USD"
                     , Stat.delta -1.3
                     , Stat.caption "Last 30 days"
@@ -152,11 +152,13 @@ view locale model =
     , Stat.remote model.shipments (\\n -> [ Stat.int n, Stat.delta 2.4 ])
     ]
 
-Stat.view [ Stat.label "Loading", Stat.loading True ]
+Stat.view [ Stat.label "Loading", Stat.remote Remote.Loading (\\_ -> []) ]
 
 Stat.view [ Stat.label "Alerts", Stat.int 37, Stat.icon Icon.bell, Stat.onClick OpenAlerts ]
 
-Stat.view [ Stat.label "Backlog", Stat.int 218, Stat.delta 3.1, Stat.deltaText "+7 orders", Stat.lowerIsBetter ]"""
+Stat.view [ Stat.label "Backlog", Stat.int 218, Stat.deltaBy 7, Stat.deltaLabel "orders since yesterday", Stat.lowerIsBetter ]
+
+Stat.view [ Stat.label "Perfect orders", Stat.value "96.2%", Stat.deltaPoints 1.1 ]"""
             }
             (Layout.stack [ Layout.gap 3 ]
                 [ Layout.row [ Layout.gap 2 ]
@@ -170,7 +172,7 @@ Stat.view [ Stat.label "Backlog", Stat.int 218, Stat.delta 3.1, Stat.deltaText "
                             (\n -> [ Stat.int n, Stat.delta 2.4, Stat.deltaLabel "vs. yesterday" ])
                         , Stat.locale locale
                         ]
-                    , Stat.view [ Stat.label "Loading", Stat.loading True, Stat.locale locale ]
+                    , Stat.view [ Stat.label "Loading", Stat.remote Remote.Loading (\_ -> []), Stat.locale locale ]
                     , Stat.view
                         [ Stat.label "Clickable, with an icon"
                         , Stat.int 37
@@ -204,16 +206,15 @@ Stat.view [ Stat.label "Backlog", Stat.int 218, Stat.delta 3.1, Stat.deltaText "
                     , Stat.view
                         [ Stat.label "Order backlog"
                         , Stat.int 218
-                        , Stat.delta 3.1
-                        , Stat.deltaText "+7 orders"
+                        , Stat.deltaBy 7
                         , Stat.lowerIsBetter
-                        , Stat.deltaLabel "since yesterday"
+                        , Stat.deltaLabel "orders since yesterday"
                         , Stat.locale locale
                         ]
                     , Stat.view
                         [ Stat.label "Perfect orders"
                         , Stat.value (Format.percent locale 1 0.962)
-                        , Stat.delta 1.1
+                        , Stat.deltaPoints 1.1
                         , Stat.trend trendUp
                         , Stat.trendTone Success
                         , Stat.locale locale

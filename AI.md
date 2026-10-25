@@ -16,7 +16,7 @@ Read in this order, and stop when you can write the screen: this file; `ai/klar-
   Attributes are opaque. Their order matters only when the same attribute is given twice: the last one wins (state flags such as `loading`, `failed` and `remote` add up instead).
 - **The `String` you give to `init` is the DOM id**, unique on the page. Keep them as named values in one place.
 - **Backend data is a `Remote a`** (`NotAsked | Loading | Loaded a | Failed Problem | Kept (Kept a)`; `Kept` is old data during or after a refresh, see the traps). Give it to
-  `Table.remote`, `Stat.remote`, `Chart.remote`, `Tree.viewRemote`, `Select.remote` ...: they draw the skeleton, the failure
+  `Table.remote`, `Stat.remote`, `Chart.lineRemote`, `Timeline.viewRemote`, `Tree.viewRemote`, `Select.remote` ...: they draw the skeleton, the failure
   with retry and the empty state. Klar never sends a request: `Remote.refresh` when it leaves, `Remote.settle model.orders result` when the answer comes (a failed refresh keeps the data, marked old).
 - **Your ids are your own types**, written as text once per type as a `Klar.Ids` (`Ids.make { toKey, fromKey }`; `Ids.list` for a closed set such as your pages; `Ids.string`, `Ids.int`) and given to every component that holds them: `Table.rowId`, `Tree.leaf`, `Picking.leaf`, `Sortable.item`, `Accordion.section`, `SideNav.item`, `Spec.choice`, `Rule.choiceFieldOf`.
   A table column is a `Table.columnId "total"`, named once.
@@ -296,7 +296,7 @@ pageFromUrl url =
 
 Each is checked against the current source; the ones the library has fixed are gone.
 
-- **Give a component its data once.** `Chart.remote`, `Stat.remote`, `Table.remote` take a `Remote`, including its old data; do not add `loading` or `failed` next to them.
+- **Give a component its data once.** `Chart.lineRemote` (and its sisters), `Timeline.viewRemote`, `Stat.remote`, `Table.remote` take a `Remote`, including its old data; shape it with `Remote.map`, never with a `case`.
 - **`Remote` has a fifth constructor, `Kept`** (old data while a refresh runs, or after it failed). A `case` of your own needs a branch for it, or use `Remote.toMaybe` / `RemoteView.view`. Start a request with `Remote.refresh`, finish it with `Remote.settle old result` (`Remote.refreshWith old result at` when you have the time of the answer); never write a failed refresh over good data with `Remote.fromResult`.
 - **A `Modal` with a text field opens with focus on the dialog.** Use `Modal.openWith { opener = id, focus = [ fieldId ] }`.
 - **Focus returns to an opener only if it has an id** (`Button.id`, a `SideNav` link, a field). Without one it goes to the last element that had an id, which may be elsewhere (`LeaveGuard` "Stay" too).
@@ -306,7 +306,7 @@ Each is checked against the current source; the ones the library has fixed are g
 - **`Rule.choiceField` values are `String`s.** For your own id type use `Rule.choiceFieldOf` with `Klar.Ids`.
 - **`Card.title` is an `h2`, and so is a `Form.Layout.section` title.** A card inside a section, or under any `h2`, needs `Card.headingLevel 3`.
 - **The page needs an `h1` in every state.** A `RemoteView` or `ErrorState` draws none while it loads or has failed, so keep the `PageHeader` outside it. For the focus after their "Try again" see "Try again of any region" above (a page that is only an `ErrorState` has no body to focus: `AppShell.goToContent model.shell |> Cmd.map ShellMsg`).
-- **`Timeline` day headings are `h3`** (right in a card with an `h2` title): directly under a page `h1` say `Timeline.headingLevel 2`. With `hasMore False` the "Load more" button is gone and focus on it falls to the page: move it with `Timeline.id` and `Klar.focus`.
+- **`Timeline` day headings are `h3`** (right in a card with an `h2` title): directly under a page `h1` say `Timeline.headingLevel 2`. "Load more" is `Timeline.loadMore msg model.morePages`, a `Remote Bool` of the next page (`True`: there is more); keep it in the model, never loading or failed flags.
 - **A lazy `Tree` searches only the nodes it has**: for the rest watch `Tree.query` and ask the backend (see its doc).
 
 ## I need X, use module Y

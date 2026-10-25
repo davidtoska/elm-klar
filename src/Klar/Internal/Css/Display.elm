@@ -730,7 +730,7 @@ css =
 }
 
 .klar-chart__legend-label {
-  max-width: 240px;
+  max-width: calc(5 * var(--klar-space-12));
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -945,6 +945,130 @@ css =
 .klar-chart-spark--empty { color: var(--klar-text-disabled); }
 .klar-chart-spark--loading > * { width: 100%; }
 
+/* Selectable categories (Chart.onSelect): every slot is a button with a
+   visible focus ring and a tooltip of its values (data-tip) on hover and on
+   keyboard focus, so a keyboard or touch user can read every value. */
+
+.klar-chart__slot--button {
+  display: block;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  text-align: inherit;
+  cursor: pointer;
+}
+
+.klar-chart__slot--button:focus-visible {
+  z-index: 1;
+  outline: 2px solid var(--klar-focus-color);
+  outline-offset: -2px;
+  background: var(--klar-chart-hover);
+}
+
+.klar-chart__slots:not(.klar-chart__bars) .klar-chart__slot--button:focus-visible::before { opacity: 1; }
+.klar-chart__slot--button:focus-visible .klar-chart__point--quiet { opacity: 1; }
+
+.klar-chart__slot--button:hover::after,
+.klar-chart__slot--button:focus-visible::after {
+  content: attr(data-tip);
+  position: absolute;
+  bottom: calc(100% + var(--klar-space-1));
+  left: 50%;
+  z-index: var(--klar-z-tooltip);
+  width: max-content;
+  max-width: calc(5 * var(--klar-space-12));
+  padding: var(--klar-space-1) var(--klar-space-2);
+  border-radius: var(--klar-radius-sm);
+  background: var(--klar-text);
+  color: var(--klar-surface);
+  font-size: var(--klar-text-xs);
+  line-height: 1.4;
+  text-align: start;
+  white-space: pre-line;
+  pointer-events: none;
+  translate: -50% 0;
+}
+
+/* A category in the first or last third of the plot aligns its tooltip with its
+   start or its end, so the tooltip stays over the chart and never widens the page. */
+.klar-chart__slot--tip-start:hover::after,
+.klar-chart__slot--tip-start:focus-visible::after {
+  left: 0;
+  translate: none;
+}
+
+.klar-chart__slot--tip-end:hover::after,
+.klar-chart__slot--tip-end:focus-visible::after {
+  left: auto;
+  right: 0;
+  translate: none;
+}
+
+/* A horizontal bar's slot is a whole row: the tooltip sits inside it, at its end. */
+.klar-chart__plot--horizontal .klar-chart__slot--button:hover::after,
+.klar-chart__plot--horizontal .klar-chart__slot--button:focus-visible::after {
+  bottom: auto;
+  top: 50%;
+  left: auto;
+  right: var(--klar-space-1);
+  translate: 0 -50%;
+}
+
+/* A donut with hideLegend and onSelect keeps its legend buttons for the keyboard,
+   out of sight until one of them has the focus. */
+.klar-chart__legend-hidden:not(:focus-within) {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  margin: -1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+
+.klar-chart__segment--button { cursor: pointer; }
+
+.klar-chart__legend-entry {
+  display: contents;
+}
+
+.klar-chart__legend-item--button {
+  margin: calc(-1 * var(--klar-space-1));
+  padding: var(--klar-space-1);
+  border: 0;
+  border-radius: var(--klar-radius-sm);
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  text-align: start;
+  cursor: pointer;
+}
+
+.klar-chart__legend-item--button:hover { background: var(--klar-chart-hover); }
+
+.klar-chart__legend-item--button:focus-visible {
+  outline: 2px solid var(--klar-focus-color);
+  outline-offset: 0;
+}
+
+@media (forced-colors: active) {
+  .klar-chart__slot--button:focus-visible,
+  .klar-chart__legend-item--button:focus-visible {
+    outline: 2px solid Highlight;
+  }
+
+  .klar-chart__slot--button:hover::after,
+  .klar-chart__slot--button:focus-visible::after {
+    border: 1px solid CanvasText;
+    background: Canvas;
+    color: CanvasText;
+  }
+}
+
 /* ==========================================================================
    Stat (KPI tile)
    Values use the default proportional figures: tabular digits are for
@@ -1040,6 +1164,7 @@ css =
 
 .klar-stat__value--long { font-size: calc(var(--_fs) * 0.8); }
 .klar-stat__value--xlong { font-size: calc(var(--_fs) * 0.64); }
+.klar-stat__value--missing { color: var(--klar-text-disabled); }
 
 .klar-stat__unit {
   flex: none;
@@ -1352,6 +1477,10 @@ css =
   padding-right: 4px;
 }
 
+/* Until the application gives the zone every time ends in " UTC": the time
+   column is wide enough for "14:05 UTC", so the text never runs under the rail. */
+.klar-timeline--utc { --_time-w: calc(var(--klar-space-12) + var(--klar-space-8) + var(--klar-space-1)); }
+
 .klar-timeline__days {
   display: flex;
   flex-direction: column;
@@ -1478,6 +1607,33 @@ css =
   line-height: 20px;
   color: var(--klar-text);
   overflow-wrap: anywhere;
+}
+
+/* An event that leads somewhere (withHref, withOnClick): a link in the title. */
+.klar-timeline__title--link {
+  margin: 0;
+  padding: 0;
+  border: 0;
+  border-radius: var(--klar-radius-sm);
+  background: none;
+  color: var(--klar-text-link);
+  font: inherit;
+  font-weight: var(--klar-weight-medium);
+  text-align: start;
+  text-decoration: none;
+  cursor: pointer;
+}
+
+.klar-timeline__title--link:hover { text-decoration: underline; }
+
+.klar-timeline__title--link:focus-visible {
+  outline: 2px solid var(--klar-focus-color);
+  outline-offset: 1px;
+}
+
+@media (forced-colors: active) {
+  .klar-timeline__title--link { color: LinkText; }
+  .klar-timeline__title--link:focus-visible { outline-color: Highlight; }
 }
 
 .klar-timeline__author {
@@ -1670,9 +1826,6 @@ css =
   padding: 8px 12px 10px;
 }
 
-/* With a max height the area takes keyboard focus (tabindex 0): the ring goes inside. */
-.klar-json__scroll:focus-visible { outline-offset: -2px; }
-
 .klar-json__tree,
 .klar-json__children {
   margin: 0;
@@ -1695,6 +1848,17 @@ css =
 
 .klar-json__node { display: block; }
 
+/* Every row is a treeitem with one tab stop: the ring goes around the row's own
+   line, never around a whole open node. */
+.klar-json__row:focus-visible,
+.klar-json__node:focus-visible { outline: none; }
+
+.klar-json__row:focus-visible,
+.klar-json__node:focus-visible > .klar-json__toggle {
+  border-radius: var(--klar-radius);
+  box-shadow: inset 0 0 0 2px var(--klar-focus-color);
+}
+
 .klar-json__toggle {
   display: inline-flex;
   align-items: center;
@@ -1712,11 +1876,6 @@ css =
 }
 
 .klar-json__toggle:hover { background: var(--klar-gray-100); }
-
-.klar-json__toggle:focus-visible {
-  outline: 2px solid var(--klar-focus-color);
-  outline-offset: 0;
-}
 
 .klar-json__text {
   min-width: 0;
@@ -1764,6 +1923,25 @@ css =
 }
 
 .klar-json__more:hover { text-decoration: underline; }
+
+/* "Show all" after a cut string: for the mouse; the keyboard uses Enter on the row. */
+.klar-json__expand {
+  margin-left: var(--klar-space-2);
+  font-family: var(--klar-font);
+  font-size: var(--klar-text-xs);
+  color: var(--klar-text-link);
+  cursor: pointer;
+}
+
+.klar-json__expand:hover { text-decoration: underline; }
+
+@media (forced-colors: active) {
+  .klar-json__row:focus-visible,
+  .klar-json__node:focus-visible > .klar-json__toggle {
+    outline: 2px solid Highlight;
+    outline-offset: -2px;
+  }
+}
 
 /* ==========================================================================
    Tree

@@ -565,7 +565,7 @@ timelineScrollTests =
                     |> Query.hasNot [ Selector.attribute (Attr.tabindex 0) ]
         , test "with a load more button the button is the tab stop" <|
             \_ ->
-                timeline [ Timeline.maxHeight 300, Timeline.onLoadMore TileClicked ]
+                timeline [ Timeline.maxHeight 300, Timeline.loadMore TileClicked (Remote.Loaded True) ]
                     |> Query.hasNot [ Selector.attribute (Attr.tabindex 0) ]
         ]
 
@@ -634,7 +634,7 @@ expectNoClickOn selectors single =
 
 failedTile : Query.Single Msg
 failedTile =
-    tile [ Stat.onClick TileClicked, Stat.onRetry Retried, Stat.failed retryable ]
+    tile [ Stat.onClick TileClicked, Stat.onRetry Retried, Stat.remote (Remote.Failed retryable) (\n -> [ Stat.int n ]) ]
 
 
 statNestingTests : Test
@@ -667,10 +667,10 @@ statNestingTests =
                         [ Query.has [ Selector.attribute (Attr.type_ "button") ]
                         , Query.hasNot [ Selector.disabled True ]
                         ]
-        , test "the failure is still announced to screen readers" <|
+        , test "the failure is still announced to screen readers, politely: a dashboard of failed tiles is not a row of alarms" <|
             \_ ->
                 failedTile
-                    |> Query.find [ role "alert" ]
+                    |> Query.find [ role "status" ]
                     |> Query.has [ Selector.text (Remote.title Locale.en retryable) ]
         , test "a click on the retry button sends the retry message and nothing else" <|
             \_ ->
@@ -688,7 +688,7 @@ statNestingTests =
                         ]
         , test "a failure that is not worth retrying is a plain block too" <|
             \_ ->
-                tile [ Stat.onClick TileClicked, Stat.onRetry Retried, Stat.failed notRetryable ]
+                tile [ Stat.onClick TileClicked, Stat.onRetry Retried, Stat.remote (Remote.Failed notRetryable) (\n -> [ Stat.int n ]) ]
                     |> Expect.all
                         [ tileAs "div" >> Query.has []
                         , Query.findAll [ Selector.tag "button" ] >> Query.count (Expect.equal 0)
@@ -707,7 +707,7 @@ statNestingTests =
                         ]
         , test "a failed tile without onClick is unchanged: a block with its retry button" <|
             \_ ->
-                tile [ Stat.onRetry Retried, Stat.failed retryable ]
+                tile [ Stat.onRetry Retried, Stat.remote (Remote.Failed retryable) (\n -> [ Stat.int n ]) ]
                     |> Expect.all
                         [ tileAs "div" >> Query.has []
                         , Query.find [ Selector.tag "button" ] >> click >> Expect.equal (Ok Retried)
@@ -724,7 +724,7 @@ statNestingTests =
                         ]
         , test "a loading tile with onClick is still a button" <|
             \_ ->
-                tile [ Stat.loading True, Stat.onClick TileClicked ]
+                tile [ Stat.remote Remote.Loading (\n -> [ Stat.int n ]), Stat.onClick TileClicked ]
                     |> tileAs "button"
                     |> Query.has [ Selector.class "klar-stat--interactive" ]
         , test "the tile is a button again when the data is back" <|
@@ -772,11 +772,11 @@ statNumberTests =
                             |> Query.has [ Selector.exactText "–" ]
                 , test ("compact shows an en dash for " ++ name) <|
                     \_ ->
-                        shown (Stat.compact number)
+                        shown (Stat.abbreviated number)
                             |> Query.has [ Selector.exactText "–" ]
                 , test ("the tile with " ++ name ++ " never writes NaN or Infinity") <|
                     \_ ->
-                        tile [ Stat.decimal 2 number, Stat.unit "USD", Stat.compact number ]
+                        tile [ Stat.decimal 2 number, Stat.unit "USD", Stat.abbreviated number ]
                             |> Expect.all
                                 [ Query.hasNot [ Selector.text "NaN" ]
                                 , Query.hasNot [ Selector.text "Infinity" ]
@@ -793,9 +793,9 @@ statNumberTests =
                , test "decimal still writes zero" <|
                     \_ -> shown (Stat.decimal 1 0) |> Query.has [ Selector.exactText "0.0" ]
                , test "compact still shortens millions" <|
-                    \_ -> shown (Stat.compact 4200000) |> Query.has [ Selector.exactText "4.2M" ]
+                    \_ -> shown (Stat.abbreviated 4200000) |> Query.has [ Selector.exactText "4.2M" ]
                , test "compact still writes a number below a million in full" <|
-                    \_ -> shown (Stat.compact 12900) |> Query.has [ Selector.exactText "12,900" ]
+                    \_ -> shown (Stat.abbreviated 12900) |> Query.has [ Selector.exactText "12,900" ]
                , test "a whole number is unchanged" <|
                     \_ -> shown (Stat.int 1284) |> Query.has [ Selector.exactText "1,284" ]
                ]
@@ -986,20 +986,20 @@ chartLegendTests =
                     |> Query.count (Expect.equal 2)
         , test "a donut shows its legend when asked to" <|
             \_ ->
-                legends (Chart.donut [ Chart.legend True ] segments)
+                legends (Chart.donut [ Chart.legend ] segments)
                     |> Query.count (Expect.equal 1)
         , test "a donut hides its legend when asked to" <|
             \_ ->
-                legends (Chart.donut [ Chart.legend False ] segments)
+                legends (Chart.donut [ Chart.hideLegend ] segments)
                     |> Query.count (Expect.equal 0)
         , test "a donut without a legend still has its data table" <|
             \_ ->
-                inside (Chart.donut [ Chart.legend False ] segments)
+                inside (Chart.donut [ Chart.hideLegend ] segments)
                     |> Query.findAll [ Selector.tag "table" ]
                     |> Query.count (Expect.equal 1)
         , test "a donut without a legend still draws every slice with its tooltip" <|
             \_ ->
-                inside (Chart.donut [ Chart.legend False ] segments)
+                inside (Chart.donut [ Chart.hideLegend ] segments)
                     |> Query.findAll [ Selector.class "klar-chart__segment" ]
                     |> Query.count (Expect.equal 2)
         , test "a line chart with two series shows a legend by default" <|
@@ -1012,11 +1012,11 @@ chartLegendTests =
                     |> Query.count (Expect.equal 0)
         , test "a line chart can be forced to show a legend" <|
             \_ ->
-                legends (Chart.line [ Chart.legend True ] series)
+                legends (Chart.line [ Chart.legend ] series)
                     |> Query.count (Expect.equal 1)
         , test "a line chart can be forced to hide its legend" <|
             \_ ->
-                legends (Chart.line [ Chart.legend False ] twoSeries)
+                legends (Chart.line [ Chart.hideLegend ] twoSeries)
                     |> Query.count (Expect.equal 0)
         , test "a bar chart with two series shows a legend by default" <|
             \_ ->
@@ -1024,6 +1024,6 @@ chartLegendTests =
                     |> Query.count (Expect.equal 1)
         , test "a bar chart can be forced to hide its legend" <|
             \_ ->
-                legends (Chart.bar [ Chart.legend False ] twoSeries)
+                legends (Chart.bar [ Chart.hideLegend ] twoSeries)
                     |> Query.count (Expect.equal 0)
         ]

@@ -422,36 +422,22 @@ jsonScrollTests =
         scrollArea attributes =
             viewer attributes |> Query.fromHtml |> Query.find [ Selector.class "klar-json__scroll" ]
     in
-    describe "JsonViewer.maxHeight makes a scroll area that the keyboard can reach"
-        [ test "a viewer with maxHeight is in the tab order" <|
-            \_ -> scrollArea [ JsonViewer.maxHeight 200 ] |> Query.has [ focusable ]
-        , test "without a name the scroll area has no role" <|
-            \_ -> scrollArea [ JsonViewer.maxHeight 200 ] |> Query.hasNot [ role "region" ]
-        , test "with a name the scroll area is a region with that name" <|
+    describe "JsonViewer: an ARIA tree with one tab stop, also when it scrolls"
+        [ test "the scroll area is no extra, nameless tab stop: the keyboard scrolls by moving from row to row" <|
+            \_ -> scrollArea [ JsonViewer.maxHeight 200 ] |> Query.hasNot [ Selector.attribute (Attr.tabindex 0), role "region" ]
+        , test "the tree has exactly one tab stop" <|
+            \_ ->
+                viewer [ JsonViewer.maxHeight 200 ]
+                    |> howMany [ focusable ] 1
+        , test "the tree carries the name, once" <|
             \_ ->
                 viewer [ JsonViewer.maxHeight 200, JsonViewer.ariaLabel "API response" ]
                     |> Expect.all
-                        [ \html -> html |> Query.fromHtml |> Query.find [ Selector.class "klar-json__scroll" ] |> Query.has [ focusable, role "region" ]
-
-                        -- the scroll area and the tree both carry the name
-                        , howMany [ ariaLabel "API response" ] 2
-                        ]
-        , test "the tree keeps its own name" <|
-            \_ ->
-                viewer [ JsonViewer.maxHeight 200, JsonViewer.ariaLabel "API response" ]
-                    |> Query.fromHtml
-                    |> Query.find [ Selector.class "klar-json__tree" ]
-                    |> Query.has [ ariaLabel "API response" ]
-        , test "without maxHeight the scroll area is not in the tab order" <|
-            \_ -> scrollArea [] |> Query.hasNot [ focusable ]
-        , test "a name without maxHeight does not make a region, and only the tree has it" <|
-            \_ ->
-                viewer [ JsonViewer.ariaLabel "API response" ]
-                    |> Expect.all
-                        [ hasNot [ role "region" ]
-                        , hasNot [ focusable ]
+                        [ \html -> html |> Query.fromHtml |> Query.find [ role "tree" ] |> Query.has [ ariaLabel "API response" ]
                         , howMany [ ariaLabel "API response" ] 1
                         ]
+        , test "without a name the tree is called JSON" <|
+            \_ -> viewer [] |> Query.fromHtml |> Query.find [ role "tree" ] |> Query.has [ ariaLabel "JSON" ]
         , test "the toolbar still has its texts in English" <|
             \_ ->
                 viewer [ JsonViewer.toolbar ]

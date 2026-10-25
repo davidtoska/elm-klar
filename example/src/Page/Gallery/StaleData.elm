@@ -481,24 +481,20 @@ tilesExample settings locale model =
 chartExample : Settings -> Locale -> Model -> Html Msg
 chartExample settings locale model =
     let
-        remoteChart =
-            Chart.remote model.data
-
-        values =
-            Remote.map .sales model.data |> Remote.withDefault []
+        sales =
+            Remote.map .sales model.data
     in
     card "Chart"
         (Layout.stack [ Layout.gap 3 ]
-            [ Chart.line
+            [ Chart.lineRemote
                 [ Chart.title "Sales per day"
                 , Chart.locale locale
                 , Chart.settings settings
                 , Chart.onRetry Refresh
                 , Chart.height 160
-                , remoteChart
                 ]
-                [ Chart.series "Sales" values ]
-            , Chart.sparkline [ Chart.ariaLabel "Sales trend", Chart.locale locale, Chart.settings settings, remoteChart ] values
+                (Remote.map (\values -> Chart.byCategory [] [ Chart.series "Sales" values ]) sales)
+            , Chart.sparklineRemote [ Chart.ariaLabel "Sales trend", Chart.locale locale, Chart.settings settings ] sales
             ]
         )
 
@@ -506,17 +502,16 @@ chartExample settings locale model =
 timelineExample : Settings -> Locale -> Model -> Html Msg
 timelineExample settings locale model =
     card "Timeline"
-        (Timeline.view
+        (Timeline.viewRemote
             [ Timeline.ariaLabel "Order history"
             , Timeline.locale locale
             , Timeline.settings settings
             , Timeline.onRetry Refresh
-            , Timeline.remote model.data
             , Timeline.compact
             ]
-            (Remote.map .events model.data
-                |> Remote.withDefault []
-                |> List.map (\( id, hour, title ) -> Timeline.event id (Time.millisToPosix (hour * 3600 * 1000)) title)
+            (Remote.map
+                (.events >> List.map (\( id, hour, title ) -> Timeline.event id (Time.millisToPosix (hour * 3600 * 1000)) title))
+                model.data
             )
         )
 

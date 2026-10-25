@@ -1,10 +1,10 @@
 module Klar.Stat exposing
     ( view, row
-    , Attribute, label, value, int, decimal, compact, money, unit, caption, icon
-    , delta, change, moneyChange, deltaText, deltaLabel, lowerIsBetter, deltaTone
+    , Attribute, label, value, int, decimal, abbreviated, money, unit, caption, icon
+    , delta, deltaBy, deltaPoints, change, moneyChange, deltaText, deltaLabel, lowerIsBetter, deltaTone
     , trend, trendTone
     , size, flat, onClick, id, locale, settings
-    , loading, failed, onRetry, remote
+    , remote, onRetry
     )
 
 {-| A KPI tile: one number with its label, the change since last time, a short
@@ -12,6 +12,7 @@ note and optionally a trend line.
 
 Use when: a headline number is read at a glance on a dashboard or at the top of a page.
 Do not use when: there are several label and value pairs, use `Klar.DescriptionList`, or one value against a scale, use `gauge` or `meter` from `Klar.Chart`.
+Quick path: `view` with `label` and a number (`int`, `decimal`, `abbreviated`, `money`); data from the backend goes in through `remote` with `onRetry`.
 
     import Klar.Stat as Stat
 
@@ -42,26 +43,25 @@ Do not use when: there are several label and value pairs, use `Klar.DescriptionL
     -- tiles side by side
     Stat.row
         [ Stat.view [ Stat.label "Orders", Stat.int 1284 ]
-        , Stat.view [ Stat.label "Revenue", Stat.compact 4200000, Stat.unit "USD" ]
+        , Stat.view [ Stat.label "Revenue", Stat.abbreviated 4200000, Stat.unit "USD" ]
         ]
 
-Use a tile for a headline number that is read at a glance, on a dashboard or at
-the top of a page. For several label and value pairs use
-[Klar.DescriptionList](Klar-DescriptionList); for one value against a scale use
-`gauge` or `meter` from [Klar.Chart](Klar-Chart).
-
-Give the number as `int`, `decimal`, `compact` or `money` and the tile writes it with the
+Give the number as `int`, `decimal`, `abbreviated` or `money` and the tile writes it with the
 separators of its `locale` (English by default: `1,284`, `4.2M`), or pass a
 string you have formatted yourself to `value`. A long number is set in a smaller
 type so that it is always written out in full.
 
-The change is a percentage: `4.2` is shown as "+4.2%". Its color follows
+The change is a percentage (`delta`: `4.2` is shown as "+4.2%"), a difference
+in the tile's own units (`deltaBy`: "+12") or, for a number that is itself a
+rate, percentage points (`deltaPoints`: "+0.3 pp"). Its color follows
 direction and meaning: up is good unless the tile says `lowerIsBetter`. The arrow
 and a visually hidden word ("increase" or "decrease") carry the direction, so
 color is never the only signal.
 
-A tile can be loading (a skeleton in place of the number) or failed (a short
-message with a retry link); both keep the label so the layout does not jump.
+A tile from the backend (`remote`) can be loading (a skeleton in place of the
+number) or failed (a short message with a retry link); both keep the label so the
+layout does not jump. A tile with no number at all shows a dash, and screen
+readers hear "No data".
 With `onClick` the whole tile is a button, so it can be reached and activated
 from the keyboard (except while it shows a failure: then it is a plain block, and
 only its retry button is a control).
@@ -74,12 +74,12 @@ only its retry button is a control).
 
 # Content
 
-@docs Attribute, label, value, int, decimal, compact, money, unit, caption, icon
+@docs Attribute, label, value, int, decimal, abbreviated, money, unit, caption, icon
 
 
 # Change since last time
 
-@docs delta, change, moneyChange, deltaText, deltaLabel, lowerIsBetter, deltaTone
+@docs delta, deltaBy, deltaPoints, change, moneyChange, deltaText, deltaLabel, lowerIsBetter, deltaTone
 
 
 # Trend
@@ -92,9 +92,9 @@ only its retry button is a control).
 @docs size, flat, onClick, id, locale, settings
 
 
-# Loading and failure
+# Data from the backend
 
-@docs loading, failed, onRetry, remote
+@docs remote, onRetry
 
 -}
 
@@ -130,6 +130,15 @@ type Number
     | Amount Money
 
 
+{-| What the number of a change is: a percentage of the old value, a difference
+in the tile's units, or percentage points.
+-}
+type DeltaKind
+    = Relative
+    | Absolute
+    | Points
+
+
 type State
     = Ready
     | Busy
@@ -141,6 +150,7 @@ type alias Config msg =
     , value : Maybe Number
     , unit : Maybe String
     , delta : Maybe Float
+    , deltaKind : DeltaKind
     , deltaText : Maybe String
     , deltaLabel : Maybe String
     , deltaTone : Maybe Tone
@@ -169,6 +179,7 @@ configure attributes =
         , value = Nothing
         , unit = Nothing
         , delta = Nothing
+        , deltaKind = Relative
         , deltaText = Nothing
         , deltaLabel = Nothing
         , deltaTone = Nothing
@@ -205,8 +216,8 @@ label text =
 
 
 {-| The number as text that you have formatted yourself: `"1,284"`, `"87%"`,
-`"14.5"`. To let the tile format it with its `locale`, use `int`, `decimal` or
-`compact` instead. Without any of them no number is shown.
+`"14.5"`. To let the tile format it with its `locale`, use `int`, `decimal`,
+`abbreviated` or `money` instead. Without any of them the tile shows a dash.
 -}
 value : String -> Attribute msg
 value text =
@@ -248,8 +259,8 @@ money amount =
 "T" (English). Below a million the number is written in full, with at most one
 decimal. A number that is not finite (NaN or infinity) is shown as an en dash.
 -}
-compact : Float -> Attribute msg
-compact n =
+abbreviated : Float -> Attribute msg
+abbreviated n =
     Attribute (\config -> { config | value = Just (Compact n) })
 
 
@@ -261,21 +272,59 @@ unit text =
 
 
 {-| The change since last time, as a percentage: `4.2` is shown as "+4.2%" and
-`-8` as "-8%", rounded to one decimal. The sign picks the arrow and, together
+`-8` as "−8%" (with a true minus sign), rounded to one decimal. The sign picks the arrow and, together
 with `lowerIsBetter`, the color. A change smaller than 0.05 counts as unchanged
 and gets a dash. A value that is not a number (NaN or infinity) shows no change.
 -}
 delta : Float -> Attribute msg
 delta percent =
+    changeOf Relative percent
+
+
+{-| The change since last time as a difference in the tile's own units: `12` is
+shown as "+12" and `-3.5` as "−3.5", in the separators of the `locale`. It is
+written the way the tile writes its value: whole for `int`, with the same decimals
+for `decimal` (`0.03` on a `decimal 2` tile is "+0.03"), abbreviated for
+`abbreviated` ("+1.5M" next to "4.2M"), and otherwise rounded to one decimal. It
+counts as unchanged (a dash) only when that writing rounds it to zero. Use it
+when a percentage would mislead: "+12 orders" on a small count. The sign picks the
+arrow and the color, as with `delta`; `delta`, `deltaBy` and `deltaPoints`
+replace each other.
+
+    Stat.view [ Stat.label "Open orders", Stat.int 112, Stat.deltaBy 12, Stat.deltaLabel "since Monday" ]
+
+-}
+deltaBy : Float -> Attribute msg
+deltaBy difference =
+    changeOf Absolute difference
+
+
+{-| The change of a number that is itself a rate, in percentage points: a
+conversion rate from 3.2% to 3.5% is `deltaPoints 0.3`, shown as "+0.3 pp"
+("+0,3 p.p." in Norwegian). A relative change of a rate ("+9.4%") is almost never
+what the reader thinks it is. The sign picks the arrow and the color, as with
+`delta`.
+
+    Stat.view [ Stat.label "Conversion", Stat.decimal 1 3.5, Stat.unit "%", Stat.deltaPoints 0.3 ]
+
+-}
+deltaPoints : Float -> Attribute msg
+deltaPoints points =
+    changeOf Points points
+
+
+changeOf : DeltaKind -> Float -> Attribute msg
+changeOf kind amount =
     Attribute
         (\config ->
             { config
                 | delta =
-                    if isNaN percent || isInfinite percent then
+                    if isNaN amount || isInfinite amount then
                         Nothing
 
                     else
-                        Just percent
+                        Just amount
+                , deltaKind = kind
             }
         )
 
@@ -442,31 +491,6 @@ id domId =
     Attribute (\config -> { config | id = Just domId })
 
 
-{-| While `True` the tile shows a skeleton in place of the number, the change and
-the trend, and tells screen readers that it is loading. The label stays, so the
-layout does not jump. Pass a field of your model. Default: `False`.
-
-`loading`, `failed` and `remote` only add up: a tile is busy when any of them says
-so, and shows a failure when any of them has one, whatever the order. So
-`Stat.remote model.shipments f` followed by `Stat.loading False` keeps what
-`remote` set.
-
--}
-loading : Bool -> Attribute msg
-loading isLoading =
-    Attribute (\config -> { config | busy = config.busy || isLoading })
-
-
-{-| Shows a failure in place of the number: the title of the problem next to an
-error icon, with its detail as the tooltip. Add `onRetry` for a "Try again" link.
-Make a `Problem` with `Klar.Remote.problem`, or use `remote` to get loading and
-failure from a `Remote`.
--}
-failed : Problem -> Attribute msg
-failed problem =
-    Attribute (\config -> { config | failure = Just problem })
-
-
 {-| Takes the content of the tile from a `Remote`. While the data is `NotAsked`
 or `Loading` the tile shows a skeleton, on `Failed` it shows the problem, and
 when the data has arrived it applies the attributes that the function returns
@@ -476,11 +500,13 @@ refresh failed. A tile with that retry is a plain block, like a failed tile.
 
     Stat.view
         [ Stat.label "Shipments"
+        , Stat.onRetry ReloadShipments
         , Stat.remote model.shipments (\s -> [ Stat.int s.count, Stat.delta s.change ])
         ]
 
 Attributes that do not depend on the data, such as `label`, belong next to
-`remote` in the list.
+`remote` in the list. Several tiles can read the same `Remote`, each taking its
+own numbers from it.
 
 -}
 remote : Remote a -> (a -> List (Attribute msg)) -> Attribute msg
@@ -602,8 +628,6 @@ view attributes =
                     Html.span [ Internal.cls [ "klar-stat__body" ], Attr.attribute "aria-busy" "true" ]
                         [ Html.span [ Internal.cls [ "klar-stat__skeleton" ] ] [ Skeleton.block (skeletonHeight config.size) ]
                         , Html.span [ Internal.cls [ "klar-stat__skeleton", "klar-stat__skeleton--short" ] ] [ Skeleton.line 100 ]
-                        , Html.span [ Internal.cls [ "klar-sr-only" ], Attr.attribute "role" "status" ]
-                            [ Html.text (Locale.pick config.locale { nb = "Laster", en = "Loading" }) ]
                         ]
 
                 Failed problem ->
@@ -619,6 +643,22 @@ view attributes =
                             { locale = config.locale, settings = config.settings, onRetry = config.onRetry, inline = True }
                             config.freshness
                         ]
+            , -- One polite live region in every state, there before its text
+              -- changes, so that "Loading" and a failure are announced (a region
+              -- that appears with its text already in it often is not).
+              Html.span [ Internal.cls [ "klar-sr-only" ], Attr.attribute "role" "status" ]
+                [ Html.text
+                    (case state of
+                        Busy ->
+                            Locale.pick config.locale { nb = "Laster", en = "Loading" }
+
+                        Failed problem ->
+                            Remote.title config.locale problem
+
+                        Ready ->
+                            ""
+                    )
+                ]
             ]
     in
     case clickMessage of
@@ -657,7 +697,11 @@ viewValue : Config msg -> Html msg
 viewValue config =
     case config.value of
         Nothing ->
-            Html.text ""
+            -- No number is a state of its own, never an empty tile.
+            Html.span [ Internal.cls [ "klar-stat__figure" ] ]
+                [ Html.span [ Internal.cls [ "klar-stat__value", "klar-stat__value--missing" ], Attr.attribute "aria-hidden" "true" ] [ Html.text missingNumber ]
+                , Html.span [ Internal.cls [ "klar-sr-only" ] ] [ Html.text (Locale.pick config.locale { nb = "Ingen data", en = "No data" }) ]
+                ]
 
         Just number ->
             let
@@ -818,7 +862,7 @@ viewDelta config =
                 direction =
                     case maybeDelta of
                         Just d ->
-                            if abs d < 0.05 then
+                            if isUnchanged config d then
                                 Level
 
                             else if d > 0 then
@@ -864,7 +908,15 @@ viewDelta config =
                             custom
 
                         ( Nothing, Just d ) ->
-                            signedPercent config.locale d
+                            case config.deltaKind of
+                                Relative ->
+                                    signedPercent config.locale d
+
+                                Absolute ->
+                                    signedLikeValue config d
+
+                                Points ->
+                                    signedNumber config.locale d ++ Locale.pick config.locale { nb = "\u{00A0}p.p.", en = "\u{00A0}pp" }
 
                         ( Nothing, Nothing ) ->
                             ""
@@ -905,16 +957,75 @@ viewDelta config =
                 ]
 
 
-{-| "+4,2 %", "-8 %", "0 %".
+{-| Whether a change is shown as no change. A percentage or percentage points is
+written with one decimal, so below 0.05 it is 0. A difference (`deltaBy`) is
+written the way the tile writes its value, and is no change only when that
+writing rounds it to zero: 0.03 on a tile of `decimal 2` is a change.
+-}
+isUnchanged : Config msg -> Float -> Bool
+isUnchanged config d =
+    case ( config.deltaKind, config.value ) of
+        ( Absolute, Just (Whole _) ) ->
+            round (abs d) == 0
+
+        ( Absolute, Just (Fixed decimals _) ) ->
+            round (abs d * 10 ^ toFloat (clamp 0 10 decimals)) == 0
+
+        ( Absolute, Just (Compact _) ) ->
+            d == 0
+
+        _ ->
+            abs d < 0.05
+
+
+{-| A `deltaBy` difference, written the way the tile writes its value: whole for
+`int`, with the same decimals for `decimal`, abbreviated for `abbreviated`, and
+otherwise rounded to one decimal. "+12", "−0.03", "+1.5M".
+-}
+signedLikeValue : Config msg -> Float -> String
+signedLikeValue config d =
+    let
+        signed body =
+            if isUnchanged config d then
+                body
+
+            else if d > 0 then
+                "+" ++ body
+
+            else
+                "−" ++ body
+    in
+    case config.value of
+        Just (Whole _) ->
+            signed (Format.int config.locale (round (abs d)))
+
+        Just (Fixed decimals _) ->
+            signed (Format.decimal config.locale decimals (abs d))
+
+        Just (Compact _) ->
+            signed (compactText config.locale (abs d))
+
+        _ ->
+            signedNumber config.locale d
+
+
+{-| "+4,2 %", "−8 %", "0 %".
 -}
 signedPercent : Locale -> Float -> String
 signedPercent loc d =
+    signedNumber loc d ++ Locale.pick loc { nb = "\u{00A0}%", en = "%" }
+
+
+{-| "+12", "−3.5", "0": rounded to one decimal, with a true minus sign.
+-}
+signedNumber : Locale -> Float -> String
+signedNumber loc d =
     let
         rounded =
             toFloat (round (abs d * 10)) / 10
 
         body =
-            trimZeros loc (Format.decimal loc 1 rounded) ++ Locale.pick loc { nb = "\u{00A0}%", en = "%" }
+            trimZeros loc (Format.decimal loc 1 rounded)
     in
     if rounded == 0 then
         body
@@ -947,7 +1058,7 @@ viewTrend config =
 
 viewFailure : Config msg -> Problem -> Html msg
 viewFailure config problem =
-    Html.span [ Internal.cls [ "klar-stat__failure" ], Attr.attribute "role" "alert" ]
+    Html.span [ Internal.cls [ "klar-stat__failure" ] ]
         [ Html.span [ Internal.cls [ "klar-stat__failure-text" ] ]
             [ Icon.view Icon.errorCircle
             , Html.span [ Attr.title (Maybe.withDefault (Remote.title config.locale problem) (Remote.detail config.locale problem)) ] [ Html.text (Remote.title config.locale problem) ]
