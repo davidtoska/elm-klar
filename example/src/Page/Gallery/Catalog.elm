@@ -386,7 +386,7 @@ components section =
             [ "Select", "MultiSelect", "Autocomplete", "VirtualList" ]
 
         Tables ->
-            [ "Table", "Pagination" ]
+            [ "Table", "Budget", "Pagination" ]
 
         Forms ->
             [ "TextArea", "NumberInput", "PasswordInput", "Radio", "CheckboxGroup", "Switch", "Slider", "SegmentedControl", "SearchInput", "TagInput", "FileDrop", "InlineEdit", "Form.Layout" ]

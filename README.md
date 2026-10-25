@@ -144,7 +144,7 @@ every module has an example.
 | **Inputs** | `TextInput`, `TextArea`, `NumberInput`, `QuantityInput`, `PasswordInput`, `SearchInput`, `TagInput`, `FileDrop`, `InlineEdit`, `Checkbox`, `CheckboxGroup`, `Radio`, `Switch`, `Slider`, `SegmentedControl`, `MaskedInput`, `Money`, `MoneyInput` |
 | **Choosing** | `Select` (and `Select.Option`, the option type of `Select`, `MultiSelect`, `Autocomplete` and `Transfer`), `Ids` (your id type as text, once), `MultiSelect`, `Autocomplete`, `VirtualList`, `TreeSelect`, `Cascader`, `Transfer`, `Picking` |
 | **Date and time** | `Date`, `DatePicker`, `DateRangePicker`, `TimePicker`, `DateTimePicker`, `Calendar`, `Recurrence`, `RecurrencePicker` |
-| **Tables and lists** | `Table`, `Pagination`, `ListItem`, `Tree`, `CardList`, `WorkQueue` |
+| **Tables and lists** | `Table`, `Budget`, `Pagination`, `ListItem`, `Tree`, `CardList`, `WorkQueue` |
 | **Overlays** | `Overlay`, `Modal`, `ConfirmDialog`, `Drawer`, `Toast`, `Popover`, `Tooltip`, `ContextMenu`, `CommandPalette`, `ShortcutHelp` |
 | **Navigation** | `AppShell`, `SideNav`, `PageHeader`, `Breadcrumbs`, `Tabs`, `Stepper` |
 | **Structure** | `Accordion`, `Toolbar`, `DescriptionList` |

@@ -89,6 +89,7 @@
         ],
         "Tables and lists": [
             "Klar.Table",
+            "Klar.Budget",
             "Klar.Pagination",
             "Klar.ListItem",
             "Klar.Tree",

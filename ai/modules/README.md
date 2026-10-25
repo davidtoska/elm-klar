@@ -87,6 +87,7 @@ One file per exposed module, generated from the doc comments by `npm run gen:ai-
 ## Tables and lists
 
 - [Klar.Table](Klar.Table.md): A data table for records: search, column filters, sorting, selection with bulk actions, row actions, expandable rows, CSV export and pagination.
+- [Klar.Budget](Klar.Budget.md): An editable budget sheet with up to six columns, calculated line amounts and an exact grand total.
 - [Klar.Pagination](Klar.Pagination.md): Page navigation for long lists and tables: the range shown ("1–25 of 3,000"), rows per page, first / previous / page numbers with ellipsis / next / last, and "Go to page".
 - [Klar.ListItem](Klar.ListItem.md): A dense list row, and the list that holds the rows.
 - [Klar.Tree](Klar.Tree.md): A tree view for hierarchies: regions and warehouses, folders, product categories, code lists.

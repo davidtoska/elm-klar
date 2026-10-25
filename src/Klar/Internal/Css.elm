@@ -9,6 +9,7 @@ import Klar.Internal.Css.Access as Access
 import Klar.Internal.Css.Actions as Actions
 import Klar.Internal.Css.Arranging as Arranging
 import Klar.Internal.Css.Base as Base
+import Klar.Internal.Css.Budget as Budget
 import Klar.Internal.Css.CodeQuantity as CodeQuantity
 import Klar.Internal.Css.Comments as Comments
 import Klar.Internal.Css.Core as Core
@@ -49,6 +50,7 @@ css =
         , Select.css
         , DateTime.css
         , Table.css
+        , Budget.css
         , Navigation.css
         , Display.css
         , Overlay.css
