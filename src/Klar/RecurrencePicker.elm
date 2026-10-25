@@ -1365,13 +1365,13 @@ anchorLabel lang frequency anchor =
             Locale.pick lang
                 { nb =
                     if frequency == Yearly then
-                        "Den siste dagen i " ++ Locale.monthName lang month
+                        "Den siste dagen i " ++ Locale.monthLong lang month
 
                     else
                         "Den siste dagen i måneden"
                 , en =
                     if frequency == Yearly then
-                        "On the last day of " ++ Locale.monthName lang month
+                        "On the last day of " ++ Locale.monthLong lang month
 
                     else
                         "On the last day of the month"
