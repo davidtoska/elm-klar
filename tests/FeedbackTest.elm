@@ -14,10 +14,13 @@ import Html exposing (Html)
 import Html.Attributes as Attr
 import Json.Encode as Encode
 import Klar.Alert as Alert
+import Klar.Autocomplete as Autocomplete
 import Klar.Avatar as Avatar
 import Klar.Badge as Badge
 import Klar.EmptyState as EmptyState
 import Klar.ErrorState as ErrorState
+import Klar.Format as Format
+import Klar.Internal.Css.Display as Display
 import Klar.Internal.Css.Tokens as Tokens
 import Klar.Internal.Palette as Palette exposing (Color, Spec)
 import Klar.Locale as Locale
@@ -135,6 +138,21 @@ badgeTests =
                     , \_ -> Badge.count [] -3 |> howMany [ cls "klar-badge" ] 0
                     ]
                     ()
+        , test "the number follows the locale, in the badge, the tooltip and for screen readers" <|
+            \_ ->
+                Expect.all
+                    [ \_ -> Badge.count [ Badge.max 9999 ] 1280 |> howMany [ Selector.exactText "1,280" ] 1
+                    , \_ -> Badge.count [ Badge.max 9999, Badge.locale Locale.nb ] 1280 |> howMany [ Selector.exactText (Format.int Locale.nb 1280) ] 1
+                    , \_ -> (Format.int Locale.nb 1280 /= "1280") |> Expect.equal True |> Expect.onFail "Norwegian has a thousands separator"
+                    , \_ ->
+                        Badge.count [ Badge.max 999 ] 12800
+                            |> Expect.all
+                                [ howMany [ cls "klar-sr-only", Selector.exactText "12,800" ] 1
+                                , howMany [ cls "klar-badge--count", Selector.attribute (Attr.title "12,800") ] 1
+                                ]
+                    , \_ -> Badge.count [ Badge.max 1000, Badge.locale Locale.nb ] 1001 |> howMany [ Selector.exactText (Format.int Locale.nb 1000 ++ "+") ] 1
+                    ]
+                    ()
         ]
 
 
@@ -188,19 +206,56 @@ tagTests =
                         [ "Delete", "Backspace" ]
                     )
                     ()
+        , test "a held Delete or Backspace does not remove the next tag too" <|
+            \_ ->
+                Expect.all
+                    (List.map
+                        (\key ->
+                            \_ ->
+                                Tag.view [ Tag.onRemove Removed ] "Warehouse B"
+                                    |> inDiv
+                                    |> Query.find button
+                                    |> Event.simulate (Event.custom "keydown" (keyHeld key))
+                                    |> Event.toResult
+                                    |> Expect.err
+                        )
+                        [ "Delete", "Backspace" ]
+                    )
+                    ()
+        , test "Ctrl+Backspace is not a removal" <|
+            \_ ->
+                Tag.view [ Tag.onRemove Removed ] "Warehouse A"
+                    |> inDiv
+                    |> Query.find button
+                    |> Event.simulate (Event.custom "keydown" (keyWith { key = "Backspace", ctrl = True, repeat = False }))
+                    |> Event.toResult
+                    |> Expect.err
         ]
 
 
 keyDown : String -> Encode.Value
 keyDown key =
+    keyWith { key = key, ctrl = False, repeat = False }
+
+
+{-| A keydown of a key that is held down: the browser repeats it with `repeat`.
+-}
+keyHeld : String -> Encode.Value
+keyHeld key =
+    keyWith { key = key, ctrl = False, repeat = True }
+
+
+keyWith : { key : String, ctrl : Bool, repeat : Bool } -> Encode.Value
+keyWith { key, ctrl, repeat } =
     Encode.object
         [ ( "key", Encode.string key )
-        , ( "ctrlKey", Encode.bool False )
+        , ( "ctrlKey", Encode.bool ctrl )
         , ( "metaKey", Encode.bool False )
         , ( "shiftKey", Encode.bool False )
         , ( "altKey", Encode.bool False )
         , ( "isComposing", Encode.bool False )
         , ( "keyCode", Encode.int 0 )
+        , ( "repeat", Encode.bool repeat )
         ]
 
 
@@ -301,7 +356,7 @@ spinnerTests =
             \_ ->
                 Spinner.view [ Spinner.label "Saving", Spinner.loading False ]
                     |> Expect.all
-                        [ howMany [ attr "role" "status", cls "klar-spinner-idle" ] 1
+                        [ howMany [ attr "role" "status", cls "klar-sr-only" ] 1
                         , howMany [ cls "klar-spinner" ] 0
                         , howMany [ Selector.text "Saving" ] 0
                         ]
@@ -321,8 +376,20 @@ spinnerTests =
             \_ ->
                 Spinner.panel [ Spinner.loading False ] "Loading orders ..."
                     |> Expect.all
-                        [ howMany [ attr "role" "status", cls "klar-spinner-idle" ] 1
+                        [ howMany [ attr "role" "status", cls "klar-sr-only" ] 1
                         , howMany [ Selector.text "Loading orders" ] 0
+                        ]
+        , test "Autocomplete keeps the live region of its spinner in the page while it is idle" <|
+            \_ ->
+                Autocomplete.view identity [ Autocomplete.label "City", Autocomplete.options [] ] (Autocomplete.init "city")
+                    |> Expect.all
+                        [ \html ->
+                            html
+                                |> inDiv
+                                |> Query.find [ cls "klar-input" ]
+                                |> Query.findAll [ attr "role" "status" ]
+                                |> Query.count (Expect.equal 1)
+                        , howMany [ cls "klar-spinner" ] 0
                         ]
         ]
 
@@ -546,7 +613,7 @@ avatarTests =
             \_ -> Avatar.view [ Avatar.decorative ] "Ada Lovelace" |> howMany [ Selector.attribute (Attr.title "Ada Lovelace") ] 0
         , test "an entry with withImage shows its picture in a group" <|
             \_ ->
-                Avatar.group [] [ Avatar.entry "Grace Hopper" |> Avatar.withImage "/g.jpg", Avatar.entry "Ada Lovelace" ]
+                Avatar.group [] [ Avatar.entry "Grace Hopper" |> Avatar.withImage (Just "/g.jpg"), Avatar.entry "Ada Lovelace" ]
                     |> howMany [ cls "klar-avatar__image" ] 1
         , test "the keyboard reaches the +N bubble, and its tip lists the hidden names" <|
             \_ ->
@@ -703,7 +770,38 @@ stylesheetColorTests =
                         [ ( "amber-600", "white" ), ( "green-600", "white" ), ( "red-600", "white" ), ( "blue-600", "white" ), ( "gray-600", "white" ) ]
                     )
                     ()
+        , test "the avatar colors of the stylesheet are the computed ones of Klar light" <|
+            \_ ->
+                case Palette.specs of
+                    klar :: _ ->
+                        let
+                            tokens =
+                                Palette.avatarDeclarations klar False
+                        in
+                        Expect.all
+                            [ \_ -> List.length tokens |> Expect.equal 16
+                            , \_ ->
+                                tokens
+                                    |> List.filter (\( name, value ) -> not (String.contains (name ++ ": " ++ value ++ ";") Display.css))
+                                    |> Expect.equal []
+                            , \_ -> String.contains "#" (avatarBlock Display.css) |> Expect.equal False |> Expect.onFail "a hand-written avatar color is left"
+                            ]
+                            ()
+
+                    [] ->
+                        Expect.fail "no themes"
         ]
+
+
+{-| The avatar tokens of a stylesheet part, one per line.
+-}
+avatarBlock : String -> String
+avatarBlock css =
+    css
+        |> String.lines
+        |> List.filter (String.contains "--klar-avatar-")
+        |> List.filter (String.contains "var(--klar-avatar-" >> not)
+        |> String.join "\n"
 
 
 {-| A `--klar-<name>: #rrggbb;` of the token stylesheet, as a color.

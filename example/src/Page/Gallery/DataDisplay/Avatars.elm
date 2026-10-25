@@ -68,7 +68,7 @@ Layout.row [] [ Avatar.view [ Avatar.decorative ] name, Text.strong name ]"""
 
 Avatar.group [ Avatar.maxShown 3 ]
     [ Avatar.entry "Ada Lovelace"
-    , Avatar.entry "Alan Turing" |> Avatar.withImage url
+    , Avatar.entry "Alan Turing" |> Avatar.withImage (Just url)
     , Avatar.entry "Grace Hopper"
     , Avatar.entry "Edsger Dijkstra"
     ]"""
@@ -79,9 +79,9 @@ Avatar.group [ Avatar.maxShown 3 ]
                 , Avatar.group [ Avatar.maxShown 3, Avatar.size Large, Avatar.locale locale ] (List.take 5 entries)
                 , Avatar.group [ Avatar.locale locale ] (List.take 2 entries)
                 , Avatar.group [ Avatar.maxShown 3, Avatar.size Large, Avatar.locale locale ]
-                    [ Avatar.entry "Dennis Ritchie" |> Avatar.withImage portrait
+                    [ Avatar.entry "Dennis Ritchie" |> Avatar.withImage (Just portrait)
                     , Avatar.entry "Radia Perlman"
-                    , Avatar.entry "Linus Torvalds" |> Avatar.withImage portrait
+                    , Avatar.entry "Linus Torvalds" |> Avatar.withImage (Just portrait)
                     , Avatar.entry "Frances Allen"
                     ]
                 ]

@@ -640,7 +640,7 @@ viewBadges locale model =
         "Small labels for state. Use the tone for meaning, not decoration. A badge (Badge) shows a state; a tag (Tag) is something the user has chosen and can take away. Keyboard: Tab to the × on a tag, Enter or Space removes it."
         [ Doc.example
             { title = "Badges"
-            , description = Just "A badge shows a state the user reads but does not change. The color is not announced by screen readers, so put the meaning in the text. Counts above 99 show as 99+ (the tooltip and screen readers get the exact number), and a count of zero shows nothing. A solid warning is dark amber, so its white text keeps AA contrast."
+            , description = Just "A badge shows a state the user reads but does not change. The color is not announced by screen readers, so put the meaning in the text. Counts above 99 show as 99+ (the tooltip and screen readers get the exact number), a count is written in the locale (1,280 or 1 280), and a count of zero shows nothing. A solid warning is dark amber, so its white text keeps AA contrast."
             , code = Just badgeCode
             }
             (Layout.stack [ Layout.gap 3 ]
@@ -659,6 +659,7 @@ viewBadges locale model =
                     , Badge.count [] 128
                     , Badge.count [ Badge.tone Danger, Badge.size Small ] 3
                     , Badge.count [ Badge.tone Neutral, Badge.max 999 ] 1280
+                    , Badge.count [ Badge.tone Neutral, Badge.max 9999, Badge.locale locale ] 1280
                     ]
                 , Layout.row [ Layout.gap 2, Layout.wrap ]
                     [ Badge.view [ Badge.tone Primary, Badge.solid ] "Solid"
@@ -822,8 +823,8 @@ viewLoading =
             )
         , Doc.example
             { title = "Loading a panel"
-            , description = Just "The panel has the height of an empty or error state, so the region keeps its place, and it fades in after 400ms, so a fast answer does not flash. A labelled spinner stays in the view with Spinner.loading: its live region stays on the page and only its text comes and goes, which screen readers announce reliably."
-            , code = Just "Spinner.panel [] \"Loading orders ...\"\n\n-- always in the view; announced each time model.saving turns True\nSpinner.view [ Spinner.label \"Saving order\", Spinner.loading model.saving ]\n"
+            , description = Just "The panel has the height of an empty or error state, so the region keeps its place, and it fades in after 400ms, so a fast answer does not flash. A panel and a labelled spinner stay in the view and are switched with Spinner.loading: their live region stays on the page and only its text comes and goes, which screen readers announce reliably. A panel that a case branch puts in the page is announced unreliably; for a Remote, use RemoteView."
+            , code = Just "-- always in the view, next to the orders it waits for\nHtml.div []\n    [ Spinner.panel [ Spinner.loading model.loadingOrders ] \"Loading orders ...\"\n    , viewOrders model.orders\n    ]\n\n-- always in the view; announced each time model.saving turns True\nSpinner.view [ Spinner.label \"Saving order\", Spinner.loading model.saving ]\n"
             }
             (Layout.stack [ Layout.gap 3 ]
                 [ Spinner.panel [] "Loading orders ..."
@@ -1388,6 +1389,7 @@ Badge.status Danger "Out of stock"
 Badge.count [] 128 -- shows 99+, screen readers hear 128
 Badge.count [ Badge.tone Danger, Badge.size Small ] 3
 Badge.count [ Badge.max 999 ] 1280 -- shows 999+
+Badge.count [ Badge.max 9999, Badge.locale Locale.nb ] 1280 -- shows 1 280
 """
 
 

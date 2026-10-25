@@ -31,7 +31,7 @@ offline : Status
 -- Groups
 type alias Entry = Avatar.Entry.Entry
 entry : String -> Entry
-withImage : String -> Entry -> Entry
+withImage : Maybe String -> Entry -> Entry
 maxShown : Int -> Attribute
 
 -- Accessibility and text
@@ -76,7 +76,8 @@ right next to the avatar, add `decorative` so that it is not read twice.
 
 `group` shows several avatars side by side, overlapping, and folds the ones that
 do not fit into a "+N" bubble. It takes a list of entries, made with `entry` and
-given a picture with `withImage`. In a group the `image` and `status`
+given a picture with `withImage` (a `Maybe String`, so an optional picture
+needs no `case`). In a group the `image` and `status`
 attributes have no effect: every entry brings its own picture, and an entry has
 no status (that is for single avatars).
 
@@ -112,7 +113,7 @@ empty list shows nothing.
     Avatar.group [ Avatar.maxShown 3 ]
         [ Avatar.entry "Ada Lovelace"
         , Avatar.entry "Grace Hopper"
-        , Avatar.entry "Alan Turing" |> Avatar.withImage "/images/alan.jpg"
+        , Avatar.entry "Alan Turing" |> Avatar.withImage (Just "/images/alan.jpg")
         , Avatar.entry "Edsger Dijkstra"
         ]
 
@@ -257,13 +258,17 @@ An entry for `group` with this name and no picture.
 ### `withImage`
 
 ```elm
-withImage : String -> Entry -> Entry
+withImage : Maybe String -> Entry -> Entry
 ```
 
 The URL of the picture of an entry, which covers its initials (they stay
-behind it, so something readable remains if the picture cannot be loaded).
+behind it, so something readable remains if the picture cannot be loaded). It
+takes a `Maybe`, because a picture is usually optional data: `Nothing` leaves the
+initials.
 
-    Avatar.entry "Grace Hopper" |> Avatar.withImage "/images/grace.jpg"
+    Avatar.entry person.name |> Avatar.withImage person.picture
+
+    Avatar.entry "Grace Hopper" |> Avatar.withImage (Just "/images/grace.jpg")
 
 ### `maxShown`
 

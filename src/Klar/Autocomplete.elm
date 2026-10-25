@@ -1049,11 +1049,19 @@ view toMsg attributes (State state) =
                            ]
                     )
                     []
-                , if isBusy then
-                    Html.span [ Internal.cls [ "klar-input__adornment" ] ] [ Spinner.view [ Spinner.size Small, Spinner.label t.loading ] ]
+                , -- Always in the page, so that its live region is there before
+                  -- the text "Loading" is (an idle slot is out of sight and takes
+                  -- no room in the row).
+                  Html.span
+                    [ Internal.cls
+                        [ if isBusy then
+                            "klar-input__adornment"
 
-                  else
-                    Html.text ""
+                          else
+                            "klar-sr-only"
+                        ]
+                    ]
+                    [ Spinner.view [ Spinner.size Small, Spinner.label t.loading, Spinner.loading isBusy ] ]
                 , if config.clearable && interactive && state.text /= "" then
                     Html.button
                         [ Internal.cls [ "klar-input__clear" ]

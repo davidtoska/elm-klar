@@ -556,8 +556,20 @@ viewSearch config =
             , config.keys
             ]
             []
+        , -- Always in the page, so that its live region is there before the
+          -- text "Loading" is (an idle slot is out of sight and takes no room).
+          Html.span
+            [ Internal.cls
+                [ if config.loading then
+                    "klar-select__search-spinner"
+
+                  else
+                    "klar-sr-only"
+                ]
+            ]
+            [ Spinner.view [ Spinner.label config.loadingLabel, Spinner.loading config.loading ] ]
         , if config.loading then
-            Html.span [ Internal.cls [ "klar-select__search-spinner" ] ] [ Spinner.view [ Spinner.label config.loadingLabel ] ]
+            Html.text ""
 
           else if config.query /= "" then
             Html.button

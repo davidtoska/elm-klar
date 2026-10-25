@@ -133,9 +133,11 @@ onRemove : msg -> Attribute msg
 ```
 
 Shows a small × button after the label that sends this message when it is
-pressed: a click, `Enter` or `Space`, or `Delete` or `Backspace` while the button
-has the focus. The tag does not remove itself: take the value out of your model
-when the message arrives.
+pressed: a click, `Enter` or `Space`, or a fresh press of `Delete` or `Backspace`
+while the button has the focus. A held `Delete` or `Backspace` does not repeat:
+after the focus has moved to the next tag (`nextFocus`), the repeats would remove
+that one too, and the next, until the list is empty. The tag does not remove
+itself: take the value out of your model when the message arrives.
 
 ### `removeId`
 
@@ -173,7 +175,8 @@ The id to focus after a tag was removed with its button, so that keyboard
 users keep their place: the remove button of the tag after it, else of the tag
 before it, else `otherwise` (the control that adds tags, or a heading). Give it
 the tags as they were before the removal, and the same id function as
-`removeId`.
+`removeId`. The tags must be unique (`==`), as their ids are: with two equal
+values the first one is taken as the removed one.
 
     viewTag : Warehouse -> Html Msg
     viewTag warehouse =

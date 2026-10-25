@@ -1,6 +1,6 @@
 module Klar.Badge exposing
     ( view, status, count
-    , Attribute, tone, solid, outline, dot, icon, size, max
+    , Attribute, tone, solid, outline, dot, icon, size, max, locale
     )
 
 {-| Small read-only labels for state and metadata, such as "Paid" or
@@ -41,14 +41,16 @@ messages, so `Attribute` has no `msg` parameter.
 
 # Attributes
 
-@docs Attribute, tone, solid, outline, dot, icon, size, max
+@docs Attribute, tone, solid, outline, dot, icon, size, max, locale
 
 -}
 
 import Html exposing (Html)
 import Html.Attributes as Attr
+import Klar.Format as Format
 import Klar.Icon as Icon exposing (Icon)
 import Klar.Internal as Internal
+import Klar.Locale as Locale exposing (Locale)
 import Klar.Theme as Theme exposing (Size(..), Tone(..))
 
 
@@ -66,6 +68,7 @@ type alias Config =
     , size : Size
     , icon : Maybe Icon
     , max : Int
+    , locale : Locale
     }
 
 
@@ -82,7 +85,7 @@ configure start attributes =
 
 defaults : Config
 defaults =
-    { tone = Neutral, style = Subtle, dot = False, size = Medium, icon = Nothing, max = 99 }
+    { tone = Neutral, style = Subtle, dot = False, size = Medium, icon = Nothing, max = 99, locale = Locale.default }
 
 
 {-| The color of the badge: `Neutral` (gray, the default of `view`), `Primary`
@@ -146,6 +149,19 @@ max value =
     Attribute (\config -> { config | max = Basics.max 1 value })
 
 
+{-| How a `count` writes its number: with the thousands separator of the locale
+("1,280" in English, "1 280" in Norwegian), in the badge, its tooltip and what
+screen readers hear. The default is `Locale.default`, which is English. It has
+no effect on `view` and `status`, whose text is yours.
+
+    Badge.count [ Badge.max 9999, Badge.locale Locale.nb ] 1280 -- shows "1 280"
+
+-}
+locale : Locale -> Attribute
+locale value =
+    Attribute (\config -> { config | locale = value })
+
+
 {-| A badge with the given text. Name the state in the text: the color is only a
 hint.
 
@@ -189,8 +205,9 @@ status value label =
 
 {-| A round number badge, such as a count of unread messages or of the errors in
 a form. It is `Primary` and `solid` by default; `tone`, `outline`, `size` and
-`max` change it. A number above `max` (99 by default) shows as "99+", while the
-tooltip and screen readers get the exact number. A count of zero or less shows
+`max` change it, and `locale` how the number is written. A number above `max`
+(99 by default) shows as "99+", while the tooltip and screen readers get the
+exact number. A count of zero or less shows
 nothing, so a badge for "nothing new" goes away by itself.
 
     Badge.count [] 7
@@ -205,7 +222,7 @@ count attributes n =
             configure { defaults | tone = Primary, style = Solid } attributes
 
         exact =
-            String.fromInt n
+            Format.int config.locale n
     in
     if n <= 0 then
         Html.text ""
@@ -222,7 +239,7 @@ count attributes n =
             , Internal.attrIf (n > config.max) (Attr.title exact)
             ]
             (if n > config.max then
-                [ Html.span [ Attr.attribute "aria-hidden" "true" ] [ Html.text (String.fromInt config.max ++ "+") ]
+                [ Html.span [ Attr.attribute "aria-hidden" "true" ] [ Html.text (Format.int config.locale config.max ++ "+") ]
                 , Html.span [ Internal.cls [ "klar-sr-only" ] ] [ Html.text exact ]
                 ]
 

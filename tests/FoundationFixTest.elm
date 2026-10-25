@@ -830,7 +830,7 @@ avatarEntryTests : Test
 avatarEntryTests =
     let
         grace =
-            Avatar.entry "Grace Hopper" |> Avatar.withImage "/images/grace.jpg"
+            Avatar.entry "Grace Hopper" |> Avatar.withImage (Just "/images/grace.jpg")
     in
     describe "Avatar.group: pictures and status"
         [ test "an entry with a picture shows it" <|
