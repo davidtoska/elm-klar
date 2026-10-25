@@ -157,7 +157,7 @@ type alias Fields =
     , tags : List String
     , draft : String
     , settled : String
-    , ended : Maybe String
+    , ended : Maybe ( String, Bool )
     , message : Maybe String
     , announcement : Announcement
     , touched : Bool
@@ -304,9 +304,10 @@ update : Msg -> State -> ( State, Cmd Msg )
 update msg ((State state) as current) =
     case msg of
         Changed rules change ->
-            if state.ended == Just change.raw then
-                -- The input event that some browsers send after the end of a
-                -- composition, with the text that was handled at its end.
+            if state.ended == Just ( change.raw, not change.ending ) then
+                -- The input event that some browsers send next to the end of a
+                -- composition (after it or before it), with the same text: it
+                -- was handled once already.
                 ( State { state | ended = Nothing }, Cmd.none )
 
             else
@@ -325,12 +326,7 @@ update msg ((State state) as current) =
                 in
                 ( State
                     { next
-                        | ended =
-                            if change.ending then
-                                Just change.raw
-
-                            else
-                                Nothing
+                        | ended = Just ( change.raw, change.ending )
                         , refocusing = False
                     }
                 , Cmd.none

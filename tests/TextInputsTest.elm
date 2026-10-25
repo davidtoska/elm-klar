@@ -318,6 +318,15 @@ tagInputTests =
                     ]
                     tagField
                     |> expectTags [ "红" ] ""
+        , test "an input event just before the end of a composition, with the same text, is not handled twice either" <|
+            \_ ->
+                afterTags
+                    [ tagEvent [] input (composingInput "红")
+                    , tagEvent [] input (inputEvent [] "红，")
+                    , tagEvent [] input (compositionEnd "红，")
+                    ]
+                    tagField
+                    |> expectTags [ "红" ] ""
         , test "removing the focused last chip keeps the text being typed (the blur of the removed button is not leaving)" <|
             \_ ->
                 case afterTags [ tagEvent [] input (inputEvent [] "re") ] (withTags [ "a", "b" ]) of
