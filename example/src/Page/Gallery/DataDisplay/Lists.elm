@@ -7,6 +7,7 @@ user is on it, and the loading, failed and empty states.
 
 import Api.Types as Types exposing (Order, Priority(..))
 import Html exposing (Html)
+import Klar
 import Klar.Badge as Badge
 import Klar.Button as Button
 import Klar.EmptyState as EmptyState
@@ -91,7 +92,10 @@ update msg model =
             ( { model | edited = Just id }, Cmd.none )
 
         Retry ->
-            ( { model | retrying = True }, Pretend.later RetryDone )
+            -- the Try again button goes away while it loads: the focus goes to the list
+            ( { model | retrying = True }
+            , Cmd.batch [ Pretend.later RetryDone, Klar.focus "lists-failed-orders" NoOp ]
+            )
 
         RetryDone ->
             ( { model | retrying = False }, Cmd.none )
@@ -275,9 +279,10 @@ view locale model =
             )
         , Doc.example
             { title = "Loading, failed and empty list"
-            , description = Just "The failed list retries: the backend is down on purpose, so it loads for a moment and fails again."
+            , description = Just "The failed list retries: the backend is down on purpose, so it loads for a moment and fails again. Every state is drawn inside one element with the id of listId, so the update sends the focus there when Try again goes away."
             , code = Just """ListItem.viewRemote
     [ ListItem.bordered
+    , ListItem.listId "orders"
     , ListItem.skeletonRows 3
     , ListItem.onRetry Reload
     , ListItem.emptyState [ EmptyState.title "No orders", EmptyState.icon Icon.search ]
@@ -287,7 +292,7 @@ view locale model =
             (Layout.grid [ Layout.minColumn 280, Layout.gap 4 ]
                 [ ListItem.viewRemote [ ListItem.bordered, ListItem.ariaLabel "Orders", ListItem.skeletonRows 3, ListItem.locale locale ] Remote.Loading
                 , ListItem.viewRemote
-                    [ ListItem.bordered, ListItem.ariaLabel "Orders", ListItem.onRetry Retry, ListItem.locale locale ]
+                    [ ListItem.bordered, ListItem.ariaLabel "Orders", ListItem.listId "lists-failed-orders", ListItem.onRetry Retry, ListItem.locale locale ]
                     (Pretend.down locale model.retrying)
                 , ListItem.viewRemote
                     [ ListItem.bordered

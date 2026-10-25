@@ -282,9 +282,10 @@ wholeItem =
 reorder for a person who uses a pointer and cannot drag (WCAG 2.5.7). A press moves
 the item one place, past no `fixed` item, and lands in `reorder` like a drop; the
 live region says where it went, and the focus stays on the button. At the end of
-the list the button is dimmed, and a press says that the item cannot move further.
-The buttons are named after the item ("Move Scan the tote up"). There are none by
-default.
+the list the button is dimmed, and a press says that the item cannot move further,
+again on every press. While an item is held (picked up with the keyboard, or
+dragged) a press does nothing. The buttons are named after the item ("Move Scan the
+tote up"). There are none by default.
 -}
 moveButtons : Attribute msg
 moveButtons =

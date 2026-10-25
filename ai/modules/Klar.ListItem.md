@@ -44,6 +44,7 @@ maxHeight : Int -> ListAttribute msg
 
 -- Data from a backend
 viewRemote : List (ListAttribute msg) -> Remote.Remote (List ( String, Html msg )) -> Html msg
+listId : String -> ListAttribute msg
 skeleton : Int -> Html msg
 skeletonRows : Int -> ListAttribute msg
 onRetry : msg -> ListAttribute msg
@@ -419,9 +420,32 @@ While the data is `NotAsked` or `Loading` the list shows placeholder rows
 state with a retry button (`onRetry`), no rows show the empty state
 (`emptyState`), and otherwise the rows are shown. Data that is `Kept` stays:
 dimmed and busy while it is refreshed, and under "Old data from 14:05" with a
-retry (`onRetry`) when the last refresh failed, also when it has no rows. The
-rows are drawn inside the same elements whether the data is fresh, refreshing or
-old, so a refresh that starts or ends never takes the focus from a row.
+retry (`onRetry`) when the last refresh failed, also when it has no rows.
+
+Every state is drawn inside one element that stays (`listId` gives it an id), and
+the rows inside the same elements whether the data is fresh, refreshing or old, so
+a refresh that starts or ends never takes the focus from a row. "Loading" is said
+by a polite status that is always in the page, empty in the other states.
+
+### `listId`
+
+```elm
+listId : String -> ListAttribute msg
+```
+
+The DOM id of `viewRemote`, on the element around the list that is the same in
+every state (loading, failed, empty, rows, old data) and can take the focus
+(`tabindex="-1"`). It gives `Klar.focus` a place to put the focus back when the
+element that had it goes away, such as the "Try again" button of the failure state
+after a press. The id must be unique on the page. There is none by default.
+
+    ListItem.viewRemote [ ListItem.listId "orders", ListItem.onRetry ReloadOrders ] rows
+
+    -- update
+    ReloadOrders ->
+        ( { model | orders = Remote.Loading }
+        , Cmd.batch [ fetchOrders, Klar.focus "orders" NoOp ]
+        )
 
 ### `skeleton`
 

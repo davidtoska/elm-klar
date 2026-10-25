@@ -328,9 +328,10 @@ fold : Int -> State -> State
 
 Folds the pane at this place (counting from 0) away, as `Enter` on its separator
 does: its room goes to the pane after it (the pane before it, for the last pane),
-and the state remembers how much room it had, so that `unfold` gives it back. A pane
-that has no room, or is not there, changes nothing. Fold only a `collapsible` pane:
-another pane is drawn with no room, but not hidden.
+and the state remembers how much room it had and where it went, so that `unfold`
+and `Enter` on either of its separators give it back from there. The pane is drawn
+folded even when it is not `collapsible`, and `Enter` on its separator opens it
+again. A pane that has no room, or is not there, changes nothing.
 
     Splitter.fold 1 model.split
 
@@ -342,8 +343,9 @@ unfold : Int -> State -> State
 
 Gives the pane at this place the room it had before `fold`, or `Enter` on its
 separator, took it away; when that is not known (the layout was restored folded) it
-gets a fifth of the room. The room comes from the same neighbour, and the neighbour
-gives no more than it has. A pane that has room changes nothing.
+gets a fifth of the room. The room comes from the neighbour that took it, which
+gives no more than it has, and the view keeps every pane inside its `minSize` and
+`maxSize`, as it does after `setSizes`. A pane that has room changes nothing.
 
     Splitter.unfold 1 model.split
 
@@ -354,8 +356,11 @@ isFolded : Int -> State -> Bool
 ```
 
 Has the pane at this place no room: is it folded away? Use it to draw the toggle
-that folds and unfolds it ("Hide details" or "Show details"). A place that is not
-there is not folded.
+that folds and unfolds it ("Hide details" or "Show details"). It reads the sizes in
+the state: after `fold` the pane is drawn folded, collapsible or not, but a pane that
+is not `collapsible` and gets 0 from `init` or `setSizes` is drawn at its smallest
+size, so give a 0 only to `collapsible` panes. A place that is not there is not
+folded.
 
 ### `separatorId`
 
