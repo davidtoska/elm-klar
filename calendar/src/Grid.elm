@@ -728,7 +728,7 @@ agenda config from days occurrences =
                                             ]
                                         )
                                         [ Html.text (Format.dateLong Locale.en day) ]
-                                    , ListItem.list [ ListItem.bordered, ListItem.listLabel (Format.dateLong Locale.en day) ]
+                                    , ListItem.list [ ListItem.bordered, ListItem.ariaLabel (Format.dateLong Locale.en day) ]
                                         (List.map
                                             (\o ->
                                                 ListItem.view

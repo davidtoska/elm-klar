@@ -39,6 +39,7 @@ import Klar.Format as Format
 import Klar.Icon as Icon
 import Klar.Ids as Ids exposing (Ids)
 import Klar.Layout as Layout
+import Klar.Link as Link
 import Klar.ListItem as ListItem
 import Klar.Locale as Locale
 import Klar.Modal as Modal
@@ -172,7 +173,6 @@ type alias Model =
     , registering : Bool
     , authName : String
     , authEmail : String
-    , authPassword : String
     , passwordInput : PasswordInput.State
     , authProblem : Maybe String
     , authBusy : Bool
@@ -223,7 +223,7 @@ init _ url key =
         epoch =
             Date.fromEpochDay 0
     in
-    ( { shell = AppShell.init { id = "app-shell", key = key } |> AppShell.setPage (navigation 0) page
+    ( { shell = AppShell.init { id = "app-shell", key = key, url = url } |> AppShell.setPage (navigation 0) page
       , page = page
       , key = key
       , origin = originOf url
@@ -238,7 +238,6 @@ init _ url key =
       , registering = False
       , authName = ""
       , authEmail = ""
-      , authPassword = ""
       , passwordInput = PasswordInput.init "auth-password"
       , authProblem = Nothing
       , authBusy = False
@@ -251,7 +250,7 @@ init _ url key =
       , focus = epoch
       , mini = Calendar.init "mini-calendar"
       , invites = Loading
-      , toasts = Toast.init
+      , toasts = Toast.init "toasts"
       , detailsModal = Modal.init "event-details"
       , details = Nothing
       , editorModal = Modal.init "event-editor"
@@ -263,7 +262,7 @@ init _ url key =
       , deleteAll = False
       , fileDrop = FileDrop.init "import-file"
       , file = Nothing
-      , fileTarget = Select.init "import-target" |> Select.setValue "primary"
+      , fileTarget = Select.init "import-target" |> Select.setValue (Just "primary")
       , fileProgress = Idle
       , reply = Nothing
       , googleToken = token
@@ -299,13 +298,13 @@ newEditor date minute calendarId =
     { original = Nothing
     , summary = ""
     , allDay = False
-    , start = DateTimePicker.init "event-start" |> DateTimePicker.setDateTime (Just { date = date, time = toTime minute })
-    , end = DateTimePicker.init "event-end" |> DateTimePicker.setDateTime (Just { date = date, time = toTime endMinute })
-    , startDay = DatePicker.init "event-start-day" |> DatePicker.setDate (Just date)
-    , endDay = DatePicker.init "event-end-day" |> DatePicker.setDate (Just date)
+    , start = DateTimePicker.init "event-start" |> DateTimePicker.setValue (Just { date = date, time = toTime minute })
+    , end = DateTimePicker.init "event-end" |> DateTimePicker.setValue (Just { date = date, time = toTime endMinute })
+    , startDay = DatePicker.init "event-start-day" |> DatePicker.setValue (Just date)
+    , endDay = DatePicker.init "event-end-day" |> DatePicker.setValue (Just date)
     , repeat = RecurrencePicker.init "event-repeat" date
-    , calendar = Select.init "event-calendar" |> Select.setValue calendarId
-    , color = Select.init "event-color" |> Select.setValue ""
+    , calendar = Select.init "event-calendar" |> Select.setValue (Just calendarId)
+    , color = Select.init "event-color" |> Select.setValue (Just "")
     , location = ""
     , description = ""
     , guests = TagInput.init "event-guests"
@@ -430,7 +429,6 @@ type Msg
     | SetRegistering Bool
     | AuthName String
     | AuthEmail String
-    | AuthPassword String
     | PasswordMsg PasswordInput.Msg
     | SubmitAuth
     | GotAuth (Result Problem User)
@@ -581,7 +579,7 @@ update msg model =
                         model.focus
                 , mini =
                     if first then
-                        model.mini |> Calendar.select (Just today) |> Calendar.showDate today
+                        model.mini |> Calendar.setValue (Just today) |> Calendar.showDate today
 
                     else
                         model.mini
@@ -645,9 +643,6 @@ update msg model =
         AuthEmail text ->
             ( { model | authEmail = text }, Cmd.none )
 
-        AuthPassword text ->
-            ( { model | authPassword = text }, Cmd.none )
-
         PasswordMsg m ->
             PasswordInput.update m model.passwordInput
                 |> Tuple.mapBoth (\p -> { model | passwordInput = p }) (Cmd.map PasswordMsg)
@@ -659,14 +654,14 @@ update msg model =
             else
                 ( { model | authBusy = True, authProblem = Nothing }
                 , if model.registering then
-                    Api.register { name = model.authName, email = model.authEmail, password = model.authPassword, timeZone = model.zoneName } GotAuth
+                    Api.register { name = model.authName, email = model.authEmail, password = PasswordInput.value model.passwordInput, timeZone = model.zoneName } GotAuth
 
                   else
-                    Api.login { email = model.authEmail, password = model.authPassword } GotAuth
+                    Api.login { email = model.authEmail, password = PasswordInput.value model.passwordInput } GotAuth
                 )
 
         GotAuth (Ok user) ->
-            signedIn user { model | authBusy = False, authPassword = "" }
+            signedIn user { model | authBusy = False, passwordInput = PasswordInput.clear model.passwordInput }
 
         GotAuth (Err problem) ->
             ( { model | authBusy = False, authProblem = Just (Api.message problem) }, Cmd.none )
@@ -716,9 +711,9 @@ update msg model =
                     Calendar.update m model.mini
 
                 chosen =
-                    Calendar.selected mini
+                    Calendar.value mini
             in
-            if chosen /= Calendar.selected model.mini then
+            if chosen /= Calendar.value model.mini then
                 case chosen of
                     Just date ->
                         goTo date { model | mini = mini }
@@ -876,10 +871,10 @@ update msg model =
                     DateTimePicker.update m editor.start
 
                 end =
-                    case ( DateTimePicker.dateTime editor.start, DateTimePicker.dateTime start, DateTimePicker.dateTime editor.end ) of
+                    case ( DateTimePicker.value editor.start, DateTimePicker.value start, DateTimePicker.value editor.end ) of
                         ( Just before, Just after, Just oldEnd ) ->
                             if before /= after then
-                                DateTimePicker.setDateTime (Just (fromWall (toWall after + toWall oldEnd - toWall before))) editor.end
+                                DateTimePicker.setValue (Just (fromWall (toWall after + toWall oldEnd - toWall before))) editor.end
 
                             else
                                 editor.end
@@ -888,7 +883,7 @@ update msg model =
                             editor.end
 
                 repeat =
-                    case DateTimePicker.dateTime start of
+                    case DateTimePicker.value start of
                         Just dt ->
                             RecurrencePicker.setStart dt.date editor.repeat
 
@@ -916,10 +911,10 @@ update msg model =
                     DatePicker.update m editor.startDay
 
                 endDay =
-                    case ( DatePicker.date editor.startDay, DatePicker.date startDay, DatePicker.date editor.endDay ) of
+                    case ( DatePicker.value editor.startDay, DatePicker.value startDay, DatePicker.value editor.endDay ) of
                         ( Just before, Just after, Just oldEnd ) ->
                             if before /= after then
-                                DatePicker.setDate (Just (Date.addDays (Date.diffDays before oldEnd) after)) editor.endDay
+                                DatePicker.setValue (Just (Date.addDays (Date.diffDays before oldEnd) after)) editor.endDay
 
                             else
                                 editor.endDay
@@ -928,7 +923,7 @@ update msg model =
                             editor.endDay
 
                 repeat =
-                    case DatePicker.date startDay of
+                    case DatePicker.value startDay of
                         Just date ->
                             RecurrencePicker.setStart date editor.repeat
 
@@ -1120,7 +1115,7 @@ update msg model =
         OpenNewCalendar ->
             let
                 ( modal, cmd ) =
-                    Modal.openWith { opener = "new-calendar", focus = [ "calendar-name" ] } model.calendarModal
+                    Modal.open "new-calendar" (Modal.setInitialFocus [ "calendar-name" ] model.calendarModal)
             in
             ( { model | calendarModal = modal, calendarForm = emptyCalendarForm }, Cmd.map CalendarModalMsg cmd )
 
@@ -1143,7 +1138,7 @@ update msg model =
                         | entry = Just entry
                         , name = entry.summary
                         , description = entry.description
-                        , color = Select.init "calendar-color" |> Select.setValue colorId
+                        , color = Select.init "calendar-color" |> Select.setValue (Just colorId)
                         , acl =
                             if entry.accessRole == Owner then
                                 Loading
@@ -1313,7 +1308,7 @@ update msg model =
                 text =
                     Ics.export { zoneName = model.zoneName, now = model.now, name = entry.summary } events
             in
-            updateCalendarForm (\f -> { f | export = Just ("data:text/calendar;charset=utf-8," ++ Url.percentEncode text) }) model
+            updateCalendarForm (\f -> { f | export = Just text }) model
 
         GotExport _ (Err problem) ->
             toast Theme.Danger (Api.message problem) model
@@ -1425,9 +1420,7 @@ update msg model =
                         , reply =
                             Just
                                 ( "reply.ics"
-                                , "data:text/calendar;charset=utf-8,"
-                                    ++ Url.percentEncode
-                                        (Ics.reply { zoneName = model.zoneName, now = model.now, email = user.email, name = user.name, status = status } event)
+                                , Ics.reply { zoneName = model.zoneName, now = model.now, email = user.email, name = user.name, status = status } event
                                 )
                       }
                     , Cmd.none
@@ -1605,7 +1598,7 @@ goTo : Date -> Model -> ( Model, Cmd Msg )
 goTo date model =
     let
         next =
-            { model | focus = date, mini = model.mini |> Calendar.select (Just date) |> Calendar.showDate date }
+            { model | focus = date, mini = model.mini |> Calendar.setValue (Just date) |> Calendar.showDate date }
     in
     if fetchRange next == fetchRange model then
         ( next, Cmd.none )
@@ -1878,7 +1871,7 @@ openEditor : Editor -> String -> Model -> ( Model, Cmd Msg )
 openEditor editor opener model =
     let
         ( modal, cmd ) =
-            Modal.openWith { opener = opener, focus = [ "event-title" ] } model.editorModal
+            Modal.open opener (Modal.setInitialFocus [ "event-title" ] model.editorModal)
     in
     ( { model | editor = editor, editorModal = modal }, Cmd.map EditorModalMsg cmd )
 
@@ -1917,17 +1910,17 @@ editorFor occ =
         , summary = event.summary
         , location = event.location
         , description = event.description
-        , color = Select.init "event-color" |> Select.setValue event.colorId
-        , guests = TagInput.init "event-guests" |> TagInput.setTags (List.filter (not << .organizer) event.attendees |> List.map .email)
+        , color = Select.init "event-color" |> Select.setValue (Just event.colorId)
+        , guests = TagInput.init "event-guests" |> TagInput.setValues (List.filter (not << .organizer) event.attendees |> List.map .email)
     }
         |> (\e ->
                 case ( event.start, event.end ) of
                     ( AllDay s, AllDay en ) ->
                         { e
                             | allDay = True
-                            , startDay = DatePicker.setDate (Just s) e.startDay
-                            , endDay = DatePicker.setDate (Just (Date.addDays -1 en)) e.endDay
-                            , repeat = RecurrencePicker.init "event-repeat" s |> RecurrencePicker.setRule (Occurrence.rule event)
+                            , startDay = DatePicker.setValue (Just s) e.startDay
+                            , endDay = DatePicker.setValue (Just (Date.addDays -1 en)) e.endDay
+                            , repeat = RecurrencePicker.init "event-repeat" s |> RecurrencePicker.setValue (Occurrence.rule event)
                         }
 
                     _ ->
@@ -1940,11 +1933,11 @@ editorFor occ =
                         in
                         { e
                             | allDay = False
-                            , start = DateTimePicker.setDateTime (Just s) e.start
-                            , end = DateTimePicker.setDateTime (Just en) e.end
-                            , startDay = DatePicker.setDate (Just s.date) e.startDay
-                            , endDay = DatePicker.setDate (Just en.date) e.endDay
-                            , repeat = RecurrencePicker.init "event-repeat" s.date |> RecurrencePicker.setRule (Occurrence.rule event)
+                            , start = DateTimePicker.setValue (Just s) e.start
+                            , end = DateTimePicker.setValue (Just en) e.end
+                            , startDay = DatePicker.setValue (Just s.date) e.startDay
+                            , endDay = DatePicker.setValue (Just en.date) e.endDay
+                            , repeat = RecurrencePicker.init "event-repeat" s.date |> RecurrencePicker.setValue (Occurrence.rule event)
                         }
            )
 
@@ -1954,7 +1947,7 @@ buildEvent model editor =
     let
         times =
             if editor.allDay then
-                case ( DatePicker.date editor.startDay, DatePicker.date editor.endDay ) of
+                case ( DatePicker.value editor.startDay, DatePicker.value editor.endDay ) of
                     ( Just s, Just e ) ->
                         if Date.compare e s == LT then
                             Err "The event ends before it starts."
@@ -1966,7 +1959,7 @@ buildEvent model editor =
                         Err "Choose the first and the last day."
 
             else
-                case ( DateTimePicker.dateTime editor.start, DateTimePicker.dateTime editor.end ) of
+                case ( DateTimePicker.value editor.start, DateTimePicker.value editor.end ) of
                     ( Just s, Just e ) ->
                         if toWall e <= toWall s then
                             Err "The event must end after it starts."
@@ -2017,7 +2010,7 @@ buildEvent model editor =
                 |> List.head
 
         attendees =
-            TagInput.tags editor.guests
+            TagInput.values editor.guests
                 |> List.map String.toLower
                 |> List.map
                     (\email ->
@@ -2224,15 +2217,13 @@ viewAuth model =
                         ([ SegmentedControl.view
                             [ SegmentedControl.options [ SegmentedControl.option "login" "Sign in", SegmentedControl.option "register" "Register" ]
                             , SegmentedControl.selected
-                                (Just
-                                    (if model.registering then
-                                        "register"
+                                (if model.registering then
+                                    "register"
 
-                                     else
-                                        "login"
-                                    )
+                                 else
+                                    "login"
                                 )
-                            , SegmentedControl.onSelect (\k -> SetRegistering (k == "register"))
+                            , SegmentedControl.onChange (\k -> SetRegistering (k == "register"))
                             , SegmentedControl.label "Account"
                             , SegmentedControl.labelHidden
                             , SegmentedControl.fullWidth
@@ -2247,8 +2238,6 @@ viewAuth model =
                             ++ [ TextInput.view [ TextInput.label "Email", TextInput.id "auth-email", TextInput.email, TextInput.value model.authEmail, TextInput.onInput AuthEmail, TextInput.autocomplete "email", TextInput.required ]
                                , PasswordInput.view PasswordMsg
                                     [ PasswordInput.label "Password"
-                                    , PasswordInput.value model.authPassword
-                                    , PasswordInput.onInput AuthPassword
                                     , PasswordInput.onEnter SubmitAuth
                                     , if model.registering then
                                         PasswordInput.newPassword
@@ -2314,7 +2303,7 @@ viewSidebar model =
     in
     Layout.stack [ Layout.gap 4, Layout.padding 3 ]
         [ Button.view [ Button.primary, Button.block, Button.icon Icon.plus, Button.onClick OpenNew, Button.id "create-event-side" ] "Create event"
-        , Calendar.view MiniMsg [ Calendar.today model.today, Calendar.label "Go to date", Calendar.size Theme.Small ] model.mini
+        , Calendar.view MiniMsg [ Calendar.ariaLabel "Go to date", Calendar.size Theme.Small ] (Calendar.setToday model.today model.mini)
         , AppShell.sideNav ShellMsg [ SideNav.entries (navigation (inviteCount model)), SideNav.ariaLabel "Pages" ] model.shell
         , calendarSection "My calendars"
             (Just (Button.iconOnly [ Button.ghost, Button.small, Button.onClick OpenNewCalendar, Button.id "new-calendar" ] Icon.plus "New calendar"))
@@ -2450,8 +2439,8 @@ viewCalendarPage model =
                         , SegmentedControl.option "month" "Month"
                         , SegmentedControl.option "agenda" "Agenda"
                         ]
-                    , SegmentedControl.selected (Just (modeKey model.mode))
-                    , SegmentedControl.onSelect SetMode
+                    , SegmentedControl.selected (modeKey model.mode)
+                    , SegmentedControl.onChange SetMode
                     , SegmentedControl.label "View"
                     , SegmentedControl.labelHidden
                     ]
@@ -2497,7 +2486,7 @@ viewDetails : Model -> Overlay Msg
 viewDetails model =
     case model.details of
         Nothing ->
-            Modal.view DetailsModalMsg [ Modal.title "Event" ] model.detailsModal []
+            Modal.view DetailsModalMsg [] model.detailsModal "Event" []
 
         Just occ ->
             let
@@ -2528,17 +2517,7 @@ viewDetails model =
                         ]
             in
             Modal.view DetailsModalMsg
-                [ Modal.title
-                    (if busyOnly then
-                        "Busy"
-
-                     else if event.summary == "" then
-                        "(No title)"
-
-                     else
-                        event.summary
-                    )
-                , Modal.subtitle (Format.dateLong Locale.en occ.date ++ " · " ++ Grid.timeRange occ)
+                [ Modal.subtitle (Format.dateLong Locale.en occ.date ++ " · " ++ Grid.timeRange occ)
                 , Modal.medium
                 , Modal.footerStart
                     (if editable then
@@ -2559,6 +2538,15 @@ viewDetails model =
                     )
                 ]
                 model.detailsModal
+                (if busyOnly then
+                    "Busy"
+
+                 else if event.summary == "" then
+                    "(No title)"
+
+                 else
+                    event.summary
+                )
                 [ Layout.stack [ Layout.gap 3 ]
                     (List.filterMap identity
                         [ case Occurrence.rule event of
@@ -2618,12 +2606,12 @@ viewDetails model =
                                                 ]
                                             , SegmentedControl.selected
                                                 (if a.responseStatus == NeedsAction then
-                                                    Nothing
+                                                    ""
 
                                                  else
-                                                    Just (Gcal.responseToString a.responseStatus)
+                                                    Gcal.responseToString a.responseStatus
                                                 )
-                                            , SegmentedControl.onSelect (\k -> Respond event (Gcal.responseFromString k))
+                                            , SegmentedControl.onChange (\k -> Respond event (Gcal.responseFromString k))
                                             , SegmentedControl.id "details-answer"
                                             ]
                                         )
@@ -2662,7 +2650,7 @@ viewGuests event =
             , Text.strong (Format.plural Locale.en (List.length event.attendees) { one = "1 guest", other = String.fromInt (List.length event.attendees) ++ " guests" })
             , Text.muted summary
             ]
-        , ListItem.list [ ListItem.compact, ListItem.listLabel "Guests" ]
+        , ListItem.list [ ListItem.density Theme.Compact, ListItem.ariaLabel "Guests" ]
             (List.map
                 (\a ->
                     ListItem.view
@@ -2728,19 +2716,18 @@ viewEditor model =
             editor.original /= Nothing
     in
     Modal.view EditorModalMsg
-        [ Modal.title
-            (if editing then
-                "Edit event"
-
-             else
-                "New event"
-            )
-        , Modal.large
+        [ Modal.large
         , Modal.busy editor.busy
         , Modal.footer
             [ Button.view [ Button.primary, Button.onClick SaveEvent, Button.loading editor.busy ] "Save" ]
         ]
         model.editorModal
+        (if editing then
+            "Edit event"
+
+         else
+            "New event"
+        )
         [ Html.form [ Attr.novalidate True, onSubmit SaveEvent ]
             [ Layout.stack [ Layout.gap 3 ]
                 [ TextInput.view
@@ -2750,7 +2737,7 @@ viewEditor model =
                     , TextInput.onInput EditorSummary
                     , TextInput.placeholder "Add a title"
                     ]
-                , Switch.view [ Switch.label "All day", Switch.checked editor.allDay, Switch.onToggle EditorAllDay, Switch.id "event-all-day" ]
+                , Switch.view [ Switch.label "All day", Switch.checked editor.allDay, Switch.onCheck EditorAllDay, Switch.id "event-all-day" ]
                 , if editor.allDay then
                     Layout.grid [ Layout.columns 2, Layout.gap 3 ]
                         [ DatePicker.view EditorStartDayMsg [ DatePicker.label "First day", DatePicker.today model.today ] editor.startDay
@@ -2869,12 +2856,12 @@ viewCalendarDialog model =
     case form.entry of
         Nothing ->
             Modal.view CalendarModalMsg
-                [ Modal.title "New calendar"
-                , Modal.small
+                [ Modal.small
                 , Modal.busy form.busy
                 , Modal.footer [ Button.view [ Button.primary, Button.onClick SaveCalendar, Button.loading form.busy ] "Create calendar" ]
                 ]
                 model.calendarModal
+                "New calendar"
                 [ Html.form [ Attr.novalidate True, onSubmit SaveCalendar ]
                     [ Layout.stack [ Layout.gap 3 ]
                         [ TextInput.view [ TextInput.label "Name", TextInput.id "calendar-name", TextInput.value form.name, TextInput.onInput CalendarName, TextInput.required, TextInput.errorMaybe form.problem ]
@@ -2890,8 +2877,7 @@ viewCalendarDialog model =
                     entry.accessRole == Owner
             in
             Modal.view CalendarModalMsg
-                [ Modal.title entry.summary
-                , Modal.subtitle (roleText entry.accessRole)
+                [ Modal.subtitle (roleText entry.accessRole)
                 , Modal.large
                 , Modal.footerStart
                     (if owner && not entry.primary then
@@ -2905,8 +2891,8 @@ viewCalendarDialog model =
                     )
                 , Modal.footer
                     [ case form.export of
-                        Just href ->
-                            Button.view [ Button.href href, Button.icon Icon.download, Button.htmlAttrs [ Attr.download (domId entry.summary ++ ".ics") ] ] "Download .ics"
+                        Just content ->
+                            Button.view [ Button.href (Link.download { fileName = domId entry.summary ++ ".ics", mimeType = "text/calendar", content = content }), Button.icon Icon.download ] "Download .ics"
 
                         Nothing ->
                             if entry.accessRole == FreeBusyReader then
@@ -2917,6 +2903,7 @@ viewCalendarDialog model =
                     ]
                 ]
                 model.calendarModal
+                entry.summary
                 [ Layout.stack [ Layout.gap 5 ]
                     [ Layout.stack [ Layout.gap 3 ]
                         (if owner then
@@ -2980,7 +2967,7 @@ roleText role =
             "You can see only free and busy times"
 
 
-roleOptions : List SegmentedControl.Option
+roleOptions : List (SegmentedControl.Option String)
 roleOptions =
     [ SegmentedControl.option "freeBusyReader" "Free/busy"
     , SegmentedControl.option "reader" "Details"
@@ -3016,7 +3003,7 @@ viewSharing model entry =
             (RemoteView.view [ RemoteView.onRetry (OpenCalendarSettings entry) ]
                 form.acl
                 (\rules ->
-                    [ ListItem.list [ ListItem.listLabel "People with access", ListItem.bordered ]
+                    [ ListItem.list [ ListItem.ariaLabel "People with access", ListItem.bordered ]
                         (List.map
                             (\rule ->
                                 let
@@ -3036,8 +3023,8 @@ viewSharing model entry =
                                          else
                                             [ SegmentedControl.view
                                                 [ SegmentedControl.options roleOptions
-                                                , SegmentedControl.selected (Just (Gcal.accessRoleToString rule.role))
-                                                , SegmentedControl.onSelect (ChangeRole rule)
+                                                , SegmentedControl.selected (Gcal.accessRoleToString rule.role)
+                                                , SegmentedControl.onChange (ChangeRole rule)
                                                 , SegmentedControl.label ("Access for " ++ label)
                                                 , SegmentedControl.labelHidden
                                                 , SegmentedControl.size Theme.Small
@@ -3064,8 +3051,8 @@ viewSharing model entry =
                             ]
                         , SegmentedControl.view
                             [ SegmentedControl.options (List.take 3 roleOptions)
-                            , SegmentedControl.selected (Just form.shareRole)
-                            , SegmentedControl.onSelect ShareRole
+                            , SegmentedControl.selected form.shareRole
+                            , SegmentedControl.onChange ShareRole
                             , SegmentedControl.label "Access"
                             ]
                         , Button.view [ Button.primary, Button.icon Icon.share, Button.onClick Share, Button.loading form.busy ] "Share"
@@ -3090,16 +3077,15 @@ viewConfirm model =
     let
         common =
             [ ConfirmDialog.onConfirm ConfirmPending, ConfirmDialog.onCancel CancelPending ]
-    in
-    ConfirmDialog.view ConfirmMsg
-        (common
-            ++ (case model.pending of
-                    Just (DeleteEvent occ) ->
-                        if isRecurring occ.event then
-                            [ ConfirmDialog.title "Delete a repeating event"
-                            , ConfirmDialog.danger
-                            , ConfirmDialog.confirmLabel "Delete"
-                            , ConfirmDialog.body
+
+        ( question, attributes ) =
+            case model.pending of
+                Just (DeleteEvent occ) ->
+                    if isRecurring occ.event then
+                        ( "Delete a repeating event"
+                        , [ ConfirmDialog.tone Theme.Danger
+                          , ConfirmDialog.confirmLabel "Delete"
+                          , ConfirmDialog.body
                                 [ Radio.view
                                     [ Radio.label "Which events?"
                                     , Radio.options [ Radio.option "one" ("Only " ++ Format.dateLong Locale.en occ.date), Radio.option "all" "All events in the series" ]
@@ -3112,38 +3098,41 @@ viewConfirm model =
                                                 "one"
                                             )
                                         )
-                                    , Radio.onSelect (\k -> SetDeleteAll (k == "all"))
+                                    , Radio.onChange (\k -> SetDeleteAll (k == "all"))
                                     , Radio.id "delete-which"
                                     ]
                                 ]
-                            ]
+                          ]
+                        )
 
-                        else
-                            [ ConfirmDialog.title "Delete the event?"
-                            , ConfirmDialog.message ("“" ++ occ.event.summary ++ "” is deleted for everyone who sees this calendar.")
-                            , ConfirmDialog.danger
-                            , ConfirmDialog.confirmLabel "Delete"
-                            ]
+                    else
+                        ( "Delete the event?"
+                        , [ ConfirmDialog.message ("“" ++ occ.event.summary ++ "” is deleted for everyone who sees this calendar.")
+                          , ConfirmDialog.tone Theme.Danger
+                          , ConfirmDialog.confirmLabel "Delete"
+                          ]
+                        )
 
-                    Just (DeleteCalendar entry) ->
-                        [ ConfirmDialog.title "Delete the calendar?"
-                        , ConfirmDialog.message ("“" ++ entry.summary ++ "” and all its events are deleted, also for the people it is shared with.")
-                        , ConfirmDialog.danger
-                        , ConfirmDialog.confirmLabel "Delete calendar"
-                        , ConfirmDialog.typeToConfirm entry.summary
-                        ]
+                Just (DeleteCalendar entry) ->
+                    ( "Delete the calendar?"
+                    , [ ConfirmDialog.message ("“" ++ entry.summary ++ "” and all its events are deleted, also for the people it is shared with.")
+                      , ConfirmDialog.tone Theme.Danger
+                      , ConfirmDialog.confirmLabel "Delete calendar"
+                      , ConfirmDialog.typeToConfirm entry.summary
+                      ]
+                    )
 
-                    Just (Unsubscribe entry) ->
-                        [ ConfirmDialog.title "Remove from your list?"
-                        , ConfirmDialog.message ("You stop seeing “" ++ entry.summary ++ "”. The owner can still share it with you again.")
-                        , ConfirmDialog.confirmLabel "Remove"
-                        ]
+                Just (Unsubscribe entry) ->
+                    ( "Remove from your list?"
+                    , [ ConfirmDialog.message ("You stop seeing “" ++ entry.summary ++ "”. The owner can still share it with you again.")
+                      , ConfirmDialog.confirmLabel "Remove"
+                      ]
+                    )
 
-                    Nothing ->
-                        [ ConfirmDialog.title "Are you sure?" ]
-               )
-        )
-        model.confirm
+                Nothing ->
+                    ( "Are you sure?", [] )
+    in
+    ConfirmDialog.view ConfirmMsg (common ++ attributes) model.confirm question
 
 
 
@@ -3188,7 +3177,7 @@ viewInvitations model =
                             [ EmptyState.icon Icon.mail
                             , EmptyState.title "No invitations"
                             , EmptyState.description "When someone adds you as a guest, the event shows here and in your calendar. Invitations that come by email can be imported as .ics files."
-                            , EmptyState.action (Button.view [ Button.href "#/import" ] "Import an invitation")
+                            , EmptyState.actions [ Button.view [ Button.href (Link.internal "#/import") ] "Import an invitation" ]
                             ]
                         ]
 
@@ -3210,7 +3199,7 @@ invitationList model title events =
 
     else
         Card.view [ Card.title title, Card.flush ]
-            [ ListItem.list [ ListItem.listLabel title ]
+            [ ListItem.list [ ListItem.ariaLabel title ]
                 (List.map
                     (\event ->
                         let
@@ -3238,12 +3227,12 @@ invitationList model title events =
                                         ]
                                     , SegmentedControl.selected
                                         (if me == NeedsAction then
-                                            Nothing
+                                            ""
 
                                          else
-                                            Just (Gcal.responseToString me)
+                                            Gcal.responseToString me
                                         )
-                                    , SegmentedControl.onSelect (\k -> Respond event (Gcal.responseFromString k))
+                                    , SegmentedControl.onChange (\k -> Respond event (Gcal.responseFromString k))
                                     , SegmentedControl.label ("Going to " ++ event.summary ++ "?")
                                     , SegmentedControl.labelHidden
                                     , SegmentedControl.size Theme.Small
@@ -3319,7 +3308,12 @@ viewGoogleImport model =
                 else
                     Layout.stack [ Layout.gap 3 ]
                         [ Text.paragraph "You are sent to Google to allow read access, and come back here with the list of your calendars."
-                        , Button.view [ Button.primary, Button.icon Icon.calendar, Button.href (googleAuthUrl model) ] "Connect Google Calendar"
+                        , case Link.external (googleAuthUrl model) of
+                            Just target ->
+                                Button.view [ Button.primary, Button.icon Icon.calendar, Button.href target ] "Connect Google Calendar"
+
+                            Nothing ->
+                                Text.muted "The Google sign-in address could not be made."
                         ]
 
             Just _ ->
@@ -3400,10 +3394,10 @@ viewFileImport model =
                     viewFileContent model name content
             , viewProgress model.fileProgress
             , case model.reply of
-                Just ( fileName, href ) ->
+                Just ( fileName, content ) ->
                     Alert.viewWith [ Alert.tone Theme.Info, Alert.title "Tell the organizer" ]
                         [ Text.paragraph "Your answer is saved here. To let the organizer know, attach this reply to an email to them."
-                        , Button.view [ Button.href href, Button.icon Icon.download, Button.htmlAttrs [ Attr.download fileName ] ] "Download the reply (.ics)"
+                        , Button.view [ Button.href (Link.download { fileName = fileName, mimeType = "text/calendar", content = content }), Button.icon Icon.download ] "Download the reply (.ics)"
                         ]
 
                 Nothing ->
@@ -3449,7 +3443,7 @@ viewFileContent model name content =
                                )
                             ++ ". Events already imported are updated, not doubled."
                         )
-                    , ListItem.list [ ListItem.listLabel "First events", ListItem.compact, ListItem.bordered ]
+                    , ListItem.list [ ListItem.ariaLabel "First events", ListItem.density Theme.Compact, ListItem.bordered ]
                         (List.map (\e -> ListItem.view [ ListItem.secondary (describeTime model e.start) ] e.summary) (List.take 5 calendar.events))
                     , Select.view FileTargetMsg
                         [ Select.label "Into"

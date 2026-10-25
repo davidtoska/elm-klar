@@ -76,7 +76,7 @@ rule event =
                                 part
                         )
                     |> String.join ";"
-                    |> Recurrence.fromRRule
+                    |> Recurrence.fromRRule { start = startDate event.start }
                     |> Result.toMaybe
             )
         |> Maybe.map (Recurrence.withExceptions (exdates event))
