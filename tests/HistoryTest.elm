@@ -44,6 +44,83 @@ suite =
         , sequenceTests
         , controlsTests
         , shortcutTests
+        , storedAndMovedTests
+        ]
+
+
+{-| `markSavedAs` takes in the record the backend stored, and `movedAt` says where an
+undo or a redo changed the value.
+-}
+storedAndMovedTests : Test
+storedAndMovedTests =
+    let
+        edit field value =
+            History.record [ History.coalesce field ] value
+    in
+    describe "the stored record and where an undo went"
+        [ test "markSavedAs makes the stored value present and saved, and keeps the steps" <|
+            \_ ->
+                recordAll [ 1, 2 ] fresh
+                    |> History.markSavedAs 20
+                    |> Expect.all
+                        [ History.present >> Expect.equal 20
+                        , History.saved >> Expect.equal 20
+                        , History.isAtSavedPoint >> Expect.equal True
+                        , History.canUndo >> Expect.equal True
+                        , History.undo >> History.present >> Expect.equal 1
+                        ]
+        , test "markSavedAs records no step of its own and ends the burst" <|
+            \_ ->
+                fresh
+                    |> edit 1 1
+                    |> History.markSavedAs 10
+                    |> edit 1 11
+                    |> walkBack
+                    |> Expect.equal [ 11, 10, 0 ]
+        , fuzz2 smallValue smallValue "markSavedAs then an undo and a redo comes back to the stored value" <|
+            \a stored ->
+                recordAll [ a + 1 ] fresh
+                    |> History.markSavedAs (stored + 100)
+                    |> History.undo
+                    |> History.redo
+                    |> History.present
+                    |> Expect.equal (stored + 100)
+        , test "movedAt is the key of the step an undo went across" <|
+            \_ ->
+                fresh
+                    |> edit 1 1
+                    |> edit 2 2
+                    |> History.undo
+                    |> History.movedAt
+                    |> Expect.equal (Just 2)
+        , test "and of the step a redo went across" <|
+            \_ ->
+                fresh
+                    |> edit 1 1
+                    |> edit 2 2
+                    |> History.undo
+                    |> History.undo
+                    |> History.redo
+                    |> History.movedAt
+                    |> Expect.equal (Just 1)
+        , test "a burst of one field is one step with its key" <|
+            \_ ->
+                fresh
+                    |> edit 3 1
+                    |> edit 3 2
+                    |> edit 3 3
+                    |> History.undo
+                    |> Expect.all
+                        [ History.movedAt >> Expect.equal (Just 3)
+                        , History.present >> Expect.equal 0
+                        ]
+        , test "nothing before an undo, and nothing after the next change" <|
+            \_ ->
+                Expect.equal [ Nothing, Nothing, Nothing ]
+                    [ fresh |> edit 1 1 |> History.movedAt
+                    , fresh |> edit 1 1 |> History.undo |> edit 2 5 |> History.movedAt
+                    , recordAll [ 1 ] fresh |> History.undo |> History.movedAt
+                    ]
         ]
 
 
@@ -968,7 +1045,7 @@ shortcutTests : Test
 shortcutTests =
     let
         made =
-            History.shortcuts Locale.en { onUndo = Undo, onRedo = Redo }
+            History.shortcuts [] { onUndo = Undo, onRedo = Redo }
 
         -- a key press the way the browser reports it, heard by the element that listens
         pressed key modifiers =
@@ -1017,7 +1094,7 @@ shortcutTests =
             \_ ->
                 let
                     norwegian =
-                        History.shortcuts Locale.nb { onUndo = Undo, onRedo = Redo }
+                        History.shortcuts [ History.locale Locale.nb ] { onUndo = Undo, onRedo = Redo }
                 in
                 Expect.all
                     [ \_ -> Expect.equal [ "Angre", "Gjør om", "Gjør om" ] (List.map Shortcut.labelOf norwegian)

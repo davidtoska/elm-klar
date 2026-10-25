@@ -295,9 +295,13 @@ orderTests =
                     , \_ -> inBar |> Query.index 2 |> Query.has [ Selector.class "klar-bulk__actions" ]
                     ]
                     ()
-        , test "the bar is a named group" <|
+        , test "the bar is a group named with the count, so Tab into it says how many" <|
             \_ ->
-                bar [] 2 |> H.inside [ theBar ] [ H.attr "role" "group", H.attr "aria-label" "Actions for the selected items" ]
+                Expect.all
+                    [ \_ -> bar [] 2 |> H.inside [ theBar ] [ H.attr "role" "group", H.attr "aria-label" "Actions, 2 selected" ]
+                    , \_ -> bar [ everything 12340 25 ] 25 |> H.inside [ theBar ] [ H.attr "aria-label" "Actions, 25 of 12,340 selected" ]
+                    ]
+                    ()
         , test "the actions send their messages" <|
             \_ ->
                 Expect.all
@@ -514,10 +518,38 @@ localeTests =
                         , H.count 1 [ Selector.tag "button", Selector.containing [ Selector.text "Fjern valg" ] ]
                         ]
         , test "the group" <|
-            \_ -> bar [ BulkBar.locale Locale.nb ] 3 |> H.inside [ theBar ] [ H.attr "aria-label" "Handlinger for valgte elementer" ]
+            \_ -> bar [ BulkBar.locale Locale.nb ] 3 |> H.inside [ theBar ] [ H.attr "aria-label" "Handlinger, 3 valgt" ]
         , test "English is the default and uses commas" <|
             \_ -> bar [ everything 12340 25 ] 25 |> H.inside [ live ] [ Selector.exactText "25 of 12,340 selected" ]
+        , describe "with a name for the items" itemNameTests
         ]
+
+
+itemNameTests : List Test
+itemNameTests =
+    let
+        orders =
+            BulkBar.itemName { one = "order", other = "orders" }
+    in
+    [ test "one and several" <|
+        \_ ->
+            Expect.all
+                [ \_ -> bar [ orders ] 1 |> H.inside [ live ] [ Selector.exactText "1 order selected" ]
+                , \_ -> bar [ orders ] 12 |> H.inside [ live ] [ Selector.exactText "12 orders selected" ]
+                , \_ -> bar [ orders ] 12 |> H.inside [ Selector.class "klar-bulk__count" ] [ Selector.exactText "12 orders selected" ]
+                ]
+                ()
+    , test "of a total, named after the total" <|
+        \_ -> bar [ orders, everything 12340 25 ] 25 |> H.inside [ live ] [ Selector.exactText "25 of 12,340 orders selected" ]
+    , test "all of them, heard by a screen reader" <|
+        \_ -> bar [ orders, everything 12340 25 ] 12340 |> H.inside [ live ] [ Selector.exactText "All 12,340 orders selected" ]
+    , test "the name of the group says it too" <|
+        \_ -> bar [ orders ] 2 |> H.inside [ theBar ] [ H.attr "aria-label" "Actions, 2 orders selected" ]
+    , test "in Norwegian, with the words given" <|
+        \_ ->
+            bar [ BulkBar.locale Locale.nb, BulkBar.itemName { one = "ordre", other = "ordrer" } ] 3
+                |> H.inside [ live ] [ Selector.exactText "3 ordrer valgt" ]
+    ]
 
 
 
@@ -546,6 +578,4 @@ focusTests =
                         , H.none [ Selector.id "orders-bulk" ]
                         , H.none [ Selector.attribute (Attr.tabindex -1) ]
                         ]
-        , test "focus is a command" <|
-            \_ -> Expect.notEqual Cmd.none (BulkBar.focus "orders-bulk" Search)
         ]

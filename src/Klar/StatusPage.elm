@@ -1,9 +1,8 @@
 module Klar.StatusPage exposing
     ( view
-    , Kind, success, notFound, denied, sessionExpired, serverError, offline, maintenance, fromProblem
-    , Attribute, title, description, icon, actions, reference, onRetry
-    , headingLevel, standalone, id, locale
-    , focusTitle
+    , Kind, success, pageNotFound, forbidden, unauthorized, server, network, maintenance, fromProblem
+    , Attribute, title, description, icon, actions, reference, onRetry, retrying, backAt
+    , headingLevel, standalone, id, locale, settings
     )
 
 {-| A page that stands for a whole result: "Order created", "No access", "Page
@@ -11,18 +10,20 @@ not found", "Something went wrong on our side", "Down for maintenance".
 
 Use when: the whole page is one result, such as not found, no access, a server error, maintenance or success after a submit.
 Do not use when: the result sits inside a table, card or panel, use `Klar.EmptyState` or `Klar.ErrorState`.
+Quick path: `view` with a kind (`pageNotFound`, `forbidden`, `fromProblem`), `actions`, `onRetry`
 
     import Klar.Button as Button
+    import Klar.Remote as Remote exposing (Remote(..))
     import Klar.StatusPage as StatusPage
 
     -- the router found nothing for the address
     StatusPage.view
         [ StatusPage.actions [ Button.view [ Button.primary, Button.href "#/orders" ] "Go to orders" ] ]
-        StatusPage.notFound
+        StatusPage.pageNotFound
 
     -- the data of the page failed to load: the page follows the kind of the problem
     case model.order of
-        Failure problem ->
+        Failed problem ->
             StatusPage.view
                 [ StatusPage.onRetry ReloadOrder
                 , StatusPage.reference "req-7f3a-91c2"
@@ -44,10 +45,12 @@ It is the whole-page version of [Klar.EmptyState](Klar-EmptyState) and
 [Klar.ErrorState](Klar-ErrorState): use those inside a table, a card or a panel,
 and this when the result is the page. The page is centered, with a large calm
 title, a sentence under it and a row of actions that you give as buttons. The
-kind of page (`notFound`, `denied`, `serverError` ...) chooses the icon, the color
+kind of page (`pageNotFound`, `forbidden`, `server` ...) chooses the icon, the color
 and the built-in texts, in English and Norwegian Bokmål (see `locale`); `title`
-and `description` replace them. The kinds are values of an opaque type, so that
-more can be added later.
+and `description` replace them. The kinds of a failure have the names of the kinds of
+[`Remote.Kind`](Klar-Remote#Kind) and are the pages of those problems (`forbidden` is
+`fromProblem (Remote.problem Remote.forbidden)`). The kinds are values of an opaque
+type, so that more can be added later.
 
 
 # Semantics
@@ -65,9 +68,9 @@ to rely on.
 When the page replaces what the user was looking at without a navigation (the
 form that was just submitted, a list that failed to load), the focused button is
 gone with it and focus falls to the page body, so nothing is read. Give the page an
-`id` and, in the same `update` that shows it, call `focusTitle` with the same text:
+`id` and, in the same `update` that shows it, call `Klar.focus` with the same text:
 the title takes focus and the screen reader reads the result. Keep the text in one
-place, a value of your own, so that the two cannot differ; `focusTitle` does nothing
+place, a value of your own, so that the two cannot differ; `Klar.focus` does nothing
 when no element has the id.
 
     orderCreated : String
@@ -76,7 +79,17 @@ when no element has the id.
 
     StatusPage.view [ StatusPage.id orderCreated ] StatusPage.success
 
-    StatusPage.focusTitle orderCreated NoOp
+    Klar.focus orderCreated NoOp
+
+**Trying again in place.** "Try again" is a button of the page. Keep the page on the
+screen while the new request is on its way, with `retrying`: the button turns busy
+where it is and keeps focus, instead of a skeleton that takes the focused button away.
+When the answer comes, the page goes and the content (or a new status page) takes its
+place: move focus to it.
+
+    StatusPage.view
+        [ StatusPage.onRetry ReloadOrder, StatusPage.retrying model.reloading ]
+        (StatusPage.fromProblem problem)
 
 The page fills the height of the region it is in (the content of an `AppShell`, a
 panel with a height) without making it scroll, and grows when its content needs
@@ -95,22 +108,17 @@ selects completely (`user-select: all`); then `Ctrl C` copies it.
 
 # Kinds of pages
 
-@docs Kind, success, notFound, denied, sessionExpired, serverError, offline, maintenance, fromProblem
+@docs Kind, success, pageNotFound, forbidden, unauthorized, server, network, maintenance, fromProblem
 
 
 # Content
 
-@docs Attribute, title, description, icon, actions, reference, onRetry
+@docs Attribute, title, description, icon, actions, reference, onRetry, retrying, backAt
 
 
 # Structure and text
 
-@docs headingLevel, standalone, id, locale
-
-
-# Focus
-
-@docs focusTitle
+@docs headingLevel, standalone, id, locale, settings
 
 -}
 
@@ -121,14 +129,16 @@ import Klar.Icon as Icon exposing (Icon)
 import Klar.Internal as Internal
 import Klar.Locale as Locale exposing (Locale)
 import Klar.Remote as Remote exposing (Problem)
+import Klar.Settings as Settings exposing (Settings)
+import Time
 
 
 
 -- KINDS
 
 
-{-| What the page is about. Make one with `success`, `notFound`, `denied`,
-`sessionExpired`, `serverError`, `offline`, `maintenance` or, for a failed
+{-| What the page is about. Make one with `success`, `pageNotFound`, `forbidden`,
+`unauthorized`, `server`, `network`, `maintenance` or, for a failed
 request, `fromProblem`, and give it to `view`. The type is opaque, so that new
 kinds can be added without breaking anyone.
 -}
@@ -147,12 +157,13 @@ success =
     Success
 
 
-{-| The address matches nothing (404): "Page not found". A search icon in a
-quiet gray. For a single record that is missing, use `fromProblem` with
-`Remote.notFound` so that the texts of the problem are used.
+{-| The address matches no page of the application (the 404 of the router): "Page
+not found", with the advice to check the address. A search icon in a quiet gray. For
+a record that a request did not find, use `fromProblem` with `Remote.notFound` ("We
+couldn't find that"), so that the texts of the problem are used.
 -}
-notFound : Kind
-notFound =
+pageNotFound : Kind
+pageNotFound =
     NotFound
 
 
@@ -160,8 +171,8 @@ notFound =
 administrator. A lock in a quiet gray. It is `fromProblem` for a
 `Remote.forbidden` problem.
 -}
-denied : Kind
-denied =
+forbidden : Kind
+forbidden =
     FromProblem (Remote.problem Remote.forbidden)
 
 
@@ -169,16 +180,16 @@ denied =
 `fromProblem` for a `Remote.unauthorized` problem. Give it a sign-in button
 as an action.
 -}
-sessionExpired : Kind
-sessionExpired =
+unauthorized : Kind
+unauthorized =
     FromProblem (Remote.problem Remote.unauthorized)
 
 
 {-| The server failed (500): "Something went wrong on our side", in red. It is
 `fromProblem` for a `Remote.server` problem, and worth trying again (`onRetry`).
 -}
-serverError : Kind
-serverError =
+server : Kind
+server =
     FromProblem (Remote.problem Remote.server)
 
 
@@ -186,13 +197,13 @@ serverError =
 `fromProblem` for a `Remote.network` problem, and worth trying again
 (`onRetry`).
 -}
-offline : Kind
-offline =
+network : Kind
+network =
     FromProblem (Remote.problem Remote.network)
 
 
 {-| The service is down on purpose: "Down for maintenance", with a wrench. Worth
-trying again (`onRetry`) in a few minutes.
+trying again (`onRetry`) in a few minutes; `backAt` says when it is expected back.
 -}
 maintenance : Kind
 maintenance =
@@ -232,6 +243,9 @@ type alias Config msg =
     , actions : List (Html msg)
     , reference : Maybe String
     , onRetry : Maybe msg
+    , retrying : Bool
+    , backAt : Maybe Time.Posix
+    , settings : Settings
     , headingLevel : Int
     , standalone : Bool
     , id : Maybe String
@@ -248,6 +262,9 @@ configure attributes =
         , actions = []
         , reference = Nothing
         , onRetry = Nothing
+        , retrying = False
+        , backAt = Nothing
+        , settings = Settings.default
         , headingLevel = 1
         , standalone = False
         , id = Nothing
@@ -307,7 +324,7 @@ reference value =
 
 
 {-| The message sent by a "Try again" button, placed before your own actions. The
-button is there only when trying again can help: for `serverError`, `offline`,
+button is there only when trying again can help: for `server`, `network`,
 `maintenance` and a `fromProblem` page whose problem is worth retrying
 (`Remote.isRetryable`), and never for the others. Without `onRetry` there is no
 button.
@@ -315,6 +332,42 @@ button.
 onRetry : msg -> Attribute msg
 onRetry msg =
     Attribute (\config -> { config | onRetry = Just msg })
+
+
+{-| Whether the request that "Try again" sent is on its way: while `True` the button
+shows a spinner, is busy and ignores clicks, and keeps focus where it is
+(`Button.loading`). Pass a field of your model. The default is `False`.
+
+    StatusPage.retrying model.reloading
+
+-}
+retrying : Bool -> Attribute msg
+retrying value =
+    Attribute (\config -> { config | retrying = value })
+
+
+{-| When the service is expected back, for `maintenance`: the sentence under the title
+becomes "We are making improvements. Expected back at 14:30." The time is written in the
+zone of `settings` (in UTC, ending in "UTC", without it), as a time of day, so it is
+meant for a pause within the day. A `description` of your own wins over it; other
+kinds of page ignore it.
+
+    StatusPage.view
+        [ StatusPage.backAt model.backAt, StatusPage.settings model.settings ]
+        StatusPage.maintenance
+
+-}
+backAt : Time.Posix -> Attribute msg
+backAt at =
+    Attribute (\config -> { config | backAt = Just at })
+
+
+{-| The settings of the application (`Klar.Settings`): the time zone of the time of
+`backAt`. The default is `Settings.default`.
+-}
+settings : Settings -> Attribute msg
+settings given =
+    Attribute (\config -> { config | settings = given })
 
 
 {-| The level of the title element, from 1 to 6. The default is 1, because the
@@ -336,11 +389,13 @@ standalone =
     Attribute (\config -> { config | standalone = True })
 
 
-{-| The DOM id of the element that `focusTitle` moves focus to, which must be unique
+{-| The DOM id of the element that `Klar.focus` moves focus to, which must be unique
 on the page: the title, which becomes focusable, or the whole page when it has no
-title (a blank `title`), so that there is always something to focus. Give `focusTitle`
-the same text. There is no id by default, and without one `focusTitle` finds nothing
-and does nothing.
+title (a blank `title`), so that there is always something to focus. Give `Klar.focus`
+the same text. There is no id by default.
+
+    Klar.focus "order-created" NoOp
+
 -}
 id : String -> Attribute msg
 id value =
@@ -358,31 +413,13 @@ locale value =
 
 
 
--- FOCUS
-
-
-{-| Moves focus to the title of the page that has this `id` (the page itself when it
-has no title; see the attribute `id`). Pass the same text as to `id`: if no element
-has it, nothing happens. Call it in the same `update` that starts to show the page,
-when the page replaces what the user was working with. The message is sent when it is
-done, whether it worked or not.
-
-    StatusPage.focusTitle "order-created" NoOp
-
--}
-focusTitle : String -> msg -> Cmd msg
-focusTitle pageId done =
-    Internal.focus pageId done
-
-
-
 -- VIEW
 
 
 {-| The page: an icon, the title, a sentence, the actions and the reference,
 centered in the region.
 
-    StatusPage.view [ StatusPage.actions [ homeButton ] ] StatusPage.denied
+    StatusPage.view [ StatusPage.actions [ homeButton ] ] StatusPage.forbidden
 
 -}
 view : List (Attribute msg) -> Kind -> Html msg
@@ -392,7 +429,7 @@ view attributes kind =
             configure attributes
 
         facts =
-            describe config.locale kind
+            describe config kind
 
         shownTitle =
             Maybe.withDefault facts.title config.title
@@ -409,7 +446,7 @@ view attributes kind =
             case ( config.onRetry, facts.retryable ) of
                 ( Just msg, True ) ->
                     [ Button.view
-                        [ Button.icon Icon.refresh, Button.onClick msg ]
+                        [ Button.icon Icon.refresh, Button.loading config.retrying, Button.onClick msg ]
                         (Locale.pick config.locale { nb = "Prøv igjen", en = "Try again" })
                     ]
 
@@ -428,7 +465,7 @@ view attributes kind =
         shownTitleText =
             Internal.nonEmpty shownTitle
 
-        -- The element `focusTitle` finds: the title, or the page when it has none.
+        -- The element `Klar.focus` finds: the title, or the page when it has none.
         focusable =
             case config.id of
                 Just pageId ->
@@ -504,8 +541,12 @@ type alias Facts =
     }
 
 
-describe : Locale -> Kind -> Facts
-describe language kind =
+describe : Config msg -> Kind -> Facts
+describe config kind =
+    let
+        language =
+            config.locale
+    in
     case kind of
         Success ->
             { icon = Icon.checkCircle
@@ -537,10 +578,18 @@ describe language kind =
             , title = Locale.pick language { nb = "Under vedlikehold", en = "Down for maintenance" }
             , description =
                 Just
-                    (Locale.pick language
-                        { nb = "Vi gjør forbedringer og er snart tilbake. Prøv igjen om noen minutter."
-                        , en = "We are making improvements and will be back shortly. Try again in a few minutes."
-                        }
+                    (case config.backAt of
+                        Just at ->
+                            Locale.pick language
+                                { nb = "Vi gjør forbedringer. Ventet tilbake kl. " ++ Settings.time config.settings at ++ "."
+                                , en = "We are making improvements. Expected back at " ++ Settings.time config.settings at ++ "."
+                                }
+
+                        Nothing ->
+                            Locale.pick language
+                                { nb = "Vi gjør forbedringer og er snart tilbake. Prøv igjen om noen minutter."
+                                , en = "We are making improvements and will be back shortly. Try again in a few minutes."
+                                }
                     )
             , code = Nothing
             , retryable = True
@@ -561,7 +610,7 @@ iconFor kind =
     if kind == Remote.network then
         Icon.wifiOff
 
-    else if kind == Remote.timeout then
+    else if kind == Remote.timeout || kind == Remote.tooManyRequests then
         Icon.clock
 
     else if kind == Remote.server then
@@ -591,7 +640,7 @@ toneFor kind =
     if kind == Remote.notFound || kind == Remote.forbidden || kind == Remote.unauthorized then
         "neutral"
 
-    else if kind == Remote.network || kind == Remote.timeout || kind == Remote.validation || kind == Remote.conflict then
+    else if kind == Remote.network || kind == Remote.timeout || kind == Remote.tooManyRequests || kind == Remote.validation || kind == Remote.conflict then
         "warning"
 
     else

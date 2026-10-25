@@ -281,7 +281,7 @@ A refusal that names the field:
     InlineEdit.failed
         (Remote.problem Remote.validation |> Remote.withDetail "This domain is blocked.")
         model.website
-    -- "Could not save. The form has errors: This domain is blocked."
+    -- "Could not save. The request was rejected: This domain is blocked."
 
 ### `setValue`
 

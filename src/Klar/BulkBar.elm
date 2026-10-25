@@ -1,13 +1,14 @@
 module Klar.BulkBar exposing
-    ( view, focus
-    , Attribute, selectAllMatching, id, locale
+    ( view
+    , Attribute, selectAllMatching, itemName, id, locale
     )
 
 {-| The bar of actions for the items the user has selected: "12 selected: Export,
 Delete".
 
 Use when: a list, a grid of cards or another selectable collection needs actions for the selected items.
-Do not use when: the items are in a `Klar.Table`, which draws a bar of its own for its selection.
+Do not use when: the items are in a `Klar.Table`, which draws a bar of its own for its selection (`Table.bulkActions`).
+Quick path: `view` with the toolbar, the count and the message of Clear selection; `selectAllMatching`; `id`, for `Klar.focus` after Clear selection
 
     import Klar.BulkBar as BulkBar
     import Klar.Button as Button
@@ -16,6 +17,7 @@ Do not use when: the items are in a `Klar.Table`, which draws a bar of its own f
 
     BulkBar.view
         [ BulkBar.id "orders-bulk"
+        , BulkBar.itemName { one = "order", other = "orders" }
         , BulkBar.selectAllMatching
             { total = model.matching, onPage = List.length model.page, onSelectAll = SelectAllOrders }
         ]
@@ -40,7 +42,8 @@ the place of the toolbar that is already there, in the same box. You hand that
 `toolbar` to `view`; it is always drawn, and while something is selected the bar
 covers it (the toolbar keeps its place, its size and its state, a search field
 keeps its text, but it cannot be reached with the keyboard or the mouse until the
-bar goes away). The place is as tall as the taller of the two, always: with a count
+bar goes away). The bar has the size of the toolbar: `Toolbar.small` and `Toolbar.large`
+change both. The place is as tall as the taller of the two, always: with a count
 of zero (or less) the bar is drawn all the same, out of sight and out of reach of the
 mouse, the keyboard and screen readers, as it would look for a whole page of ticked items
 (with the offer to select everything), so that its height is counted even when the bar
@@ -62,7 +65,9 @@ region that is always on the page and whose text changes, so a screen reader fin
 what it is reading and then says "12 selected", never a new announcement for every
 click of a quick selection. Only changes are announced: a bar that is drawn for the
 first time with items already selected says nothing. The count going down to zero is
-not announced either; say what happened yourself, with a [Klar.Toast](Klar-Toast).
+not announced either; say what happened yourself, with a [Klar.Toast](Klar-Toast). The
+bar is a group named with the count ("Actions, 12 selected"), so a screen reader that
+moves into it with `Tab` hears how many items its buttons act on.
 
 
 # Focus
@@ -76,27 +81,35 @@ the whole bar away, and with it the button that has focus. A focused element tha
 disappears leaves focus on the page body: a screen reader says nothing, and only some
 browsers continue the next `Tab` from where the button was. The bar cannot move focus
 itself, since it keeps no state and a click sends a single message, so the application
-does it in the same `update`, with one call that works for all of these cases:
+does it in the same `update`, with one call that works for all of these cases: give the
+bar an `id` and move focus to it with [`Klar.focus`](Klar#focus).
 
     ClearSelection ->
         ( { model | selected = Set.empty }
-        , BulkBar.focus "orders-bulk" NoOp
+        , Klar.focus "orders-bulk" NoOp
         )
 
-`focus` gives focus to the box that the toolbar and the bar share. That box is on the
-page whether or not something is selected, so it is there to receive focus when the bar
-has gone, and the next `Tab` reaches the first control of the toolbar. It needs the
-`id` attribute. If you would rather return to the list, focus the list yourself.
+The id is on the box that the toolbar and the bar share. That box is on the page whether
+or not something is selected, so it is there to receive focus when the bar has gone, and
+the next `Tab` reaches the first control of the toolbar. If you would rather return to
+the list, focus the list yourself.
+
+**Selecting from the toolbar.** While something is selected the toolbar is inert, and a
+focused element that becomes inert loses focus to the page. Keep the controls that
+select (the box that ticks the whole page) in the list, not in the toolbar. When a
+selection can start while focus is in the toolbar (a shortcut pressed in its search
+field), call `Klar.focus` with the same id in that `update` too: the next `Tab` then
+reaches the bar.
 
 
 # View
 
-@docs view, focus
+@docs view
 
 
 # Attributes
 
-@docs Attribute, selectAllMatching, id, locale
+@docs Attribute, selectAllMatching, itemName, id, locale
 
 -}
 
@@ -118,6 +131,7 @@ type Attribute msg
 
 type alias Config msg =
     { all : Maybe (Everything msg)
+    , itemName : Maybe { one : String, other : String }
     , id : Maybe String
     , locale : Locale
     }
@@ -133,7 +147,7 @@ type alias Everything msg =
 configure : List (Attribute msg) -> Config msg
 configure attributes =
     List.foldl (\(Attribute change) config -> change config)
-        { all = Nothing, id = Nothing, locale = Locale.default }
+        { all = Nothing, itemName = Nothing, id = Nothing, locale = Locale.default }
         attributes
 
 
@@ -166,8 +180,25 @@ selectAllMatching options =
     Attribute (\config -> { config | all = Just options })
 
 
+{-| What the items are called, in the language of the page, one and several: the bar
+then says "12 orders selected", "200 of 12,340 orders selected" and "1 order selected",
+and so does the name of the group and what a screen reader is told. The default is no
+name: "12 selected". Give the words in the language you give to `locale`.
+
+    BulkBar.itemName { one = "order", other = "orders" }
+
+-}
+itemName : { one : String, other : String } -> Attribute msg
+itemName forms =
+    Attribute (\config -> { config | itemName = Just forms })
+
+
 {-| The DOM id of the box that the toolbar and the bar share, which must be unique on
-the page. It lets `focus` find the box. There is no id by default.
+the page. With it the box can take focus, so that `Klar.focus` has a place to put it
+when the bar goes away. There is no id by default.
+
+    Klar.focus "orders-bulk" NoOp
+
 -}
 id : String -> Attribute msg
 id value =
@@ -184,30 +215,12 @@ locale value =
     Attribute (\config -> { config | locale = value })
 
 
-{-| Gives focus to the box with this `id` (see the attribute `id`) that the toolbar and
-the bar share. The box is on the page whether or not something is selected, so this
-works after the bar has gone. Call it in the `update` that handles "Clear selection"
-and your own actions that empty the selection, because the button that was pressed is
-gone with the bar. The next `Tab` reaches the first control of the toolbar. The
-message is sent when it is done, whether it worked or not.
-
-    ClearSelection ->
-        ( { model | selected = Set.empty }
-        , BulkBar.focus "orders-bulk" NoOp
-        )
-
--}
-focus : String -> msg -> Cmd msg
-focus boxId done =
-    Internal.focus boxId done
-
-
 {-| The toolbar with the bar over it. `toolbar` is what the bar covers while
 something is selected; `selected` is the number of selected items (zero or less
 draws no bar); `onClear` is the message sent by "Clear selection". The `actions`
-are your buttons and menus, which sit at the right end of the bar before "Clear
-selection". Use small ghost or ordinary buttons: the bar has the height of a
-toolbar, and `Toolbar.small` and `Toolbar.large` change both together.
+are your buttons and menus, which sit at the end of the bar before "Clear
+selection". Use ghost or ordinary buttons: the bar has the size of the toolbar it
+covers, and `Toolbar.small` and `Toolbar.large` change both together.
 -}
 view :
     List (Attribute msg)
@@ -236,7 +249,7 @@ view attributes options actions =
                 reservedCount config
 
         texts =
-            countTexts config.locale shownCount (knownTotal shownCount config)
+            countTexts config.locale config.itemName shownCount (knownTotal shownCount config)
     in
     -- The three children keep their places whether or not something is selected, so
     -- that Elm updates them in place: the toolbar keeps its state and the live
@@ -297,7 +310,7 @@ viewBar config onClear hidden count shown actions =
                 else
                     [ Attr.attribute "role" "group"
                     , Attr.attribute "aria-label"
-                        (Locale.pick language { nb = "Handlinger for valgte elementer", en = "Actions for the selected items" })
+                        (Locale.pick language { nb = "Handlinger, " ++ shown, en = "Actions, " ++ shown })
                     ]
                )
         )
@@ -412,14 +425,23 @@ selected", and, when everything is selected, "12,340 selected" in the bar (the b
 beside it says "All matching selected") and "All 12,340 selected" to a screen reader,
 which is not looking at the button.
 -}
-countTexts : Locale -> Int -> Maybe Int -> { shown : String, heard : String }
-countTexts language count total =
+countTexts : Locale -> Maybe { one : String, other : String } -> Int -> Maybe Int -> { shown : String, heard : String }
+countTexts language name count total =
     let
         n =
             Format.int language count
 
+        -- " orders" after a number, when the items have a name
+        named k =
+            case name of
+                Just forms ->
+                    " " ++ Format.plural language k forms
+
+                Nothing ->
+                    ""
+
         plain =
-            Locale.pick language { nb = n ++ " valgt", en = n ++ " selected" }
+            Locale.pick language { nb = n ++ named count ++ " valgt", en = n ++ named count ++ " selected" }
     in
     case total of
         Just known ->
@@ -427,15 +449,15 @@ countTexts language count total =
                 let
                     ofTotal =
                         Locale.pick language
-                            { nb = n ++ " av " ++ Format.int language known ++ " valgt"
-                            , en = n ++ " of " ++ Format.int language known ++ " selected"
+                            { nb = n ++ " av " ++ Format.int language known ++ named known ++ " valgt"
+                            , en = n ++ " of " ++ Format.int language known ++ named known ++ " selected"
                             }
                 in
                 { shown = ofTotal, heard = ofTotal }
 
             else if count > 1 then
                 { shown = plain
-                , heard = Locale.pick language { nb = "Alle " ++ n ++ " valgt", en = "All " ++ n ++ " selected" }
+                , heard = Locale.pick language { nb = "Alle " ++ n ++ named count ++ " valgt", en = "All " ++ n ++ named count ++ " selected" }
                 }
 
             else

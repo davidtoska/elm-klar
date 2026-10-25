@@ -3832,22 +3832,29 @@
       "msg": [],
       "ids": [],
       "stateful": false,
-      "quickPath": [],
+      "quickPath": [
+        "view",
+        "pageNotFound",
+        "forbidden",
+        "fromProblem",
+        "actions",
+        "onRetry"
+      ],
       "mainFunctions": [
         "view",
         "success",
-        "notFound",
-        "denied",
-        "sessionExpired",
-        "serverError",
-        "offline",
+        "pageNotFound",
+        "forbidden",
+        "unauthorized",
+        "server",
+        "network",
         "maintenance"
       ],
       "related": [
+        "Klar.Remote",
         "Klar.EmptyState",
         "Klar.ErrorState",
-        "Klar.Locale",
-        "Klar.Remote"
+        "Klar.Locale"
       ],
       "keywords": [
         "status page",
@@ -3867,15 +3874,19 @@
       "group": "Pages and flow",
       "purpose": "The bar of actions for the items the user has selected: \"12 selected: Export, Delete\".",
       "whenToUse": "a list, a grid of cards or another selectable collection needs actions for the selected items.",
-      "whenNot": "the items are in a `Klar.Table`, which draws a bar of its own for its selection.",
+      "whenNot": "the items are in a `Klar.Table`, which draws a bar of its own for its selection (`Table.bulkActions`).",
       "state": [],
       "msg": [],
       "ids": [],
       "stateful": false,
-      "quickPath": [],
-      "mainFunctions": [
+      "quickPath": [
         "view",
-        "focus"
+        "selectAllMatching",
+        "id",
+        "Klar.focus"
+      ],
+      "mainFunctions": [
+        "view"
       ],
       "related": [
         "Klar.Locale",
@@ -3913,6 +3924,7 @@
         "request",
         "onUrlChange",
         "update",
+        "follow",
         "view"
       ],
       "mainFunctions": [
@@ -4709,16 +4721,20 @@
       "msg": [],
       "ids": [],
       "stateful": false,
-      "quickPath": [],
+      "quickPath": [
+        "refresh",
+        "settle",
+        "Remote"
+      ],
       "mainFunctions": [
         "fromResult",
         "map",
+        "map2",
         "toMaybe",
         "withDefault",
         "isLoading",
         "isLoaded",
-        "isFailed",
-        "refresh"
+        "isFailed"
       ],
       "related": [],
       "keywords": [
@@ -4741,14 +4757,19 @@
       "name": "Klar.RemoteView",
       "import": "import Klar.RemoteView as RemoteView",
       "group": "Data and utilities",
-      "purpose": "The body of a card, a dialog or a drawer that shows one piece of remote data: a loading skeleton that screen readers hear, the failure with a retry, and the data, old or being refreshed.",
+      "purpose": "The body of a card, a dialog or a drawer that shows one piece of remote data.",
       "whenToUse": "the body of a card, a dialog or a drawer shows one piece of remote data.",
       "whenNot": "the data is a table or a list (use `Klar.Table` or `Klar.ListItem`, which take a `Remote` themselves).",
       "state": [],
       "msg": [],
       "ids": [],
       "stateful": false,
-      "quickPath": [],
+      "quickPath": [
+        "view",
+        "onRetry",
+        "id",
+        "emptyState"
+      ],
       "mainFunctions": [
         "view"
       ],
@@ -4764,8 +4785,7 @@
         "dialog",
         "drawer",
         "piece",
-        "remote",
-        "loading"
+        "remote"
       ],
       "reference": "ai/modules/Klar.RemoteView.md"
     },

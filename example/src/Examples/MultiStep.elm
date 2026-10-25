@@ -14,7 +14,7 @@ The pattern:
 1.  Declare the steps with the fields: `Spec.step Customer "Customer" |> Spec.with ... |> Spec.step Review "Review"`. A last step with no fields is the review step. The form keeps which step the user is on; the application has only `Home | Order | Done` routes.
 2.  "Next" and "Place order" are one button: `Form.advance` checks the current step (or the whole form on the last), shows the problems, focuses the summary, and gives `submit = Just values` when everything passed. "Back" is `Form.back`. `Form.stepper` draws the steps and marks the ones with problems; `Form.summary` on the review step lists every problem with a button that goes there. The fields of the current step are drawn inside `Form.stepBody v [ ... ]`: it keys them by step, so Elm makes new inputs for the next step instead of reusing the focused input of the old one for the field at the same place (which `advance`'s focus move would blur, and show "Required" on a field nobody touched).
 3.  `LeaveGuard.Guard Source Route` is made with `initAt` and told `LeaveGuard.setDirty OrderForm (Form.isDirty state)` after each form message.
-4.  Links ask first: `LeaveGuard.request`. The browser Back and Forward buttons are answered by `LeaveGuard.onUrlChange` in `UrlChanged`: with unsaved input the page stays and the dialog opens. "Leave" resets the form and pushes the held route; "Stay" needs no code.
+4.  Links ask first: `LeaveGuard.request`. The browser Back and Forward buttons are answered by `LeaveGuard.onUrlChange` in `UrlChanged`: with unsaved input the page stays and the dialog opens. Every "Leave" (after a link or after Back) gives a decision: the form is reset there, and `LeaveGuard.follow` goes to the route (it pushes a link, and does nothing after Back, where the address is already there). "Stay" needs no code.
 5.  The submit sets `FormLayout.Submitting`, then `FormLayout.Failed problem` (with a retry button) or a toast, a clean form and the done route. Try the customer `Crash` for a failure. The retry button has its own message (`Retry`): it runs `Next` and `FormLayout.focusStatus`, because "Try again" is replaced by "Saving ..." the moment it is pressed and focus would fall to the page.
 
 -}
@@ -292,11 +292,12 @@ update msg model =
                     ( next, Cmd.map GuardMsg cmd )
 
                 Just answer ->
-                    -- "Leave": the changes are given up
+                    -- "Leave", from a link or from the Back button: the changes are given up
+                    -- here, and follow goes there (it pushes a link; after Back the address is there)
                     ( { next | order = Form.init form, status = FormLayout.Idle }
                     , Cmd.batch
                         [ Cmd.map GuardMsg cmd
-                        , Nav.pushUrl model.key (routeToPath (LeaveGuard.destination answer))
+                        , LeaveGuard.follow routeToPath answer guard
                         ]
                     )
 

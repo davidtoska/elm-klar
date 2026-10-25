@@ -25,7 +25,7 @@ own source and its showcase, not guidance.
 - **The `String` you give to `init` is the DOM id**, unique on the page. Keep them as named values in one place.
 - **Backend data is a `Remote a`** (`NotAsked | Loading | Loaded a | Failed Problem | Kept (Kept a)`; `Kept` is old data during or after a refresh, see the traps). Give it to
   `Table.rows`, `Stat.remote`, `Chart.remote`, `Tree.viewRemote`, `Select.remote` ...: they draw the skeleton, the failure
-  with retry and the empty state. Klar never sends a request; you turn the result into a `Remote` with `Remote.fromResult`.
+  with retry and the empty state. Klar never sends a request: `Remote.refresh` when it leaves, `Remote.settle model.orders result` when the answer comes (a failed refresh keeps the data, marked old).
 - **Your ids are your own types**, written as text once per type as a `Klar.Ids` (`Ids.make { toKey, fromKey }`; `Ids.list` for a closed set such as your pages; `Ids.string`, `Ids.int`) and given to every component that holds them: `Table.rowId`, `Tree.leaf`, `Picking.leaf`, `Sortable.view`, `SideNav.item`, `Spec.choice`, `Rule.choiceFieldOf`.
   A table column is a `Table.columnId "total"`, named once.
 - **Overlays go in one list**: `Modal`, `Drawer`, `ConfirmDialog`, `CommandPalette`, `ShortcutHelp`, `Toast`, `LeaveGuard` return an
@@ -190,6 +190,7 @@ update msg model =
                     ( { model | orders = Remote.refreshWith model.orders result at }, Cmd.none )
 
         Reload ->
+            -- the rows stay on the screen, dimmed, until the answer comes
             ( { model | orders = Remote.refresh model.orders }, fetchOrders )
 
 
@@ -288,7 +289,7 @@ pageFromUrl url =
 - **Words that call a palette item** ("go to order 1001"): `CommandPalette.withCommand "go to order"` on the item and `CommandPalette.argument items palette` for the text to send to the backend.
 - **Keep saved views** with `SavedViews.encode` / `SavedViews.decoder` (and `Table.encodeQuery` / `Table.queryDecoder`); the library stores nothing, you choose where the JSON goes.
 - **A footer range worded your way** ("1 to 25 of 200"): `Table.rangeText` (same in `ServerList.viewTable`), `Pagination.rangeText`.
-- **Leaving a page with unsaved work**: `LeaveGuard`, six functions, one complete program at the top of its doc. Call `setDirty` in the branches of the messages that edit a form, never in a wrapper after every message, and reset the form you leave when the user answers "Leave" (`Examples/MultiStep.elm`).
+- **Leaving a page with unsaved work**: `LeaveGuard`, six functions, one complete program at the top of its doc. Call `setDirty` in the branches of the messages that edit a form, never in a wrapper after every message, and reset the form you leave in the branch that gets the decision of "Leave" (every Leave gives one, after a link and after Back), then go with `LeaveGuard.follow toPath answer guard` (`Examples/MultiStep.elm`).
 - **A sidebar that is not a `SideNav`**: `AppShell.sidebar` takes any `Html` (a `Tree`, a list of saved views).
 
 ## Common traps
@@ -296,7 +297,7 @@ pageFromUrl url =
 Each is checked against the current source; the ones the library has fixed are gone.
 
 - **Give a component its data once.** `Chart.remote`, `Stat.remote`, `Table.rows` take a `Remote`, including its old data; do not add `loading` or `failed` next to them.
-- **`Remote` has a fifth constructor, `Kept`** (old data while a refresh runs, or after it failed). A `case` of your own needs a branch for it, or use `Remote.toMaybe` / `RemoteView.view`. Start a refresh with `Remote.refresh`, finish it with `Remote.refreshWith old result now`; never write a failed refresh over good data.
+- **`Remote` has a fifth constructor, `Kept`** (old data while a refresh runs, or after it failed). A `case` of your own needs a branch for it, or use `Remote.toMaybe` / `RemoteView.view`. Start a request with `Remote.refresh`, finish it with `Remote.settle old result` (`Remote.refreshWith old result at` when you have the time of the answer); never write a failed refresh over good data with `Remote.fromResult`.
 - **A `Modal` with a text field opens with focus on the dialog.** Use `Modal.openWith { opener = id, focus = [ fieldId ] }`.
 - **Focus returns to an opener only if it has an id** (`Button.id`, a `SideNav` link, a field). Without one it goes to the last element that had an id, which may be elsewhere (`LeaveGuard` "Stay" too).
 - **A `ConfirmDialog` may hold one or two controls in `body`** (a reason, a target); a real form is a `Modal`. **Server-mode `Table.exportCsv`** offers the selection only while every selected row is on the page; export from the backend for a selection that spans pages.
@@ -379,8 +380,7 @@ toProblem error =
         _ -> Remote.problem Remote.unknown
 ```
 
-and `result |> Result.mapError toProblem |> Remote.fromResult` (or `Remote.refreshWith old result now`) is the
-`Remote` you give the component.
+and `Remote.settle model.orders (Result.mapError toProblem result)` is the `Remote` you give the component.
 
 **For the `CLAUDE.md` of the application** (with the path where Klar lives):
 

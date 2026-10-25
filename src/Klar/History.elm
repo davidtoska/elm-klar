@@ -1,8 +1,8 @@
 module Klar.History exposing
     ( History, init, withLimit, present
     , record, Option, label, coalesce, endBurst
-    , undo, redo, canUndo, canRedo, undoLabel, redoLabel
-    , markSaved, isAtSavedPoint, saved, clear, reset
+    , undo, redo, canUndo, canRedo, undoLabel, redoLabel, movedAt
+    , markSaved, markSavedAs, isAtSavedPoint, saved, clear, reset
     , controls, Attribute, locale, showShortcuts, shortcuts
     )
 
@@ -66,7 +66,8 @@ another edit with another key (or none) is recorded, with `undo`, `redo`, `markS
 history as a whole. A burst that ends where it began leaves no step.
 
 **The saved point** is the value that counts as saved. `init` makes the first value
-the saved one; call `markSaved` after a successful save and `reset` after loading
+the saved one; call `markSaved` after a successful save (`markSavedAs` when the
+backend answers with the record as it stored it) and `reset` after loading
 another record. `isAtSavedPoint` is true whenever the present value equals the saved
 one, also after typing a change and undoing it, so it is the dirty flag of the form:
 `LeaveGuard.setDirty OrderForm (not (History.isAtSavedPoint history))`.
@@ -89,12 +90,12 @@ the only visible part of this module.
 
 # Undo and redo
 
-@docs undo, redo, canUndo, canRedo, undoLabel, redoLabel
+@docs undo, redo, canUndo, canRedo, undoLabel, redoLabel, movedAt
 
 
 # The saved point
 
-@docs markSaved, isAtSavedPoint, saved, clear, reset
+@docs markSaved, markSavedAs, isAtSavedPoint, saved, clear, reset
 
 
 # Controls and shortcuts
@@ -104,7 +105,7 @@ the only visible part of this module.
 to `Shortcut.listen`, `Shortcut.subscription` and `Shortcut.update` with your
 others:
 
-    Shortcut.listen ShortcutMsg (History.shortcuts Locale.en { onUndo = UndoPressed, onRedo = RedoPressed } ++ others) model.shortcuts
+    Shortcut.listen ShortcutMsg (History.shortcuts [] { onUndo = UndoPressed, onRedo = RedoPressed } ++ others) model.shortcuts
 
 `Ctrl Z` in a text field is the field's own undo unless the shortcut is marked
 `Shortcut.inInputs`. If the history records every key typed in the fields, mark
@@ -136,27 +137,31 @@ with `init`.
 type History key a
     = History
         { limit : Int
-        , past : List (Step a)
+        , past : List (Step key a)
         , present : a
-        , future : List (Step a)
+        , future : List (Step key a)
         , saved : a
         , burst : Maybe key
-        , moved : Maybe Moved
+        , moved : Maybe (Moved key)
         }
 
 
-{-| One step: a value on the other side of an edit, and what the edit was called.
-In `past` it is the value before the edit; in `future` the value after it.
+{-| One step: a value on the other side of an edit, what the edit was called, and
+the `coalesce` key it was recorded with. In `past` it is the value before the edit;
+in `future` the value after it.
 -}
-type alias Step a =
+type alias Step key a =
     { value : a
     , label : Maybe String
+    , key : Maybe key
     }
 
 
-type Moved
-    = Undone (Maybe String)
-    | Redone (Maybe String)
+{-| The last undo or redo: its label for the announcement and the key of its step.
+-}
+type Moved key
+    = Undone (Maybe String) (Maybe key)
+    | Redone (Maybe String) (Maybe key)
 
 
 defaultLimit : Int
@@ -298,7 +303,7 @@ record options value (History state) =
             _ ->
                 History
                     { state
-                        | past = List.take state.limit ({ value = state.present, label = edit.label } :: state.past)
+                        | past = List.take state.limit ({ value = state.present, label = edit.label, key = edit.key } :: state.past)
                         , present = value
                         , future = []
                         , burst = edit.key
@@ -342,9 +347,9 @@ undo (History state) =
                 { state
                     | past = earlier
                     , present = step.value
-                    , future = List.take state.limit ({ value = state.present, label = step.label } :: state.future)
+                    , future = List.take state.limit ({ value = state.present, label = step.label, key = step.key } :: state.future)
                     , burst = Nothing
-                    , moved = Just (Undone step.label)
+                    , moved = Just (Undone step.label step.key)
                 }
 
 
@@ -360,11 +365,11 @@ redo (History state) =
         step :: later ->
             History
                 { state
-                    | past = List.take state.limit ({ value = state.present, label = step.label } :: state.past)
+                    | past = List.take state.limit ({ value = state.present, label = step.label, key = step.key } :: state.past)
                     , present = step.value
                     , future = later
                     , burst = Nothing
-                    , moved = Just (Redone step.label)
+                    , moved = Just (Redone step.label step.key)
                 }
 
 
@@ -397,6 +402,43 @@ redoLabel (History state) =
     state.future |> List.head |> Maybe.andThen .label
 
 
+{-| Where the last `undo` or `redo` changed the value: the `coalesce` key of the step it
+went across, such as the field that was edited. After Ctrl Z on a long form the change
+can be out of sight. For the shortcut, move focus to it, so that the user sees what was
+undone (`fieldId` is your own function from a key to the DOM id of its field); the
+buttons of `controls` keep focus instead, so that the user can press them again:
+
+    UndoKey ->
+        let
+            history =
+                History.undo model.history
+        in
+        ( { model | history = history }
+        , case History.movedAt history of
+            Just field ->
+                Klar.focus (fieldId field) NoOp
+
+            Nothing ->
+                Cmd.none
+        )
+
+`Nothing` when the step had no key, when nothing was undone or redone, and after the
+next change of any kind (the same rule as the announcement of `controls`).
+
+-}
+movedAt : History key a -> Maybe key
+movedAt (History state) =
+    case state.moved of
+        Just (Undone _ key) ->
+            key
+
+        Just (Redone _ key) ->
+            key
+
+        Nothing ->
+            Nothing
+
+
 
 -- THE SAVED POINT
 
@@ -409,6 +451,21 @@ one undo goes back to what was saved.
 markSaved : History key a -> History key a
 markSaved (History state) =
     History { state | saved = state.present, burst = Nothing, moved = Nothing }
+
+
+{-| Says that this value is the saved one and the present one: the save succeeded and
+the backend answered with the record as it stored it (a new version, a time of the
+change, trimmed text). The steps stay, so the user can still undo past the save, and
+`isAtSavedPoint` is true against the stored record. No step is recorded: the user did
+not make this change. It ends the open burst, like `markSaved`.
+
+    Saved (Ok stored) ->
+        ( { model | history = History.markSavedAs stored model.history }, Cmd.none )
+
+-}
+markSavedAs : a -> History key a -> History key a
+markSavedAs value (History state) =
+    History { state | present = value, saved = value, burst = Nothing, moved = Nothing }
 
 
 {-| Is the present value equal to the saved one? It is, right after `init`,
@@ -460,10 +517,10 @@ reset value (History state) =
 -- CONTROLS
 
 
-{-| A setting of the controls. Make them with the functions below and pass a list
-to `controls`; later attributes win over earlier ones.
+{-| A setting of the controls and the shortcuts. Make them with the functions below
+and pass a list to `controls` or `shortcuts`; later attributes win over earlier ones.
 -}
-type Attribute
+type Attribute msg
     = Attribute (Config -> Config)
 
 
@@ -473,7 +530,7 @@ type alias Config =
     }
 
 
-configure : List Attribute -> Config
+configure : List (Attribute msg) -> Config
 configure attributes =
     List.foldl (\(Attribute change) config -> change config)
         { locale = Locale.default, showShortcuts = False }
@@ -481,10 +538,11 @@ configure attributes =
 
 
 {-| The language of the built-in text: the names of the buttons, "Undid: ..." and
-"Redid: ..." for screen readers, and the name of the group. The default is
-[`Locale.default`](Klar-Locale#default), which is English.
+"Redid: ..." for screen readers, the name of the group, and the names of the shortcuts
+on the shortcut sheet. The default is [`Locale.default`](Klar-Locale#default), which is
+English.
 -}
-locale : Locale -> Attribute
+locale : Locale -> Attribute msg
 locale value =
     Attribute (\config -> { config | locale = value })
 
@@ -493,7 +551,7 @@ locale value =
 technology about them (`aria-keyshortcuts`). Add it only when the application has
 registered `shortcuts`: a hint for a key that does nothing is a lie.
 -}
-showShortcuts : Attribute
+showShortcuts : Attribute msg
 showShortcuts =
     Attribute (\config -> { config | showShortcuts = True })
 
@@ -516,11 +574,17 @@ redoKeys =
 convention) for redo; `Cmd` instead of `Ctrl` on a Mac. They are listed in the group
 "Edit" of the shortcut sheet, redo twice, once for each pair of keys. Add them to the
 list you give to [Klar.Shortcut](Klar-Shortcut); see the top of this section for the
-fields that are typed in.
+fields that are typed in. The attributes are those of `controls`; `locale` names them.
+
+    History.shortcuts [ History.locale model.locale ] { onUndo = UndoPressed, onRedo = RedoPressed }
+
 -}
-shortcuts : Locale -> { onUndo : msg, onRedo : msg } -> List (Shortcut msg)
-shortcuts language messages =
+shortcuts : List (Attribute msg) -> { onUndo : msg, onRedo : msg } -> List (Shortcut msg)
+shortcuts attributes messages =
     let
+        language =
+            (configure attributes).locale
+
         group =
             Locale.pick language { nb = "Redigering", en = "Edit" }
     in
@@ -541,7 +605,7 @@ always on the page, as it must be to be heard.
     History.controls [] { onUndo = UndoPressed, onRedo = RedoPressed } model.history
 
 -}
-controls : List Attribute -> { onUndo : msg, onRedo : msg } -> History key a -> Html msg
+controls : List (Attribute msg) -> { onUndo : msg, onRedo : msg } -> History key a -> Html msg
 controls attributes messages ((History state) as history) =
     let
         config =
@@ -649,19 +713,19 @@ ariaKey cap =
         cap
 
 
-announcement : Locale -> Moved -> String
+announcement : Locale -> Moved key -> String
 announcement language moved =
     case moved of
-        Undone (Just text) ->
+        Undone (Just text) _ ->
             Locale.pick language { nb = "Angret: " ++ text, en = "Undid: " ++ text }
 
-        Undone Nothing ->
+        Undone Nothing _ ->
             Locale.pick language { nb = "Angret siste endring", en = "Undid the last change" }
 
-        Redone (Just text) ->
+        Redone (Just text) _ ->
             Locale.pick language { nb = "Gjort om: " ++ text, en = "Redid: " ++ text }
 
-        Redone Nothing ->
+        Redone Nothing _ ->
             Locale.pick language { nb = "Gjort om endringen", en = "Redid the change" }
 
 
@@ -670,14 +734,14 @@ replaced by the same text is no change. So that two undos in a row with the same
 label are both heard, the announcement is a keyed child that is replaced by
 another one for every step.
 -}
-announcementKey : Moved -> History key a -> String
+announcementKey : Moved key -> History key a -> String
 announcementKey moved (History state) =
     String.join "-"
         [ case moved of
-            Undone _ ->
+            Undone _ _ ->
                 "undone"
 
-            Redone _ ->
+            Redone _ _ ->
                 "redone"
         , String.fromInt (List.length state.past)
         , String.fromInt (List.length state.future)

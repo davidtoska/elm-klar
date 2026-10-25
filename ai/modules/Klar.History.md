@@ -29,20 +29,22 @@ canUndo : History key a -> Bool
 canRedo : History key a -> Bool
 undoLabel : History key a -> Maybe String
 redoLabel : History key a -> Maybe String
+movedAt : History key a -> Maybe key
 
 -- The saved point
 markSaved : History key a -> History key a
+markSavedAs : a -> History key a -> History key a
 isAtSavedPoint : History key a -> Bool
 saved : History key a -> a
 clear : History key a -> History key a
 reset : a -> History key a -> History key a
 
 -- Controls and shortcuts
-type Attribute  -- opaque: no constructors are exposed
-controls : List Attribute -> { onUndo : msg, onRedo : msg } -> History key a -> Html msg
-locale : Locale.Locale -> Attribute
-showShortcuts : Attribute
-shortcuts : Locale.Locale -> { onUndo : msg, onRedo : msg } -> List (Shortcut.Shortcut msg)
+type Attribute msg  -- opaque: no constructors are exposed
+controls : List (Attribute msg) -> { onUndo : msg, onRedo : msg } -> History key a -> Html msg
+locale : Locale.Locale -> Attribute msg
+showShortcuts : Attribute msg
+shortcuts : List (Attribute msg) -> { onUndo : msg, onRedo : msg } -> List (Shortcut.Shortcut msg)
 ```
 
 ## Documentation
@@ -107,7 +109,8 @@ another edit with another key (or none) is recorded, with `undo`, `redo`, `markS
 history as a whole. A burst that ends where it began leaves no step.
 
 **The saved point** is the value that counts as saved. `init` makes the first value
-the saved one; call `markSaved` after a successful save and `reset` after loading
+the saved one; call `markSaved` after a successful save (`markSavedAs` when the
+backend answers with the record as it stored it) and `reset` after loading
 another record. `isAtSavedPoint` is true whenever the present value equals the saved
 one, also after typing a change and undoing it, so it is the dirty flag of the form:
 `LeaveGuard.setDirty OrderForm (not (History.isAtSavedPoint history))`.
@@ -270,6 +273,35 @@ redoLabel : History key a -> Maybe String
 
 The label of the step `redo` would bring back, if it has one.
 
+### `movedAt`
+
+```elm
+movedAt : History key a -> Maybe key
+```
+
+Where the last `undo` or `redo` changed the value: the `coalesce` key of the step it
+went across, such as the field that was edited. After Ctrl Z on a long form the change
+can be out of sight. For the shortcut, move focus to it, so that the user sees what was
+undone (`fieldId` is your own function from a key to the DOM id of its field); the
+buttons of `controls` keep focus instead, so that the user can press them again:
+
+    UndoKey ->
+        let
+            history =
+                History.undo model.history
+        in
+        ( { model | history = history }
+        , case History.movedAt history of
+            Just field ->
+                Klar.focus (fieldId field) NoOp
+
+            Nothing ->
+                Cmd.none
+        )
+
+`Nothing` when the step had no key, when nothing was undone or redone, and after the
+next change of any kind (the same rule as the announcement of `controls`).
+
 ## The saved point
 
 ### `markSaved`
@@ -282,6 +314,21 @@ Says that the present value is the saved one. Call it when a save has
 succeeded. The steps stay, so the user can still undo past the save, and it ends
 the burst that is open: what is typed after a save is a step of its own, so that
 one undo goes back to what was saved.
+
+### `markSavedAs`
+
+```elm
+markSavedAs : a -> History key a -> History key a
+```
+
+Says that this value is the saved one and the present one: the save succeeded and
+the backend answered with the record as it stored it (a new version, a time of the
+change, trimmed text). The steps stay, so the user can still undo past the save, and
+`isAtSavedPoint` is true against the stored record. No step is recorded: the user did
+not make this change. It ends the open burst, like `markSaved`.
+
+    Saved (Ok stored) ->
+        ( { model | history = History.markSavedAs stored model.history }, Cmd.none )
 
 ### `isAtSavedPoint`
 
@@ -330,7 +377,7 @@ another record. Every step is forgotten; the limit stays.
 to `Shortcut.listen`, `Shortcut.subscription` and `Shortcut.update` with your
 others:
 
-    Shortcut.listen ShortcutMsg (History.shortcuts Locale.en { onUndo = UndoPressed, onRedo = RedoPressed } ++ others) model.shortcuts
+    Shortcut.listen ShortcutMsg (History.shortcuts [] { onUndo = UndoPressed, onRedo = RedoPressed } ++ others) model.shortcuts
 
 `Ctrl Z` in a text field is the field's own undo unless the shortcut is marked
 `Shortcut.inInputs`. If the history records every key typed in the fields, mark
@@ -340,16 +387,16 @@ text of the one field.
 ### `Attribute`
 
 ```elm
-type Attribute  -- opaque: no constructors are exposed
+type Attribute msg  -- opaque: no constructors are exposed
 ```
 
-A setting of the controls. Make them with the functions below and pass a list
-to `controls`; later attributes win over earlier ones.
+A setting of the controls and the shortcuts. Make them with the functions below
+and pass a list to `controls` or `shortcuts`; later attributes win over earlier ones.
 
 ### `controls`
 
 ```elm
-controls : List Attribute -> { onUndo : msg, onRedo : msg } -> History key a -> Html msg
+controls : List (Attribute msg) -> { onUndo : msg, onRedo : msg } -> History key a -> Html msg
 ```
 
 Two icon buttons, "Undo" and "Redo", and a polite live region. The buttons are
@@ -367,17 +414,18 @@ always on the page, as it must be to be heard.
 ### `locale`
 
 ```elm
-locale : Locale.Locale -> Attribute
+locale : Locale.Locale -> Attribute msg
 ```
 
 The language of the built-in text: the names of the buttons, "Undid: ..." and
-"Redid: ..." for screen readers, and the name of the group. The default is
-[`Locale.default`](Klar.Locale.md#default), which is English.
+"Redid: ..." for screen readers, the name of the group, and the names of the shortcuts
+on the shortcut sheet. The default is [`Locale.default`](Klar.Locale.md#default), which is
+English.
 
 ### `showShortcuts`
 
 ```elm
-showShortcuts : Attribute
+showShortcuts : Attribute msg
 ```
 
 Shows `Ctrl Z` and `Ctrl Shift Z` in the tooltips and tells assistive
@@ -387,11 +435,13 @@ registered `shortcuts`: a hint for a key that does nothing is a lie.
 ### `shortcuts`
 
 ```elm
-shortcuts : Locale.Locale -> { onUndo : msg, onRedo : msg } -> List (Shortcut.Shortcut msg)
+shortcuts : List (Attribute msg) -> { onUndo : msg, onRedo : msg } -> List (Shortcut.Shortcut msg)
 ```
 
 The shortcuts: `Ctrl Z` for undo, and `Ctrl Shift Z` and `Ctrl Y` (the Windows
 convention) for redo; `Cmd` instead of `Ctrl` on a Mac. They are listed in the group
 "Edit" of the shortcut sheet, redo twice, once for each pair of keys. Add them to the
 list you give to [Klar.Shortcut](Klar.Shortcut.md); see the top of this section for the
-fields that are typed in.
+fields that are typed in. The attributes are those of `controls`; `locale` names them.
+
+    History.shortcuts [ History.locale model.locale ] { onUndo = UndoPressed, onRedo = RedoPressed }
