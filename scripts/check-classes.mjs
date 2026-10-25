@@ -114,14 +114,38 @@ if (process.argv.includes('--update')) {
 
 // One class, one owner: a bare class selector (`.klar-mark {`) that starts rules in two
 // stylesheet modules is two components that picked the same name, and the later module
-// silently restyles the earlier one's elements.
+// silently restyles the earlier one's elements. Only rules at the top level of a
+// stylesheet count: the shared lists inside an at-rule (the one reduced-motion list and
+// the print block of Base) name the classes of other modules on purpose.
+function topLevelSelectors(text) {
+  const found = [];
+  let depth = 0;
+  let start = 0;
+  for (let i = 0; i < text.length; i++) {
+    const c = text[i];
+    if (c === '{') {
+      const prelude = text.slice(start, i).trim();
+      if (depth === 0 && !prelude.startsWith('@')) found.push(prelude);
+      depth++;
+      start = i + 1;
+    } else if (c === '}') {
+      depth = Math.max(0, depth - 1);
+      start = i + 1;
+    } else if (c === ';' && depth === 0) {
+      start = i + 1;
+    }
+  }
+  return found;
+}
 const owners = new Map();
 const clashes = [];
 for (const file of walk(path.join(root, 'src', 'Klar', 'Internal', 'Css'), '.elm')) {
   const name = path.basename(file);
-  const text = fs.readFileSync(file, 'utf8').replace(/\/\*[\s\S]*?\*\//g, '');
-  for (const m of text.matchAll(/(?:^|[\n};])\s*([^{}@;]+?)\s*\{/g)) {
-    for (const selector of m[1].split(',').map((s) => s.trim())) {
+  const source = fs.readFileSync(file, 'utf8');
+  // the CSS is the text of the triple-quoted strings; the Elm around it has braces of its own
+  const css = [...source.matchAll(/"""([\s\S]*?)"""/g)].map((m) => m[1]).join('\n').replace(/\/\*[\s\S]*?\*\//g, '');
+  for (const prelude of topLevelSelectors(css)) {
+    for (const selector of prelude.split(',').map((s) => s.trim())) {
       if (!/^\.klar-[a-zA-Z0-9_-]+$/.test(selector)) continue;
       const cls = selector.slice(1);
       const first = owners.get(cls);
