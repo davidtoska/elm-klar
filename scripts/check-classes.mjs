@@ -81,53 +81,38 @@ if (process.argv.includes('--update')) {
 
 // One class, one owner: a bare class selector (`.klar-mark {`) that starts rules in two
 // stylesheet modules is two components that picked the same name, and the later module
-// silently restyles the earlier one's elements. Only the rules at the top level count:
-// a rule inside `@media` or `@supports` (reduced motion, print, forced colors) is an
-// override of a class that has its rules elsewhere, and any module may write one.
-function topLevelSelectors(css) {
-  const out = [];
-  const open = []; // one entry per open block: true for an at-rule, false for a rule
-  let prelude = '';
-  let quote = null;
-  for (const ch of css) {
-    if (quote !== null) {
-      if (ch === quote) quote = null;
-      if (open.length === 0) prelude += ch;
-      continue;
-    }
-    if (ch === '"' || ch === "'") {
-      quote = ch;
-      if (open.length === 0) prelude += ch;
-    } else if (ch === '{') {
-      const text = prelude.trim();
-      const atRule = text.startsWith('@');
-      if (!atRule && open.length === 0) out.push(text);
-      open.push(atRule);
-      prelude = '';
-    } else if (ch === '}') {
-      open.pop();
-      prelude = '';
-    } else if (ch === ';') {
-      prelude = '';
-    } else {
-      prelude += ch;
+// silently restyles the earlier one's elements. Only rules at the top level of a
+// stylesheet count: the shared lists inside an at-rule (the one reduced-motion list and
+// the print block of Base) name the classes of other modules on purpose.
+function topLevelSelectors(text) {
+  const found = [];
+  let depth = 0;
+  let start = 0;
+  for (let i = 0; i < text.length; i++) {
+    const c = text[i];
+    if (c === '{') {
+      const prelude = text.slice(start, i).trim();
+      if (depth === 0 && !prelude.startsWith('@')) found.push(prelude);
+      depth++;
+      start = i + 1;
+    } else if (c === '}') {
+      depth = Math.max(0, depth - 1);
+      start = i + 1;
+    } else if (c === ';' && depth === 0) {
+      start = i + 1;
     }
   }
-  return out;
+  return found;
 }
-
 const owners = new Map();
 const clashes = [];
 for (const file of walk(path.join(root, 'src', 'Klar', 'Internal', 'Css'), '.elm')) {
   const name = path.basename(file);
   const source = fs.readFileSync(file, 'utf8');
-  // the CSS is the one triple-quoted string of the module
-  const start = source.indexOf('"""');
-  const end = source.lastIndexOf('"""');
-  if (start < 0 || end <= start) continue;
-  const css = source.slice(start + 3, end).replace(/\/\*[\s\S]*?\*\//g, '');
-  for (const selectors of topLevelSelectors(css)) {
-    for (const selector of selectors.split(',').map((s) => s.trim())) {
+  // the CSS is the text of the triple-quoted strings; the Elm around it has braces of its own
+  const css = [...source.matchAll(/"""([\s\S]*?)"""/g)].map((m) => m[1]).join('\n').replace(/\/\*[\s\S]*?\*\//g, '');
+  for (const prelude of topLevelSelectors(css)) {
+    for (const selector of prelude.split(',').map((s) => s.trim())) {
       if (!/^\.klar-[a-zA-Z0-9_-]+$/.test(selector)) continue;
       const cls = selector.slice(1);
       const first = owners.get(cls);
