@@ -47,7 +47,8 @@ HTML is shown as text, links are checked, images are not loaded unless you say s
 with `preview`; the ids of its headings start with the id of the editor and `-md-`, so
 that text written in the editor cannot make an element with the id of the label or
 the hint of the field, and its headings are two levels down (a `#` is an `h3`), so
-that the outline of the page has no `h1` inside a form (see `preview` to change it).
+that the outline of the page has no `h1` inside a form (see `preview` to change it);
+a heading still looks like its level in the text, as in `Markdown.view`.
 The preview follows the text as it is typed; for a text of more than
 8,000 characters it waits for a pause of a quarter of a second, so typing never
 waits for it, and says that it is catching up (`aria-busy`). It is not announced to
@@ -655,8 +656,9 @@ sideBySide =
 The `locale` and the `idPrefix` of the preview are the editor's own, and its headings
 are moved down two levels (`Markdown.headingOffset 2`: a `#` is an `h3`), because the
 preview is part of a form on a page that has headings of its own. A `Markdown.locale`,
-`Markdown.idPrefix` or `Markdown.headingOffset` in this list wins over them; give the
-offset you use where the text is shown, so the preview looks like the result. Define
+`Markdown.idPrefix` or `Markdown.headingOffset` in this list wins over them. The
+offset changes only the elements, not the look (a heading is drawn by its level in the
+text), so the preview looks like the result at any offset. Define
 the list once (a constant) and the preview is not redrawn while the text waits for its
 pause.
 

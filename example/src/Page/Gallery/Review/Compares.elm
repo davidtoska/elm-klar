@@ -186,7 +186,6 @@ productsExample locale model =
     , Compare.onRetry Retry
     , Compare.id "compare-products"
     , Compare.locale locale
-    , Compare.settings model.settings
     ]
     { ariaLabel = "Compare products"
     , ids = productIds

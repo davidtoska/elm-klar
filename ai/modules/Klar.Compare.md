@@ -294,9 +294,11 @@ Lets the user choose the baseline: the heading of every record gets a small butt
 "Set as baseline", and the function gets the id of the record that was chosen. Keep
 it in your model and give it back with `baseline`. The heading of the baseline says
 "Baseline" in the same place, as a button that cannot be pressed
-(`aria-disabled`), so the focus stays where the user pressed. Without this attribute
-the baseline is the application's choice alone. With a single record there is no
-button.
+(`aria-disabled`), so the focus stays where the user pressed. A screen reader hears
+each button with the title of its record ("Set as baseline Widget"): the ids that tie
+them are made from `id`, or from the `ariaLabel` when there is none, so two
+comparisons on one page need different ones. Without this attribute the baseline is
+the application's choice alone. With a single record there is no button.
 
     Compare.onBaseline BaselineChosen
 

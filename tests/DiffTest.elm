@@ -621,6 +621,45 @@ interactionTests =
         , test "a key that is not in the diff changes nothing" <|
             \_ ->
                 Expect.equal policy.state (Tuple.first (Diff.goToHunk policy.diff "nope" policy.state))
+        , test "the current change is kept by its key when the diff is made again, never by its place" <|
+            \_ ->
+                let
+                    twentyLines changed =
+                        List.range 1 20
+                            |> List.map
+                                (\n ->
+                                    if List.member n changed then
+                                        "line " ++ String.fromInt n ++ " changed"
+
+                                    else
+                                        "line " ++ String.fromInt n
+                                )
+                            |> String.join "\n"
+
+                    threeChanges =
+                        Diff.lines [] (twentyLines []) (twentyLines [ 1, 10, 19 ])
+
+                    twoChanges =
+                        Diff.lines [] (twentyLines []) (twentyLines [ 10, 19 ])
+
+                    middle =
+                        Diff.hunks threeChanges |> List.drop 1 |> List.head |> Maybe.map Diff.hunkKey
+
+                    ( state, _ ) =
+                        Diff.goToHunk threeChanges (Maybe.withDefault "" middle) (Diff.init "diff")
+
+                    keyIn diff =
+                        Diff.currentHunk diff state |> Maybe.map Diff.hunkKey
+                in
+                Expect.all
+                    [ \_ -> Expect.equal 3 (List.length (Diff.hunks threeChanges))
+                    , \_ -> Expect.equal middle (keyIn threeChanges)
+
+                    -- the first change is gone: the second place is now another change
+                    , \_ -> Expect.equal middle (keyIn twoChanges)
+                    , \_ -> Expect.equal Nothing (keyIn (Diff.lines [] "a" "b"))
+                    ]
+                    ()
         , test "pressing the fold opens it" <|
             \_ ->
                 press [] (button "16 unchanged lines") long

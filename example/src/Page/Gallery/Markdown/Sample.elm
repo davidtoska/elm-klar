@@ -16,7 +16,8 @@ This document shows what Klar.Markdown understands. It is about a
 delivery, because that is something every warehouse knows. Text can be **strong**,
 *emphasized*, ***both***, ~~struck through~~ and `inline code`; a line can end with
 two spaces
-to break the line.
+to break the line. A link to a heading of the text goes there: see [the notes](#notes)
+or [the table](#table).
 
 ## Summary
 

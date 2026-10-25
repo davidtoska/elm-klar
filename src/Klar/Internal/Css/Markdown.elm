@@ -40,12 +40,13 @@ css =
   line-height: var(--klar-leading-tight);
 }
 
-.klar-md h1 { font-size: var(--klar-text-2xl); }
-.klar-md h2 { font-size: var(--klar-text-xl); }
-.klar-md h3 { font-size: var(--klar-text-lg); }
-.klar-md h4 { font-size: var(--klar-text-md); }
-.klar-md h5 { font-size: var(--klar-text-md); font-weight: var(--klar-weight-medium); color: var(--klar-text-secondary); }
-.klar-md h6 { font-size: var(--klar-text-sm); font-weight: var(--klar-weight-medium); color: var(--klar-text-muted); }
+/* A heading looks like its level in the text: headingOffset moves only the element. */
+.klar-md .klar-md__h1 { font-size: var(--klar-text-2xl); }
+.klar-md .klar-md__h2 { font-size: var(--klar-text-xl); }
+.klar-md .klar-md__h3 { font-size: var(--klar-text-lg); }
+.klar-md .klar-md__h4 { font-size: var(--klar-text-md); }
+.klar-md .klar-md__h5 { font-size: var(--klar-text-md); font-weight: var(--klar-weight-medium); color: var(--klar-text-secondary); }
+.klar-md .klar-md__h6 { font-size: var(--klar-text-sm); font-weight: var(--klar-weight-medium); color: var(--klar-text-muted); }
 
 /* A heading has more room above than below, so that it belongs to what follows. */
 .klar-md > :is(h1, h2, h3, h4, h5, h6) { margin-top: var(--klar-space-5); }

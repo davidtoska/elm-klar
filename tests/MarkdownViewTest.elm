@@ -147,6 +147,14 @@ headingsTests =
                         , Query.has [ Selector.tag "h6", Selector.id "md-b" ]
                         , Query.has [ Selector.tag "h6", Selector.id "md-c" ]
                         ]
+        , test "the offset moves the elements, not the look: three h6 stay three levels" <|
+            \_ ->
+                query [ Markdown.headingOffset 5 ] "# A\n\n## B\n\n### C"
+                    |> Expect.all
+                        [ Query.has [ Selector.tag "h6", Selector.id "md-a", Selector.class "klar-md__h1" ]
+                        , Query.has [ Selector.tag "h6", Selector.id "md-b", Selector.class "klar-md__h2" ]
+                        , Query.has [ Selector.tag "h6", Selector.id "md-c", Selector.class "klar-md__h3" ]
+                        ]
         , test "the offset is at most five and at least nothing" <|
             \_ ->
                 Expect.all

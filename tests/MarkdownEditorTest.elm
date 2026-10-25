@@ -511,6 +511,22 @@ previewTests =
                         , Query.has [ Selector.tag "h4" ]
                         , Query.hasNot [ Selector.tag "h1" ]
                         ]
+        , test "a heading of the preview looks like the same heading in the result" <|
+            \_ ->
+                Expect.all
+                    [ \_ ->
+                        render [] (start "# Title\n\n## Part")
+                            |> Query.find [ Selector.attribute (Attr.attribute "aria-label" "Preview") ]
+                            |> Expect.all
+                                [ Query.find [ Selector.tag "h3" ] >> Query.has [ Selector.class "klar-md__h1" ]
+                                , Query.find [ Selector.tag "h4" ] >> Query.has [ Selector.class "klar-md__h2" ]
+                                ]
+                    , \_ ->
+                        Query.fromHtml (Markdown.view [] "# Title")
+                            |> Query.find [ Selector.tag "h1" ]
+                            |> Query.has [ Selector.class "klar-md__h1" ]
+                    ]
+                    ()
         , test "the application chooses the offset of the preview" <|
             \_ ->
                 render [ Editor.preview [ Markdown.headingOffset 0 ] ] (start "# Title")

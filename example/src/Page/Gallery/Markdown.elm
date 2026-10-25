@@ -8,6 +8,8 @@ time; text that tries to do harm; and the Markdown editor with its preview.
 import Browser.Dom as Dom
 import Html exposing (Html)
 import Html.Attributes as Attr
+import Html.Events as Events
+import Json.Decode as Decode
 import Klar.Button as Button
 import Klar.Checkbox as Checkbox
 import Klar.Format as Format
@@ -224,7 +226,7 @@ documentSection locale model =
                 (String.repeat (Markdown.headingLevel heading - 1) "\u{2003}" ++ Markdown.headingText heading)
     in
     Doc.section "A document"
-        "Headings, paragraphs, emphasis, links, quotes, lists (loose, nested, numbered, tasks), code, tables and images. The parser is part of the library, not the browser: HTML is shown as text, links are checked, and images are links until the page says otherwise. The table of contents is made from Markdown.headings and moves the box to the heading by its id."
+        "Headings, paragraphs, emphasis, links, quotes, lists (loose, nested, numbered, tasks), code, tables and images. The parser is part of the library, not the browser: HTML is shown as text, links are checked, and images are links until the page says otherwise. The table of contents is made from Markdown.headings and moves the box to the heading by its id. A link in the text to one of its headings ([the notes](#notes)) gets the prefix, #doc-notes; this showcase is a Browser.application, where such a click is a UrlRequest, so the page draws these links with Markdown.customLink and moves the box itself."
         [ Doc.example
             { title = "Every feature, and a table of contents"
             , description = Just "Wide tables and code scroll inside their own box, and a box that can scroll takes the Tab key. Each paragraph chooses its direction."
@@ -234,8 +236,16 @@ documentSection locale model =
 in
 Layout.row [ Layout.gap 4 ]
     [ Layout.stack [] (List.map tocEntry (Markdown.headings [ Markdown.idPrefix "doc-" ] document))
-    , Markdown.viewDocument [ Markdown.idPrefix "doc-" ] document
-    ]"""
+    , Markdown.viewDocument [ Markdown.idPrefix "doc-", Markdown.customLink headingLink ] document
+    ]
+
+-- in a Browser.application a link is a UrlRequest: the page moves the box itself
+headingLink link =
+    if String.startsWith "#doc-" link.href then
+        Just (Html.a [ Attr.href link.href, Events.preventDefaultOn "click" (Decode.succeed ( ScrollTo (String.dropLeft 1 link.href), True )) ] link.content)
+
+    else
+        Nothing"""
             }
             (Layout.row [ Layout.gap 6, Layout.alignStart ]
                 [ Layout.stack [ Layout.gap 1, Layout.alignStart ] (List.map entry headings)
@@ -247,12 +257,12 @@ Layout.row [ Layout.gap 4 ]
                     , Attr.style "overflow" "auto"
                     , Attr.style "padding-right" "12px"
                     ]
-                    [ Markdown.viewDocument [ Markdown.locale locale, Markdown.idPrefix idPrefix ] model.document ]
+                    [ Markdown.viewDocument [ Markdown.locale locale, Markdown.idPrefix idPrefix, Markdown.customLink headingLink ] model.document ]
                 ]
             )
         , Doc.example
             { title = "Links of your own: citations"
-            , description = Just "Markdown.customLink draws the links that the page wants to draw itself, after the checks of the module, and gives Nothing for the others. Here [1](#cite-1) becomes a button that shows its source. Character references such as &nbsp;, &mdash;, &amp; and &copy; are the characters they stand for, never markup. A link in the text to one of its headings ([Pricing](#pricing)) goes to the id of that heading, with the prefix."
+            , description = Just "Markdown.customLink draws the links that the page wants to draw itself, after the checks of the module, and gives Nothing for the others. Here [1](#cite-1) becomes a button that shows its source. Character references such as &nbsp;, &mdash;, &amp; and &copy; are the characters they stand for, never markup."
             , code = Just """Markdown.view [ Markdown.customLink citation ] answer
 
 citation link =
@@ -287,6 +297,27 @@ citation link =
             }
             (Markdown.view [ Markdown.headingOffset 2 ] "# Title\n\n## Section\n\n#### Detail, written as level four")
         ]
+
+
+{-| A link of the document to one of its own headings (`[the notes](#notes)`, which is
+`#doc-notes` on the page). The showcase is a `Browser.application`: a click on a link
+is a `UrlRequest`, and `Main` leaves fragments that are not routes alone, so the link
+moves the box with the document to the heading itself.
+-}
+headingLink : { href : String, external : Bool, title : String, content : List (Html Msg) } -> Maybe (Html Msg)
+headingLink link =
+    if String.startsWith ("#" ++ idPrefix) link.href then
+        Just
+            (Html.a
+                [ Attr.href link.href
+                , Attr.class "klar-md__link"
+                , Events.preventDefaultOn "click" (Decode.succeed ( ScrollTo (String.dropLeft 1 link.href), True ))
+                ]
+                link.content
+            )
+
+    else
+        Nothing
 
 
 {-| The citations of an answer, `[1](#cite-1)`, as buttons that show their source.

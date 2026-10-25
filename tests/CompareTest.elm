@@ -463,6 +463,16 @@ baselineTests =
                         [ Query.count (Expect.equal 2)
                         , Query.index 1 >> Event.simulate Event.click >> Event.expect (Chosen 3)
                         ]
+        , test "every button is named with the title of its record, so a screen reader tells them apart" <|
+            \_ ->
+                shown [ Compare.onBaseline Chosen, Compare.id "cmp" ] products
+                    |> Expect.all
+                        [ Query.find [ Selector.id "cmp-pick-2" ] >> Query.has [ Selector.attribute (Attr.attribute "aria-labelledby" "cmp-pick-2 cmp-title-2") ]
+                        , Query.find [ Selector.id "cmp-title-2" ] >> Query.has [ Selector.text "Gadget" ]
+                        , Query.find [ Selector.id "cmp-pick-3" ] >> Query.has [ Selector.attribute (Attr.attribute "aria-labelledby" "cmp-pick-3 cmp-title-3") ]
+                        , Query.find [ Selector.id "cmp-title-3" ] >> Query.has [ Selector.text "Gizmo" ]
+                        , Query.find [ Selector.id "cmp-pick-1" ] >> Query.has [ Selector.attribute (Attr.attribute "aria-labelledby" "cmp-pick-1 cmp-title-1"), Selector.text "Baseline" ]
+                        ]
         , test "the baseline has the button in the same place, saying so, and it cannot be pressed" <|
             \_ ->
                 shown [ Compare.onBaseline Chosen, Compare.baseline 2 ] products

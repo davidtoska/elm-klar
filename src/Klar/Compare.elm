@@ -273,9 +273,11 @@ baseline value =
 "Set as baseline", and the function gets the id of the record that was chosen. Keep
 it in your model and give it back with `baseline`. The heading of the baseline says
 "Baseline" in the same place, as a button that cannot be pressed
-(`aria-disabled`), so the focus stays where the user pressed. Without this attribute
-the baseline is the application's choice alone. With a single record there is no
-button.
+(`aria-disabled`), so the focus stays where the user pressed. A screen reader hears
+each button with the title of its record ("Set as baseline Widget"): the ids that tie
+them are made from `id`, or from the `ariaLabel` when there is none, so two
+comparisons on one page need different ones. Without this attribute the baseline is
+the application's choice alone. With a single record there is no button.
 
     Compare.onBaseline BaselineChosen
 
@@ -771,6 +773,9 @@ viewRecords config t columns freshness records =
             , budget = wordBudget baselineAt shown
             }
 
+        namePrefix =
+            Maybe.withDefault ("klar-compare-" ++ Internal.sanitizeId columns.ariaLabel) config.domId
+
         headRow =
             Keyed.node "tr"
                 []
@@ -782,6 +787,17 @@ viewRecords config t columns freshness records =
                             let
                                 isBaseline =
                                     index == baselineAt && recordCount >= 2
+
+                                picking =
+                                    config.onBaseline /= Nothing && recordCount >= 2
+
+                                -- the button is named by its words and the title of its
+                                -- record, so that a screen reader tells the buttons apart
+                                titleId =
+                                    namePrefix ++ "-title-" ++ Internal.sanitizeId key
+
+                                pickId =
+                                    namePrefix ++ "-pick-" ++ Internal.sanitizeId key
                             in
                             ( "record " ++ key
                             , Html.th
@@ -795,7 +811,7 @@ viewRecords config t columns freshness records =
                                     ]
                                 , Attr.scope "col"
                                 ]
-                                [ Html.div [ Internal.cls [ "klar-compare__title" ] ] [ columns.header record ]
+                                [ Html.div [ Internal.cls [ "klar-compare__title" ], Internal.attrIf picking (Attr.id titleId) ] [ columns.header record ]
                                 , case ( config.onBaseline, recordCount >= 2 ) of
                                     ( Just toMsg, True ) ->
                                         -- every record has the button, the baseline's says so and
@@ -811,6 +827,8 @@ viewRecords config t columns freshness records =
                                                     ""
                                                 ]
                                             , Attr.type_ "button"
+                                            , Attr.id pickId
+                                            , Attr.attribute "aria-labelledby" (pickId ++ " " ++ titleId)
                                             , if isBaseline then
                                                 Attr.attribute "aria-disabled" "true"
 

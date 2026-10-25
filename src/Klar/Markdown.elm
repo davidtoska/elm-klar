@@ -75,10 +75,31 @@ closed; when a blank line follows it, it is finished, and an unclosed `**` is te
 `headings`). The prefix keeps text that someone else wrote from making an element
 with an id of the page, such as `main` or `app`, or one that a form field points at;
 `idPrefix` chooses another. A link in the text to one of its own headings, as a table of
-contents in the text writes it (`[Pricing](#pricing)`), goes to that heading: the
-prefix is put in front of it. A link to `"#" ++ id` changes the fragment of the address,
-which a single page application that routes by the fragment takes for a route:
-scroll to the heading with `Browser.Dom` instead. `headingOffset` moves the
+contents in the text writes it (`[Pricing](#pricing)`), gets the prefix
+(`#md-pricing`), so it names the heading. In a `Browser.element` the browser then goes
+to the heading. In a `Browser.application` every click on a link is a `UrlRequest`, and
+the link goes nowhere unless `update` handles it: for a fragment that starts with the
+prefix, scroll to the heading instead of changing the address (in a box that
+scrolls, move the box with `Browser.Dom.setViewportOf`):
+
+    UrlRequested (Browser.Internal url) ->
+        case url.fragment of
+            Just fragment ->
+                if String.startsWith "md-" fragment then
+                    ( model
+                    , Browser.Dom.getElement fragment
+                        |> Task.andThen (\heading -> Browser.Dom.setViewport 0 heading.element.y)
+                        |> Task.attempt (\_ -> NoOp)
+                    )
+
+                else
+                    ( model, Nav.pushUrl model.key (Url.toString url) )
+
+            Nothing ->
+                ( model, Nav.pushUrl model.key (Url.toString url) )
+
+To draw such a link as something else, such as a button that sends a message of the
+page, use `customLink`: its `href` already has the prefix. `headingOffset` moves the
 headings down for a document inside a page that has headings of its own: levels
 never go past `h6`, and a heading is never more than one level deeper than the
 one before it, so the outline has no gaps.
@@ -312,11 +333,38 @@ locale value =
 
 {-| Moves every heading down by this many levels (0 to 5), for a document that is
 shown under headings of its own: with `headingOffset 2` a `#` is an `h3`. Levels
-stop at `h6`. Default 0.
+stop at `h6`. Default 0. It changes the outline that screen readers read, not the
+look: a heading is drawn by its level in the text, so a `#` looks the same at every
+offset, and `####` and `######` stay different when both are an `h6`.
 -}
 headingOffset : Int -> Attribute msg
 headingOffset levels =
     Attribute (\config -> { config | offset = clamp 0 5 levels })
+
+
+{-| The look of a heading, by its level in the text (not by its element, which
+`headingOffset` moves).
+-}
+headingClass : Int -> String
+headingClass level =
+    case level of
+        1 ->
+            "klar-md__h1"
+
+        2 ->
+            "klar-md__h2"
+
+        3 ->
+            "klar-md__h3"
+
+        4 ->
+            "klar-md__h4"
+
+        5 ->
+            "klar-md__h5"
+
+        _ ->
+            "klar-md__h6"
 
 
 {-| Text put in front of the id of every heading. Default `"md-"`, so that text which
@@ -528,7 +576,7 @@ viewBlock config tight block =
 
         HeadingBlock heading ->
             [ Internal.heading (min 6 (heading.level + config.offset))
-                [ Attr.id (config.prefix ++ heading.id), autoDirection ]
+                [ Attr.id (config.prefix ++ heading.id), Internal.cls [ headingClass heading.level ], autoDirection ]
                 (viewInlines config heading.content)
             ]
 

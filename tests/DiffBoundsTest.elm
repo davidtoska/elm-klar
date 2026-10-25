@@ -596,6 +596,10 @@ nameTests =
                         [ theOnlyOne (Query.has [ group, Selector.class "klar-diff" ])
                         , Query.fromHtml >> Query.find [ Selector.class "klar-diff__scroll" ] >> Query.hasNot [ Selector.attribute (Attr.tabindex 0) ]
                         ]
+        , test "in the viewer wrapped lines stay a tab stop with the name, so n and p can be reached with Tab" <|
+            \_ ->
+                viewOf [ label, Diff.wrapLines ] (start linesDiff)
+                    |> theOnlyOne (Query.has [ region, Selector.class "klar-diff__scroll", Selector.attribute (Attr.tabindex 0) ])
         , test "wrapped lines with a height scroll up and down, so the box is a tab stop again" <|
             \_ ->
                 viewOf [ label, Diff.wrapLines, Diff.maxHeight 200 ] (start linesDiff)
