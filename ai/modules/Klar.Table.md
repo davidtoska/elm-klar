@@ -1322,7 +1322,8 @@ selectable : Attribute id row msg
 
 Adds a checkbox column, a "select all on this page" checkbox in the header,
 and a bar that covers the toolbar while something is selected (see
-`bulkActions`). Needs `rowId`; Space selects the focused row, and rows that are
+`bulkActions`). Needs `rowId`: without it there are no checkboxes at all, because a
+selection kept by position would point at other rows after a sort. Space selects the focused row, and rows that are
 `rowDisabled` cannot be selected. Shift and a click on a checkbox, or Shift+Space,
 give the rows from the one picked last to this one the state this one gets (as in a
 mail client), and Ctrl+A (Cmd+A) on a row selects every row of the page (of all
@@ -1404,7 +1405,7 @@ of each row and draws `render row` in a full-width cell below an open row.
 ArrowRight and ArrowLeft expand and collapse the focused row, and without
 `onRowClick` a click on the row toggles it too; a `rowDisabled` row does none of
 this. Which rows are open is part of the state (see `expandedIds` and
-`expand`).
+`expand`). Needs `rowId`: without it no row expands.
 
 ### `rowTone`
 

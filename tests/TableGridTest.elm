@@ -147,6 +147,14 @@ rangeTests =
                     |> Event.simulate (keyFrom { type_ = "text", id = "note-1", prevented = False } "ArrowDown")
                     |> Event.toResult
                     |> Expect.err
+        , test "without rowId there are no checkboxes, which would keep positions instead of rows" <|
+            \_ ->
+                Table.view TableMsg [ Table.columns Orders.columns, Table.remote (Loaded Orders.curated), Table.selectable, Table.expandedRow (\_ -> Html.text "details") ] start
+                    |> Query.fromHtml
+                    |> Expect.all
+                        [ Query.findAll [ Selector.tag "input", Selector.attribute (Attr.type_ "checkbox") ] >> Query.count (Expect.equal 0)
+                        , Query.findAll [ Selector.class "klar-table__expand" ] >> Query.count (Expect.equal 0)
+                        ]
         , test "the number of selected rows is announced" <|
             \_ ->
                 render selectable (Table.select Ids.strings [ "ORD-2001", "ORD-2002" ] start)
