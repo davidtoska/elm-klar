@@ -2,6 +2,7 @@ module Klar.Form exposing
     ( Form, State, Msg, Field, Rows, Problem, View
     , fields
     , init, set, setOption, get, query, rawFiles, rowFields, fillRows, toValues, isDirty, markClean, revert, update
+    , submit, finish, submission
     , problems, hasProblems, outside, problem, problemInRow, rejected, reveal, focus, domId, goToProblem
     , currentStep, attempted, advance, back, goTo
     , bind, textInput, textArea, numberInput, select, multiSelect, radio, switch, checkbox, datePicker, dateRangePicker, moneyInput, maskedInput, tagInput, fileDrop, ruleBuilder, addRow, removeRow, stepper, stepBody, summary
@@ -255,6 +256,8 @@ at `RuleBuilder.focusId`), and they are then in the summary, the stepper marks a
 
 @docs init, set, setOption, get, query, rawFiles, rowFields, fillRows, toValues, isDirty, markClean, revert, update
 
+@docs submit, finish, submission
+
 
 # Problems and focus
 
@@ -281,6 +284,7 @@ import Klar.DatePicker as DatePicker
 import Klar.DateRangePicker as DateRangePicker
 import Klar.FileDrop as FileDrop
 import Klar.Form.Core as Core
+import Klar.Form.Submission as Submission
 import Klar.Locale exposing (Locale)
 import Klar.MaskedInput as MaskedInput
 import Klar.Money exposing (Money)
@@ -375,6 +379,38 @@ Every control of the form is drawn from it.
 -}
 type alias View msg =
     Core.View msg
+
+
+{-| Begins a validated save. Keep `state`, map `cmd` through your FormMsg wrapper,
+and send only the optional `request`, carrying its ticket into the response.
+Duplicate submissions produce no request. Invalid input reveals and focuses the
+summary; retrying a request failure focuses the stable submission status region.
+-}
+submit : Locale -> Form step fields values -> State step -> { state : State step, cmd : Cmd Msg, request : Maybe { ticket : Submission.Ticket, values : values } }
+submit =
+    Core.submit
+
+
+{-| Settles the matching save. `Ok` carries the success text; a
+`Submission.Rejected` carries server field keys and messages, and
+`Submission.Failed` a transport problem. Field keys are the handles' `domId`.
+Unrecognized keys stay visible in the summary without a broken focus link.
+Success marks only the submitted values clean. Older or duplicate replies are
+ignored within this state; the application still correlates record/editor sessions.
+-}
+finish : Submission.Ticket -> Result Submission.Error String -> Form step fields values -> State step -> ( State step, Cmd Msg )
+finish =
+    Core.finishSubmission
+
+
+{-| The save lifecycle kept inside the form, initially idle. Use
+`Submission.status` for button loading and form busy state, and
+`Submission.view` with `Form.Layout.onRetry` for its stable status region.
+No second status or copy of the problems belongs in the application model.
+-}
+submission : State step -> Submission.State
+submission =
+    Core.submission
 
 
 

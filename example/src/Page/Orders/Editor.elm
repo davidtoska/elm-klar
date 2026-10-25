@@ -43,6 +43,7 @@ import Klar.Autocomplete as Autocomplete
 import Klar.DatePicker as DatePicker
 import Klar.DescriptionList as DescriptionList
 import Klar.Form.Layout as FormLayout
+import Klar.Form.Submission as Submission
 import Klar.Format as Format
 import Klar.Layout as Layout
 import Klar.NumberInput as NumberInput
@@ -87,8 +88,7 @@ type alias Editor =
     , note : String
 
     -- What the server said was wrong with the last submit, by field id.
-    , errors : List FieldError
-    , submit : FormLayout.Status
+    , submission : Submission.State
     }
 
 
@@ -138,8 +138,7 @@ init target =
     , lines = NumberInput.init "order-lines" |> NumberInput.setValue (Maybe.map toFloat values.lines)
     , total = NumberInput.init "order-total" |> NumberInput.setValue values.total
     , note = values.note
-    , errors = []
-    , submit = FormLayout.Idle
+    , submission = Submission.init formId
     }
 
 
@@ -359,6 +358,15 @@ dropped (opening a list is not a change).
 -}
 update : Msg -> Editor -> ( Editor, Cmd Msg )
 update msg editor =
+    if Submission.status editor.submission == FormLayout.Submitting then
+        ( editor, Cmd.none )
+
+    else
+        updateReady msg editor
+
+
+updateReady : Msg -> Editor -> ( Editor, Cmd Msg )
+updateReady msg editor =
     case msg of
         CustomerMsg inner ->
             let
@@ -449,7 +457,7 @@ update msg editor =
 -}
 forgetError : String -> Editor -> Editor
 forgetError field editor =
-    { editor | errors = List.filter (\error -> error.field /= field) editor.errors }
+    { editor | submission = Submission.edited field editor.submission }
 
 
 forgetErrorIf : Bool -> String -> Editor -> Editor
@@ -491,10 +499,10 @@ view config editor =
         -- saved. Read-only, not disabled: a control that is disabled while it
         -- has the cursor drops the keyboard focus out of the drawer.
         locked =
-            not (isEditable editor) || editor.submit == FormLayout.Submitting
+            not (isEditable editor) || Submission.status editor.submission == FormLayout.Submitting
 
         errorOf field =
-            editor.errors
+            Submission.problems editor.submission
                 |> List.filter (\error -> error.field == field)
                 |> List.head
                 |> Maybe.map .message
@@ -506,12 +514,17 @@ view config editor =
             , FormLayout.labels fieldLabels
             , FormLayout.stacked
             , FormLayout.locale context.locale
+            , FormLayout.saving (Submission.status editor.submission == FormLayout.Submitting)
             ]
     in
     Layout.stack [ Layout.gap 5 ]
         [ viewOrderFacts context editor
         , FormLayout.view formAttributes
-            [ FormLayout.errorSummary formAttributes (List.sortBy (\error -> formOrder error.field) editor.errors)
+            [ FormLayout.errorSummary formAttributes
+                (Submission.problems editor.submission
+                    |> List.map (\p -> if List.any (\( key, _ ) -> key == p.field) fieldLabels then p else { p | field = "" })
+                    |> List.sortBy (\error -> formOrder error.field)
+                )
             , FormLayout.section "Customer"
                 "Who placed the order and how to reach them."
                 [ FormLayout.grid 2

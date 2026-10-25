@@ -41,6 +41,7 @@ import Klar.Date as Date exposing (Date)
 import Klar.Drawer as Drawer
 import Klar.EmptyState as EmptyState
 import Klar.Form.Layout as FormLayout
+import Klar.Form.Submission as Submission
 import Klar.Format as Format
 import Klar.Icon as Icon
 import Klar.Layout as Layout
@@ -303,13 +304,14 @@ type Msg
     | EditClicked Order
     | DrawerMsg Drawer.Msg
     | EditorMsg Editor.Msg
+    | SubmissionMsg Submission.Msg
     | RequestClose
     | DiscardMsg ConfirmDialog.Msg
     | DiscardConfirmed
     | DiscardCancelled
     | Submit
     | Retry
-    | Saved (Result ApiError Order)
+    | Saved Submission.Ticket (Result ApiError Order)
     | FocusField String
       -- from the row menu and the bulk bar
     | ChangeStatus Order OrderStatus
@@ -330,6 +332,9 @@ update : Context -> Msg -> Backend -> Model -> ( Model, Backend, Cmd Msg )
 update context msg backend model =
     case msg of
         NoOp ->
+            ( model, backend, Cmd.none )
+
+        SubmissionMsg _ ->
             ( model, backend, Cmd.none )
 
         Loaded ticket result ->
@@ -509,71 +514,33 @@ update context msg backend model =
                     ( model, backend, Cmd.none )
 
         Retry ->
-            -- "Try again" in the status line is replaced by "Saving ..." the
-            -- moment it is pressed: focus moves to the status line, which stays.
-            let
-                ( next, backend1, cmd ) =
-                    update context Submit backend model
-            in
-            ( next, backend1, Cmd.batch [ cmd, FormLayout.focusStatus Editor.formId NoOp ] )
+            update context Submit backend model
 
-        Saved (Ok order) ->
-            let
-                created =
-                    model.editing |> Maybe.map Editor.isNew |> Maybe.withDefault False
+        Saved ticket result ->
+            case model.editing of
+                Nothing ->
+                    ( model, backend, Cmd.none )
 
-                ( closed, closeCmd ) =
-                    closeEditor model
+                Just editor ->
+                    let
+                        ( submission, cmd ) =
+                            Submission.finish ticket
+                                (result |> Result.map (\_ -> "Order saved.") |> Result.mapError saveError)
+                                editor.submission
 
-                -- A new order is found at the start of the list.
-                table =
-                    if created then
-                        Table.setPage 1 closed.table
-
-                    else
-                        closed.table
-
-                ( fetched, backend1, fetchCmd ) =
-                    fetch backend { closed | table = table }
-
-                notice =
-                    if created then
-                        Notify Success "Order created" (Types.orderIdText order.id ++ " was added as a draft for " ++ order.customer ++ ".")
+                        next =
+                            { model | editing = Just { editor | submission = submission } }
+                    in
+                    if submission == editor.submission then
+                        ( model, backend, Cmd.none )
 
                     else
-                        Notify Success "Order saved" (Types.orderIdText order.id ++ " was updated.")
-            in
-            -- `fetched` keeps the effects of `closeEditor` (back to the list
-            -- when the order was opened by its address).
-            ( { fetched | effects = Effect.push notice fetched.effects }
-            , backend1
-            , Cmd.batch [ closeCmd, fetchCmd ]
-            )
+                        case result of
+                            Ok order ->
+                                saved order backend next
 
-        Saved (Err error) ->
-            case ( model.editing, error ) of
-                ( Just _, ValidationFailed errors ) ->
-                    -- The server's messages go to the fields they are about and
-                    -- into the summary, which takes the focus.
-                    ( editWith (\editor -> { editor | submit = FormLayout.Idle, errors = errors }) model
-                    , backend
-                    , FormLayout.focusSummary Editor.formId NoOp
-                    )
-
-                ( Just _, _ ) ->
-                    -- The status line in the footer says what went wrong, and
-                    -- offers to try again.
-                    ( editWith (\editor -> { editor | submit = FormLayout.Failed (Problem.toProblem error) }) model
-                    , backend
-                    , Cmd.none
-                    )
-
-                ( Nothing, _ ) ->
-                    -- The editor was gone before the answer came.
-                    ( { model | effects = Effect.push (Notify Danger "The order was not saved" (reason context error)) model.effects }
-                    , backend
-                    , Cmd.none
-                    )
+                            Err _ ->
+                                ( next, backend, Cmd.map SubmissionMsg cmd )
 
         FocusField id ->
             ( model, backend, Klar.focus id NoOp )
@@ -925,9 +892,7 @@ cancelNotice context cancelled refused failed =
 -}
 submit : Context -> Backend -> Editor.Editor -> Model -> ( Model, Backend, Cmd Msg )
 submit context backend editor model =
-    if editor.submit == FormLayout.Submitting || not (Editor.isEditable editor) then
-        -- Enter in a field while the save is under way, or in an order that
-        -- cannot be changed.
+    if not (Editor.isEditable editor) then
         ( model, backend, Cmd.none )
 
     else
@@ -935,31 +900,65 @@ submit context backend editor model =
             settled =
                 Editor.settle context editor
 
-            problems =
+            found =
                 Editor.localProblems settled
+
+            attempt =
+                Submission.begin
+                    (if List.isEmpty found then Ok (Editor.toInput settled) else Err found)
+                    editor.submission
+
+            ( backend1, requestCmd ) =
+                case attempt.request of
+                    Nothing ->
+                        ( backend, Cmd.none )
+
+                    Just request ->
+                        case settled.target of
+                            Editor.NewOrder ->
+                                Api.createOrder request.values (Saved request.ticket) backend
+
+                            Editor.ExistingOrder order ->
+                                Api.updateOrder order.id request.values (Saved request.ticket) backend
         in
-        if not (List.isEmpty problems) then
-            -- The controls already say what is wrong; there is nothing to ask
-            -- the server. The summary covers them all, and takes the focus.
-            ( { model | editing = Just { settled | errors = problems } }
-            , backend
-            , FormLayout.focusSummary Editor.formId NoOp
-            )
+        ( { model | editing = Just { settled | submission = attempt.state } }
+        , backend1
+        , Cmd.batch [ requestCmd, Cmd.map SubmissionMsg attempt.cmd ]
+        )
 
-        else
-            let
-                input =
-                    Editor.toInput settled
 
-                ( backend1, cmd ) =
-                    case settled.target of
-                        Editor.NewOrder ->
-                            Api.createOrder input Saved backend
+saveError : ApiError -> Submission.Error
+saveError error =
+    case error of
+        ValidationFailed found ->
+            Submission.Rejected found
 
-                        Editor.ExistingOrder order ->
-                            Api.updateOrder order.id input Saved backend
-            in
-            ( { model | editing = Just { settled | submit = FormLayout.Submitting, errors = [] } }, backend1, cmd )
+        _ ->
+            Submission.Failed (Problem.toProblem error)
+
+
+saved : Order -> Backend -> Model -> ( Model, Backend, Cmd Msg )
+saved order backend model =
+    let
+        created =
+            model.editing |> Maybe.map Editor.isNew |> Maybe.withDefault False
+
+        ( closed, closeCmd ) =
+            closeEditor model
+
+        table =
+            if created then Table.setPage 1 closed.table else closed.table
+
+        ( fetched, backend1, fetchCmd ) =
+            fetch backend { closed | table = table }
+
+        notice =
+            if created then
+                Notify Success "Order created" (Types.orderIdText order.id ++ " was added as a draft for " ++ order.customer ++ ".")
+            else
+                Notify Success "Order saved" (Types.orderIdText order.id ++ " was updated.")
+    in
+    ( { fetched | effects = Effect.push notice fetched.effects }, backend1, Cmd.batch [ closeCmd, fetchCmd ] )
 
 
 {-| Asks the server for the rows the table currently wants. Rows already on screen
@@ -1160,7 +1159,7 @@ confirmLeave model =
     else
         case model.editing of
             Just editor ->
-                if editor.submit == FormLayout.Submitting then
+                if Submission.status editor.submission == FormLayout.Submitting then
                     Just ( model, Cmd.none )
 
                 else if not (Editor.isDirty editor) then
@@ -1189,7 +1188,7 @@ routeLeft model =
     in
     case model.editing of
         Just editor ->
-            if Editor.isDirty editor || editor.submit == FormLayout.Submitting then
+            if Editor.isDirty editor || Submission.status editor.submission == FormLayout.Submitting then
                 ( unrouted, Cmd.none )
 
             else
@@ -1471,7 +1470,7 @@ viewEditor context model =
                     Editor.isEditable editor
 
                 submitting =
-                    editor.submit == FormLayout.Submitting
+                    Submission.status editor.submission == FormLayout.Submitting
             in
             Drawer.view DrawerMsg
                 ([ Drawer.subtitle (Editor.subtitle editor)
@@ -1529,12 +1528,11 @@ the "Try again" button is replaced.
 -}
 viewSubmitStatus : Context -> Editor.Editor -> Html Msg
 viewSubmitStatus context editor =
-    case editor.submit of
-        FormLayout.Idle ->
-            FormLayout.unsavedFlag [ FormLayout.locale context.locale ] (Editor.isDirty editor)
-
-        status ->
-            FormLayout.status [ FormLayout.id Editor.formId, FormLayout.onRetry Retry, FormLayout.locale context.locale ] status
+    Layout.stack [ Layout.gap 1 ]
+        [ FormLayout.unsavedFlag [ FormLayout.locale context.locale ]
+            (Editor.isDirty editor && Submission.status editor.submission == FormLayout.Idle)
+        , Submission.view [ FormLayout.onRetry Retry, FormLayout.locale context.locale ] editor.submission
+        ]
 
 
 viewDiscard : Context -> Model -> Overlay Msg

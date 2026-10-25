@@ -486,6 +486,13 @@ view attributes children =
                 ""
             ]
         , Attr.novalidate True
+        , Attr.attribute "aria-busy"
+            (if config.saving then
+                "true"
+
+             else
+                "false"
+            )
         , Internal.attrMaybe Attr.id config.id
         , Internal.attrMaybe (Attr.attribute "aria-label") config.ariaLabel
         , case config.onSubmit of
@@ -690,10 +697,13 @@ summaryItem config problem =
                     problem.message
     in
     Html.li []
-        [ case config.onFocusField of
+        [ case ( problem.field, config.onFocusField ) of
+            ( "", _ ) ->
+                Html.text text
+
             -- A button, not a link: in an application with hash routing a
             -- click on `href="#field"` would be taken for a route change.
-            Just toMsg ->
+            ( _, Just toMsg ) ->
                 Html.button
                     [ Internal.cls [ "klar-form-summary__link" ]
                     , Attr.type_ "button"
@@ -701,7 +711,7 @@ summaryItem config problem =
                     ]
                     [ Html.text text ]
 
-            Nothing ->
+            ( _, Nothing ) ->
                 Html.a
                     [ Internal.cls [ "klar-form-summary__link" ]
                     , Attr.href ("#" ++ problem.field)

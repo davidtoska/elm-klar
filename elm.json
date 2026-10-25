@@ -42,6 +42,7 @@
             "Klar.Form",
             "Klar.Form.Spec",
             "Klar.Form.Layout",
+            "Klar.Form.Submission",
             "Klar.Form.Check",
             "Klar.Field",
             "Klar.Validate"

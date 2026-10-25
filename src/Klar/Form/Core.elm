@@ -20,6 +20,7 @@ import Klar.DatePicker as DatePicker
 import Klar.DateRangePicker as DateRangePicker
 import Klar.FileDrop as FileDrop
 import Klar.Form.Layout as FormLayout
+import Klar.Form.Submission as Submission
 import Klar.Format as Format
 import Klar.Icon as Icon
 import Klar.Ids as Ids exposing (Ids)
@@ -104,6 +105,8 @@ type alias Data =
     , outside : List Outside
     , current : Int
     , attempted : Set Int
+    , submission : Submission.State
+    , submitted : Maybe (Dict String Raw)
     }
 
 
@@ -138,6 +141,7 @@ type Msg
     | GoStep Int
     | FocusField Int String
     | NoOp
+    | SubmissionMsg Submission.Msg
 
 
 {-| A handle to one field. The type says what the value looks like while it is
@@ -206,6 +210,7 @@ type Spec control output
 
 type alias SpecData control output =
     { label : String
+    , serverKey : Maybe String
     , hint : Maybe String
     , required : Bool
     , empty : control
@@ -270,6 +275,7 @@ type View msg
         , current : Int
         , anchor : Maybe String
         , hidden : Set String
+        , submitting : Bool
         }
 
 
@@ -320,6 +326,7 @@ type Slot
 -}
 type alias Def =
     { key : String
+    , serverKey : String
     , label : String
     , hint : Maybe String
     , required : Bool
@@ -406,6 +413,7 @@ with (Spec spec) (Builder b) =
 
         maker prefix =
             { key = keyAt prefix
+            , serverKey = Maybe.withDefault local spec.serverKey
             , label = spec.label
             , hint = spec.hint
             , required = spec.required
@@ -973,6 +981,7 @@ conditions : String -> List (Rule.Field ()) -> Spec Rule.Rule (Maybe Rule.Rule)
 conditions label ruleFields =
     Spec
         { label = label
+        , serverKey = Nothing
         , hint = Nothing
         , required = False
         , empty = Rule.emptyGroup
@@ -1041,6 +1050,7 @@ rows : { label : String, item : String } -> Form () rowFields rowValues -> Spec 
 rows names (Form sub) =
     Spec
         { label = names.label
+        , serverKey = Nothing
         , hint = Nothing
         , required = False
         , empty = Rows []
@@ -1119,6 +1129,7 @@ makeRefusing : (Locale -> String) -> String -> control -> (control -> Raw) -> (R
 makeRefusing refusal label empty toRaw fromRaw finish =
     Spec
         { label = label
+        , serverKey = Nothing
         , hint = Nothing
         , required = False
         , empty = empty
@@ -1184,6 +1195,7 @@ requiredWith : (Locale -> String) -> Spec c (Maybe a) -> Spec c a
 requiredWith message (Spec spec) =
     Spec
         { label = spec.label
+        , serverKey = spec.serverKey
         , hint = spec.hint
         , required = True
         , empty = spec.empty
@@ -1251,6 +1263,7 @@ oneWith : (Locale -> String) -> Spec c (List a) -> Spec c (Maybe a)
 oneWith message (Spec spec) =
     Spec
         { label = spec.label
+        , serverKey = spec.serverKey
         , hint = spec.hint
         , required = spec.required
         , empty = spec.empty
@@ -1504,6 +1517,11 @@ setHighest highest limits =
 hint : String -> Spec c o -> Spec c o
 hint help =
     keeping (\data -> { data | hint = Just help })
+
+
+serverKey : String -> Spec c o -> Spec c o
+serverKey key =
+    keeping (\data -> { data | serverKey = Just key })
 
 
 {-| Changes what the declaration says about the field, in a way that a later
@@ -1894,6 +1912,8 @@ init (Form form) =
         , outside = []
         , current = 0
         , attempted = Set.empty
+        , submission = Submission.init form.prefix
+        , submitted = Nothing
         }
 
 
@@ -2150,6 +2170,8 @@ revert (Form form) (State data) =
             , touched = Set.empty
             , server = Dict.empty
             , attempted = Set.empty
+            , submission = Submission.reset data.submission
+            , submitted = Nothing
         }
 
 
@@ -2209,7 +2231,19 @@ rows, the stepper and the lines of the summary, which is why it needs the form.
 -}
 update : Form step fields values -> Msg -> State step -> ( State step, Cmd Msg )
 update declared msg ((State data) as current) =
+    if Submission.status data.submission == FormLayout.Submitting then
+        ( current, Cmd.none )
+
+    else
+        updateReady declared msg current
+
+
+updateReady : Form step fields values -> Msg -> State step -> ( State step, Cmd Msg )
+updateReady declared msg ((State data) as current) =
     case msg of
+        SubmissionMsg _ ->
+            ( current, Cmd.none )
+
         Typed key value ->
             case Dict.get key data.slots of
                 Just ((SText _) as old) ->
@@ -2404,7 +2438,7 @@ moved key before after (State data) =
             { data | slots = Dict.insert key after data.slots }
     in
     if stable (rawOf before) /= stable (rawOf after) then
-        State { next | touched = touchedBy after key next.touched, server = Dict.remove key next.server }
+        State { next | touched = touchedBy after key next.touched, server = Dict.remove key next.server, submission = Submission.edited key next.submission }
 
     else
         State next
@@ -2678,7 +2712,21 @@ diagnose locale ((Form form) as declared) data defs =
                         { field = o.field, target = o.field, label = o.label, message = o.message, step = Maybe.withDefault 0 o.step, origin = FromOutside }
                     )
     in
-    client ++ conditional ++ bounded ++ live ++ server ++ fromOutside
+    client ++ conditional ++ bounded ++ live ++ server ++ submissionProblems data defs ++ fromOutside
+
+
+submissionProblems : Data -> List Def -> List Diagnosis
+submissionProblems data defs =
+    Submission.problems data.submission
+        |> List.map
+            (\p ->
+                case findDef p.field defs of
+                    Just def ->
+                        { field = def.key, target = entryOf def, label = def.label, message = p.message, step = def.step, origin = FromServer }
+
+                    Nothing ->
+                        { field = "", target = "", label = "", message = p.message, step = data.current, origin = FromServer }
+            )
 
 
 requiredText : Locale -> String
@@ -2988,7 +3036,7 @@ standing found defs =
                     )
 
         strays =
-            List.filter (\d -> d.origin == FromRule && not (Set.member d.field known)) found
+            List.filter (\d -> (d.origin == FromRule || d.origin == FromServer) && not (Set.member d.field known)) found
 
         fromOutside =
             List.filter (\d -> d.origin == FromOutside) found
@@ -3549,7 +3597,7 @@ bind locale toMsg ((Form form) as declared) (State data) =
 
         ofOutside =
             visible
-                |> List.filter (\d -> d.origin == FromOutside)
+                |> List.filter (\d -> d.origin == FromOutside || (d.origin == FromServer && d.field == ""))
                 |> List.map (\d -> { field = d.target, label = d.label, message = d.message, step = d.step })
 
         shown =
@@ -3595,6 +3643,7 @@ bind locale toMsg ((Form form) as declared) (State data) =
             else
                 Nothing
         , hidden = hidden
+        , submitting = Submission.status data.submission == FormLayout.Submitting
         }
 
 
@@ -3662,6 +3711,7 @@ textInput ((View view) as bound) field attributes =
             TextInput.view
                 (attributes
                     ++ declaredAttributes def TextInput.hint TextInput.required
+                    ++ locking bound TextInput.readOnly
                     ++ [ TextInput.locale view.locale
                        , TextInput.id def.key
                        , TextInput.label def.label
@@ -3687,6 +3737,7 @@ textArea ((View view) as bound) field attributes =
             TextArea.view
                 (attributes
                     ++ declaredAttributes def TextArea.hint TextArea.required
+                    ++ locking bound TextArea.readOnly
                     ++ [ TextArea.locale view.locale
                        , TextArea.id def.key
                        , TextArea.label def.label
@@ -3711,6 +3762,7 @@ numberInput ((View view) as bound) field attributes =
             NumberInput.view (\inner -> view.toMsg (NumberMsg def.key inner))
                 (attributes
                     ++ declaredAttributes def NumberInput.hint NumberInput.required
+                    ++ locking bound NumberInput.readOnly
                     ++ [ NumberInput.locale view.locale
                        , NumberInput.label def.label
                        , NumberInput.errorMaybe (problemOf bound def)
@@ -3734,6 +3786,7 @@ select ((View view) as bound) ((Field field) as handle) options attributes =
             Select.view (\inner -> view.toMsg (SelectMsg def.key inner))
                 (attributes
                     ++ declaredAttributes def Select.hint Select.required
+                    ++ locking bound Select.readOnly
                     ++ [ Select.locale view.locale
                        , Select.label def.label
                        , Select.errorMaybe (problemOf bound def)
@@ -3755,6 +3808,7 @@ multiSelect ((View view) as bound) ((Field field) as handle) options attributes 
             MultiSelect.view (\inner -> view.toMsg (MultiMsg def.key inner))
                 (attributes
                     ++ declaredAttributes def MultiSelect.hint MultiSelect.required
+                    ++ locking bound MultiSelect.readOnly
                     ++ [ MultiSelect.locale view.locale
                        , MultiSelect.label def.label
                        , MultiSelect.errorMaybe (problemOf bound def)
@@ -3803,6 +3857,7 @@ tagInput ((View view) as bound) field attributes =
             TagInput.view (\inner -> view.toMsg (TagsMsg def.key inner))
                 (attributes
                     ++ declaredAttributes def TagInput.hint TagInput.required
+                    ++ locking bound TagInput.readOnly
                     ++ [ TagInput.locale view.locale
                        , TagInput.label def.label
                        , TagInput.errorMaybe (problemOf bound def)
@@ -3825,6 +3880,7 @@ fileDrop ((View view) as bound) field attributes =
             FileDrop.view (\inner -> view.toMsg (FilesMsg def.key inner))
                 (attributes
                     ++ declaredAttributes def FileDrop.hint FileDrop.required
+                    ++ locking bound FileDrop.disabled
                     ++ [ FileDrop.locale view.locale
                        , FileDrop.label def.label
                        , FileDrop.errorMaybe (problemOf bound def)
@@ -3876,6 +3932,7 @@ switch ((View view) as bound) field attributes =
         Just ( def, SToggle value ) ->
             Switch.view
                 (attributes
+                    ++ locking bound Switch.readOnly
                     ++ List.filterMap identity
                         [ Maybe.map Switch.hint def.hint
                         , Maybe.map Switch.error (problemOf bound def)
@@ -3930,6 +3987,7 @@ radio ((View view) as bound) ((Field field) as handle) options attributes =
             Radio.view
                 (attributes
                     ++ declaredAttributes def Radio.hint Radio.required
+                    ++ locking bound Radio.readOnly
                     ++ [ Radio.id def.key
                        , Radio.label def.label
                        , Radio.errorMaybe (problemOf bound def)
@@ -3974,6 +4032,7 @@ datePicker ((View view) as bound) field attributes =
             DatePicker.view (\inner -> view.toMsg (DateMsg def.key inner))
                 (attributes
                     ++ declaredAttributes def DatePicker.hint DatePicker.required
+                    ++ locking bound DatePicker.readOnly
                     ++ [ DatePicker.locale view.locale
                        , DatePicker.label def.label
                        , DatePicker.errorMaybe (problemOf bound def)
@@ -3998,6 +4057,7 @@ dateRangePicker ((View view) as bound) field attributes =
             DateRangePicker.view (\inner -> view.toMsg (PeriodMsg def.key inner))
                 (attributes
                     ++ declaredAttributes def DateRangePicker.hint DateRangePicker.required
+                    ++ locking bound DateRangePicker.readOnly
                     ++ [ DateRangePicker.locale view.locale
                        , DateRangePicker.label def.label
                        , DateRangePicker.errorMaybe (problemOf bound def)
@@ -4020,6 +4080,7 @@ moneyInput ((View view) as bound) field attributes =
             MoneyInput.view (\inner -> view.toMsg (MoneyMsg def.key inner))
                 (attributes
                     ++ declaredAttributes def MoneyInput.hint MoneyInput.required
+                    ++ locking bound MoneyInput.readOnly
                     ++ [ MoneyInput.locale view.locale
                        , MoneyInput.label def.label
                        , MoneyInput.errorMaybe (problemOf bound def)
@@ -4042,6 +4103,7 @@ maskedInput ((View view) as bound) field attributes =
             MaskedInput.view (\inner -> view.toMsg (MaskedMsg def.key inner))
                 (attributes
                     ++ declaredAttributes def MaskedInput.hint MaskedInput.required
+                    ++ locking bound MaskedInput.readOnly
                     ++ [ MaskedInput.locale view.locale
                        , MaskedInput.label def.label
                        , MaskedInput.errorMaybe (problemOf bound def)
@@ -4240,3 +4302,118 @@ list is what you want.
 lostIds : Ids id -> List id -> List id
 lostIds codec values =
     List.filter (\value -> Ids.fromKey codec (Ids.toKey codec value) /= Just value) values
+
+
+locking : View msg -> (Bool -> attribute) -> List attribute
+locking (View view) attribute =
+    if view.submitting then
+        [ attribute True ]
+
+    else
+        []
+
+
+{-| Begins one validated save; see Klar.Form.submit.
+-}
+submit : Locale -> Form step fields values -> State step -> { state : State step, cmd : Cmd Msg, request : Maybe { ticket : Submission.Ticket, values : values } }
+submit locale declared ((State data) as current) =
+    let
+        attempt =
+            Submission.begin
+                (toValues locale declared current |> Result.mapError (List.map (\p -> { field = p.field, message = p.message })))
+                data.submission
+
+        next =
+            { data
+                | submission = attempt.state
+                , submitted =
+                    case attempt.request of
+                        Just _ ->
+                            Just (Dict.map (\_ slot -> stable (rawOf slot)) data.slots)
+
+                        Nothing ->
+                            data.submitted
+            }
+    in
+    { state =
+        State
+            (if attempt.request == Nothing && Submission.status attempt.state /= FormLayout.Submitting then
+                revealSteps (allSteps declared) (expandedDefs declared next) next
+
+             else
+                next
+            )
+    , cmd = Cmd.map SubmissionMsg attempt.cmd
+    , request = attempt.request
+    }
+
+
+{-| Settles one save and preserves the baseline of the values actually submitted.
+-}
+finishSubmission : Submission.Ticket -> Result Submission.Error String -> Form step fields values -> State step -> ( State step, Cmd Msg )
+finishSubmission ticket result declared ((State data) as current) =
+    let
+        normalized =
+            Result.mapError
+                (\error ->
+                    case error of
+                        Submission.Rejected found ->
+                            Submission.Rejected (List.map (normalizeProblem (expandedDefs declared data)) found)
+
+                        other ->
+                            other
+                )
+                result
+
+        ( nextSubmission, cmd ) =
+            Submission.finish ticket normalized data.submission
+
+        next =
+            { data | submission = nextSubmission, submitted = Nothing }
+    in
+    if nextSubmission == data.submission then
+        ( current, Cmd.none )
+
+    else
+        ( State
+            (case result of
+                Ok _ ->
+                    { next | baseline = Maybe.withDefault data.baseline data.submitted }
+
+                Err (Submission.Rejected _) ->
+                    let
+                        defs =
+                            expandedDefs declared next
+
+                        firstStep =
+                            submissionProblems next defs |> List.head |> Maybe.map .step |> Maybe.withDefault next.current
+                    in
+                    revealSteps (allSteps declared) defs { next | current = firstStep }
+
+                Err (Submission.Failed _) ->
+                    next
+            )
+        , Cmd.map SubmissionMsg cmd
+        )
+
+
+{-| The shared save lifecycle of a declared form.
+-}
+submission : State step -> Submission.State
+submission (State data) =
+    data.submission
+
+
+normalizeProblem : List Def -> Submission.Problem -> Submission.Problem
+normalizeProblem defs p =
+    case findDef p.field defs of
+        Just _ ->
+            p
+
+        Nothing ->
+            case List.filter (\def -> def.serverKey == p.field) defs of
+                [ def ] ->
+                    { p | field = def.key }
+
+                _ ->
+                    p

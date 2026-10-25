@@ -1,7 +1,7 @@
 module Klar.Form.Spec exposing
     ( Builder, define, with, step, check, checkFields, shownWhen, requiredWhen, build
     , Spec, text, number, choice, choices, toggle, date, dateRange, money, masked, tags, files, conditions, rows
-    , required, atLeast, one, rule, rules, range, whole, minDate, maxDate, minMoney, maxMoney, hint, withMessage
+    , required, atLeast, one, rule, rules, range, whole, minDate, maxDate, minMoney, maxMoney, hint, serverKey, withMessage
     )
 
 {-| The declaration of a form: its fields in order, each with a label and its
@@ -143,7 +143,7 @@ the DOM id.
 
 # Rules
 
-@docs required, atLeast, one, rule, rules, range, whole, minDate, maxDate, minMoney, maxMoney, hint, withMessage
+@docs required, atLeast, one, rule, rules, range, whole, minDate, maxDate, minMoney, maxMoney, hint, serverKey, withMessage
 
 -}
 
@@ -151,6 +151,8 @@ import Klar.Date exposing (Date)
 import Klar.FileDrop as FileDrop
 import Klar.Form as Form
 import Klar.Form.Core as Core
+
+
 import Klar.Ids exposing (Ids)
 import Klar.Locale exposing (Locale)
 import Klar.MaskedInput as MaskedInput
@@ -161,6 +163,17 @@ import Klar.Validate as Validate
 
 
 -- TYPES
+
+
+{-| The server's field key for save rejections. Defaults to the label's local
+key, without the form prefix (`Email` becomes `email`). It changes no DOM id.
+Use it when the backend calls a field something else, such as `email_address`.
+`Form.finish` matches only an unambiguous key; unknown or ambiguous keys remain
+in the summary. Repeated rows can be addressed by their handles' `Form.domId`.
+-}
+serverKey : String -> Spec c o -> Spec c o
+serverKey =
+    Core.serverKey
 
 
 {-| The declaration while it is being built with `with`. Start it with `define`
