@@ -429,6 +429,21 @@ fixTests =
                             ServerList.update (ServerList.gotPage request (Ok { rows = [], total = 40 })) onFive.state
                                 |> asked (\again -> Expect.equal again.query.page 2)
                         )
+        , test "an empty answer past page 1 with nothing left goes back to page 1 without asking" <|
+            \_ ->
+                let
+                    onFive =
+                        ServerList.mapTable (Table.setPage 5) loaded
+                in
+                onFive
+                    |> asked
+                        (\request ->
+                            let
+                                step =
+                                    ServerList.update (ServerList.gotPage request (Ok { rows = [], total = 0 })) onFive.state
+                            in
+                            Expect.equal ( step.request, (ServerList.query step.state).page ) ( Nothing, 1 )
+                        )
         , test "the filter bar shows no count after a failed refresh" <|
             \_ ->
                 let

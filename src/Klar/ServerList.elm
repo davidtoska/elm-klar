@@ -391,7 +391,19 @@ update msg (State before) =
                             ask { before | table = Table.setPage lastPage before.table, total = page.total } Cmd.none
 
                         else
-                            { state = State { before | rows = Loaded page.rows, total = page.total }
+                            { state =
+                                State
+                                    { before
+                                        | rows = Loaded page.rows
+                                        , total = page.total
+                                        , table =
+                                            -- nothing matches any more: page 1 is the same empty answer
+                                            if page.total == 0 && asked.page > 1 then
+                                                Table.setPage 1 before.table
+
+                                            else
+                                                before.table
+                                    }
                             , cmd = Task.perform (Stamped ticket) Time.now
                             , request = Nothing
                             , save = Nothing
