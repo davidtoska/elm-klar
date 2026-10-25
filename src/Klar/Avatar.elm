@@ -371,7 +371,7 @@ groupOf attributes entries =
                             else
                                 -- The keyboard reaches the bubble, and its tip lists the
                                 -- names that are folded into it (a title shows on hover only).
-                                Tooltip.attrsWith [ Tooltip.focusable ] hiddenNames
+                                Tooltip.attrs [ Tooltip.focusable ] hiddenNames
                                     ++ [ Attr.attribute "role" "img"
                                        , Attr.attribute "aria-label"
                                             (Format.int config.locale hiddenCount
