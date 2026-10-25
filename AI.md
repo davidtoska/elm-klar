@@ -133,11 +133,9 @@ init _ url key =
 
 fetchOrders : Cmd Msg
 fetchOrders =
-    -- the first two lines stand for `Http.task { ... } |> Task.mapError toProblem`; the rest stays
+    -- the first two lines stand for: Http.task { ... } |> Task.mapError toProblem |> Task.map Ok |> Task.onError (Err >> Task.succeed)
     Process.sleep 600
-        |> Task.map (\_ -> [ Order "1042" "Aurora Logistics" 1250.5, Order "1043" "Fjord Foods" 310 ])
-        |> Task.map Ok
-        |> Task.onError (\problem -> Task.succeed (Err problem))
+        |> Task.map (\_ -> Ok [ Order "1042" "Aurora Logistics" 1250.5, Order "1043" "Fjord Foods" 310 ])
         |> Task.andThen (\result -> Task.map (GotOrders result) Time.now)
         |> Task.perform identity
 
