@@ -336,13 +336,18 @@ gridTests =
         , test "a tree grid that cannot select does not say it can" <|
             \_ -> table expandable start |> Query.hasNot [ aria "aria-multiselectable" "true" ]
         , test "a closed row of the tree grid says so itself" <|
-            \_ -> firstRow expandable start |> Query.has [ aria "aria-expanded" "false", aria "aria-level" "1" ]
+            \_ ->
+                render expandable start
+                    |> Query.fromHtml
+                    |> Query.findAll [ Selector.id "orders-row-0", aria "aria-expanded" "false", aria "aria-level" "1" ]
+                    |> Query.count (Expect.equal 1)
         , test "a disabled row, which cannot open its details, does not say it is closed" <|
             \_ ->
-                firstRow (Table.rowDisabled (\order -> order.number == "ORD-2001") :: expandable) start
+                render (Table.rowDisabled (\order -> order.number == "ORD-2001") :: expandable) start
+                    |> Query.fromHtml
                     |> Expect.all
-                        [ Query.hasNot [ aria "aria-expanded" "false" ]
-                        , Query.has [ aria "aria-level" "1" ]
+                        [ Query.findAll [ Selector.id "orders-row-0", aria "aria-expanded" "false" ] >> Query.count (Expect.equal 0)
+                        , Query.findAll [ Selector.id "orders-row-0", aria "aria-level" "1" ] >> Query.count (Expect.equal 1)
                         ]
         , test "an open row says it is open, and its details are a row one level down" <|
             \_ ->
