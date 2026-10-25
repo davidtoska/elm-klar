@@ -291,7 +291,8 @@ miss); `Nothing` keeps the currency. The amount is not moved into `min` and `max
 
 While the user is typing in the field (it has the focus and text they typed), it
 changes nothing: what they type wins over an amount loaded again from the server, and
-the application learns the result by comparing `value` before and after `update`.
+the application learns the result by comparing `value` before and after `update`. To
+replace their text on purpose, such as for a "Reset" shortcut, `clear` the field first.
 
 ### `currencyOf`
 

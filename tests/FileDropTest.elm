@@ -218,6 +218,20 @@ rowTests =
                                 ]
                         )
                     |> Result.withDefault (Expect.fail "the files were not taken")
+        , test "the remove button of a refused file says why it was refused" <|
+            \_ ->
+                steps [ choose pdfOnly [ file "x.exe" 10 "" ] ] empty
+                    |> Result.map
+                        (FileDrop.view Files pdfOnly
+                            >> Query.fromHtml
+                            >> Expect.all
+                                [ Query.find [ Selector.id "attachments-remove-0" ]
+                                    >> Query.has [ Selector.attribute (Attr.attribute "aria-describedby" "attachments-problem-0") ]
+                                , Query.find [ Selector.id "attachments-problem-0" ]
+                                    >> Query.has [ Selector.text "File type not allowed" ]
+                                ]
+                        )
+                    |> Result.withDefault (Expect.fail "the files were not taken")
         , test "a file keeps its id when the one before it is removed" <|
             \_ ->
                 steps

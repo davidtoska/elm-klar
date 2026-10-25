@@ -522,6 +522,11 @@ removeId id entry =
     id ++ "-remove-" ++ String.fromInt entry.key
 
 
+problemId : String -> Entry -> String
+problemId id entry =
+    id ++ "-problem-" ++ String.fromInt entry.key
+
+
 add : Rules -> List Incoming -> Fields -> Fields
 add rules incoming state =
     let
@@ -1260,7 +1265,7 @@ viewEntry toMsg config rules id entry =
             , case entry.problem of
                 Just problem ->
                     -- announced once with the others by the live region of the field
-                    Html.span [ Internal.cls [ "klar-filedrop__file-problem" ] ]
+                    Html.span [ Internal.cls [ "klar-filedrop__file-problem" ], Attr.id (problemId id entry) ]
                         [ Html.text (problemText config.locale problem) ]
 
                 Nothing ->
@@ -1271,6 +1276,16 @@ viewEntry toMsg config rules id entry =
             , Button.small
             , Button.id (removeId id entry)
             , Button.onClick (toMsg (Remove rules entry.key))
+
+            -- the remove button of a refused file says why it was refused
+            , Button.htmlAttrs
+                (case entry.problem of
+                    Just _ ->
+                        [ Attr.attribute "aria-describedby" (problemId id entry) ]
+
+                    Nothing ->
+                        []
+                )
             ]
             Icon.close
             removeLabel

@@ -363,9 +363,11 @@ The value is the characters of the slots (`AB1234`); `text` is what the field sh
 (`AB-1234`). Use the shown form when the hyphen belongs to the identifier.
 
 `Nothing` for a pattern without slots, a pattern that ends in a backslash, one with a
-letter (of any alphabet, `å` and `é` too) or a digit that is not a slot (the user would
-have to type it; the application can add a fixed start itself), one with a control
-character, and one longer than 64 characters. There is no check digit.
+letter of an alphabet that has capitals (A to Z, `å`, `é`, `ж`) or a digit 0 to 9 that
+is not a slot (it could be taken for what the user types; the application can add a
+fixed start itself), one with a control character, and one longer than 64 characters.
+A character of a script without capitals (`号`) can be a fixed character. There is no
+check digit; `ean13` and the Norwegian masks have one.
 
 ### `setMask`
 
@@ -437,7 +439,8 @@ that does not belong, the field shows it as it is, with the message about it.
 
 While the user is typing in the field (they have typed since they came into it, and
 have not left it or pressed Enter yet), it changes nothing: what they type wins, and
-the application learns the result by comparing `value` before and after `update`.
+the application learns the result by comparing `value` before and after `update`. To
+replace their text on purpose, such as for a "Reset" shortcut, `clear` the field first.
 
 ### `clear`
 
