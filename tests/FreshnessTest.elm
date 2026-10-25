@@ -128,6 +128,13 @@ suite =
                         |> Query.fromHtml
                         |> Expect.all [ Query.has [ Selector.class "klar-fresh__slot" ], Query.find [ status ] >> Query.has [ Selector.exactText "" ] ]
             ]
+        , describe "region"
+            [ test "is the root with the id, which focus can reach from a retry" <|
+                \_ ->
+                    Freshness.region "orders" [ Attr.class "klar-list" ] [ Html.text "Loading" ]
+                        |> Query.fromHtml
+                        |> Query.has [ Selector.id "orders", Selector.attribute (Attr.tabindex -1), Selector.class "klar-region", Selector.class "klar-list" ]
+            ]
         , describe "the retry button"
             [ test "in the page it is in the Tab order" <|
                 \_ ->

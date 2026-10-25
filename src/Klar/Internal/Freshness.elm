@@ -1,6 +1,6 @@
 module Klar.Internal.Freshness exposing
     ( Freshness(..), settle, waiting
-    , Config, Place(..), wrap, notice, noticeIn, announcement
+    , Config, Place(..), region, wrap, notice, noticeIn, announcement
     , busy, busyAttr, className, text
     )
 
@@ -41,7 +41,7 @@ many of them would speak once per tile. The page says it once (`Alert.stale`).
 
 # Draw
 
-@docs Config, Place, wrap, notice, noticeIn, announcement
+@docs Config, Place, region, wrap, notice, noticeIn, announcement
 
 
 # Parts
@@ -158,6 +158,31 @@ wrap place config attributes freshness content =
             :: attributes
         )
         (slot place config freshness :: content)
+
+
+{-| The root of a component that shows remote data, the same element in every state
+(loading, failed, data): it carries the component's id and `tabindex` -1, so that
+`Klar.focus id` after a Try again, whose button goes away with the failure, lands on
+the component and not on `body`. The component's own classes and attributes go in the
+list; `wrap` goes inside it, around the data.
+
+    Freshness.region config.id
+        [ Internal.cls [ "klar-timeline" ] ]
+        (case Freshness.settle remote of
+            ( Remote.Loaded events, freshness ) ->
+                [ Freshness.wrap Freshness.InPage noticeConfig [] freshness (viewEvents events) ]
+
+            ( Remote.Failed problem, _ ) ->
+                [ viewFailure problem ]
+
+            _ ->
+                [ viewSkeleton ]
+        )
+
+-}
+region : String -> List (Html.Attribute msg) -> List (Html msg) -> Html msg
+region id attributes children =
+    Html.div (Attr.id id :: Attr.tabindex -1 :: Internal.cls [ "klar-region" ] :: attributes) children
 
 
 {-| The marker in the page on its own, for a component that draws the box around its

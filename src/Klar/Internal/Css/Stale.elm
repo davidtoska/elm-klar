@@ -19,6 +19,12 @@ css =
    there (with its live region) and is laid out as if its children were the box's own. */
 .klar-fresh { min-width: 0; }
 
+/* The root of a component with remote data (Freshness.region): it takes focus only from
+   Klar.focus after a retry, and shows it only when the keyboard brought it there. */
+.klar-region { min-width: 0; }
+
+.klar-region:focus:not(:focus-visible) { outline: none; }
+
 .klar-fresh__slot { display: contents; }
 
 .klar-stale {
