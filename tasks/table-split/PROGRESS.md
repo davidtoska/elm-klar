@@ -125,3 +125,7 @@ Execution notes for resuming a long run:
 - Next: Export.
 
 - Export: format, full check, byte-identical docs and 22 identical table roots passed.
+- Commit 1215b70: Export complete.
+- Next: Bulk.
+
+- Bulk: format, full check, byte-identical docs and 22 identical table roots passed.

@@ -34,6 +34,7 @@ import Klar.Search as Search
 import Klar.Settings as Settings exposing (Settings)
 import Klar.Skeleton as Skeleton
 import Klar.Spinner as Spinner
+import Klar.Table.Bulk exposing (viewBulkBar)
 import Klar.Table.ColumnLogic exposing (exportValue, findColumn, hasFooter, isShown, isSortable, sortKeyOf, sortLevel, visibleColumns)
 import Klar.Table.Columns exposing (actions, alignCenter, alignRight, alwaysVisible, badge, baseColumn, bool, build, cell, custom, date, exportAs, filterOptions, filterRange, filterSelect, filterText, filterValue, float, footer, footerAverage, footerSum, hiddenByDefault, hint, includeInSearch, int, maybeDate, minWidth, money, noTooltip, notExported, notSearchable, pinned, sortDate, sortMaybeNumber, sortNumber, sortText, sortWith, status, text, unsortable, width, wrap)
 import Klar.Table.Config exposing (activeExternalFilters, ariaLabel, bulkActions, columnChooser, columns, configure, csvSeparator, currentRow, densityToggle, emptyState, expandedRow, exportCsv, fillHeight, finish, locale, maxHeight, multiSort, onRefresh, onResetFilters, onRetry, onRowClick, pageSizes, rangeText, remote, remotePrepared, rowActions, rowDisabled, rowFilter, rowId, rowLabel, rowTone, searchDebounce, searchPlaceholder, searchable, selectable, server, settings, toolbarActions, unpaged, virtual, zebra)
@@ -748,140 +749,6 @@ viewColumnsMenu ctx =
 
           else
             Html.text ""
-        ]
-
-
-viewBulkBar : Ctx row msg -> Html msg
-viewBulkBar ctx =
-    let
-        t =
-            ctx.t
-
-        count =
-            selectionTotal ctx
-
-        allPageSelected =
-            not (List.isEmpty ctx.pageKeys) && List.all (isPicked ctx.model.selection) ctx.pageKeys
-
-        clientMode =
-            ctx.config.server == Nothing
-
-        -- client mode: what "select all N matching" selects (matching rows that are not disabled)
-        selectableTotal =
-            if clientMode then
-                selectableCount ctx
-
-            else
-                ctx.data.total
-
-        allMatchingSelected =
-            case ctx.model.selection of
-                AllPicked except ->
-                    Set.isEmpty except
-
-                Picked keys ->
-                    clientMode
-                        && selectableTotal
-                        > 0
-                        && Set.size keys
-                        >= selectableTotal
-                        && (everyRowCanBeSelected ctx || List.all (\key -> Set.member key keys) (selectableKeys ctx))
-
-        note value =
-            Html.span [ Internal.cls [ "klar-table__bulk-note" ] ] [ Html.text value ]
-
-        -- Selected rows the user cannot see. Client mode knows they are left out
-        -- by the search or a filter. A server only gives the current page, so
-        -- there it is "not on this page": other pages, or rows a new search
-        -- or filter took away. Either way the count in the bar is not a
-        -- surprise when a bulk action then acts on all of them.
-        hiddenCount =
-            case ( ctx.model.selection, ctx.config.server, ctx.config.rowId ) of
-                ( Picked keys, Nothing, Just toId ) ->
-                    if Set.isEmpty keys || ctx.data.total == ctx.data.available then
-                        -- no row is left out, so none of the selected rows is out of sight
-                        0
-
-                    else
-                        Set.size keys - ctx.data.countMatching (\_ row -> Set.member (toId row) keys)
-
-                ( Picked keys, Just _, _ ) ->
-                    Set.size keys - List.length (List.filter (\key -> Set.member key keys) ctx.pageKeys)
-
-                _ ->
-                    0
-
-        hiddenNote =
-            note
-                (if clientMode then
-                    t.hiddenSelected hiddenCount
-
-                 else
-                    t.selectedElsewhere hiddenCount
-                )
-
-        prompt =
-            if allMatchingSelected && selectableTotal > List.length ctx.pageKeys then
-                note (t.allMatching selectableTotal)
-                    :: (if hiddenCount > 0 then
-                            [ hiddenNote ]
-
-                        else
-                            []
-                       )
-
-            else if allPageSelected && selectableTotal > List.length ctx.pageKeys then
-                [ note (t.allOnPage (List.length ctx.pageKeys))
-                , Button.view
-                    [ Button.link
-                    , if clientMode then
-                        -- the keys of every matching row are found when the button is
-                        -- clicked, not on every render while it is shown
-                        Button.htmlAttrs
-                            [ Events.on "click"
-                                (Decode.succeed ()
-                                    |> Decode.map (\_ -> ctx.toMsg (MatchingSelected (selectableKeys ctx)))
-                                )
-                            ]
-
-                      else
-                        Button.onClick (ctx.toMsg AllMatchingPicked)
-                    ]
-                    (t.selectAllMatching selectableTotal)
-                ]
-
-            else if hiddenCount > 0 then
-                [ hiddenNote ]
-
-            else
-                []
-    in
-    Html.div
-        [ Internal.cls [ "klar-table__bulk" ]
-        , Attr.id (bulkDomId ctx.model.id)
-        , Attr.tabindex -1
-        , Attr.attribute "role" "region"
-        , Attr.attribute "aria-label" (t.selected count)
-        ]
-        [ Html.span [ Internal.cls [ "klar-table__bulk-count", "klar-tabular" ] ] [ Html.text (t.selected count) ]
-        , Html.div [ Internal.cls [ "klar-table__bulk-prompt" ] ] prompt
-        , Html.div [ Internal.cls [ "klar-table__bulk-actions" ] ]
-            ((case ctx.config.export of
-                Just filename ->
-                    [ viewExportMenu ctx BulkExportPopup filename ]
-
-                Nothing ->
-                    []
-             )
-                ++ ctx.config.bulkActions
-                ++ [ Button.view
-                        [ Button.small
-                        , Button.ghost
-                        , Button.onClick (ctx.toMsg (SelectionCleared (ctx.model.id ++ "-select-page")))
-                        ]
-                        t.cancel
-                   ]
-            )
         ]
 
 
