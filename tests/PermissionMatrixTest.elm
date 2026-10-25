@@ -1357,7 +1357,15 @@ remoteTests =
                             \_ ->
                                 remote data
                                     |> Query.fromHtml
-                                    |> Query.has [ Selector.id "roles", Selector.attribute (Attr.tabindex -1), Selector.class "klar-permissions" ]
+                                    |> Query.has
+                                        [ Selector.id "roles"
+                                        , Selector.attribute (Attr.tabindex -1)
+                                        , Selector.class "klar-permissions"
+
+                                        -- a named group, so a screen reader says where the focus landed
+                                        , H.attr "role" "group"
+                                        , H.attr "aria-label" "Permissions"
+                                        ]
                         )
                         [ Remote.NotAsked
                         , Remote.Loading
@@ -1368,6 +1376,40 @@ remoteTests =
                         , Remote.Loaded (PermissionMatrix.matrix { roles = [], roleKey = roleKey, permissions = [], permissionKey = permissionKey, cell = \_ _ -> PermissionMatrix.direct PermissionMatrix.denied })
                         ]
                     )
+                    ()
+        , test "the name of the frame is the name of the grid: the one given, or the default" <|
+            \_ ->
+                Expect.all
+                    [ \_ ->
+                        PermissionMatrix.viewRemote MatrixMsg [ PermissionMatrix.ariaLabel "Warehouse roles" ] state Remote.Loading
+                            |> Query.fromHtml
+                            |> Query.has [ H.attr "role" "group", H.attr "aria-label" "Warehouse roles" ]
+                    , \_ ->
+                        PermissionMatrix.viewRemote MatrixMsg [ PermissionMatrix.locale Locale.nb ] state (Remote.Failed (Remote.problem Remote.network))
+                            |> Query.fromHtml
+                            |> Query.has [ H.attr "role" "group", H.attr "aria-label" "Tilganger" ]
+                    ]
+                    ()
+        , test "the frame holds the same slots in Loaded, while refreshing and with old data: toolbar, grid, notes" <|
+            \_ ->
+                let
+                    slots data =
+                        remote data |> Query.fromHtml |> Query.children []
+
+                    shape data =
+                        Expect.all
+                            [ \_ -> slots data |> Query.index 0 |> Query.has [ Selector.class "klar-permissions__toolbar" ]
+                            , \_ -> slots data |> Query.index 1 |> Query.has [ Selector.class "klar-permissions__scroll" ]
+                            , \_ -> slots data |> Query.count (\n -> slots (Remote.Loaded (theMatrix (cellOf grants))) |> Query.count (Expect.equal n))
+                            , \_ -> remote data |> Query.fromHtml |> Query.find [ Selector.class "klar-permissions__toolbar" ] |> Query.children [] |> Query.index 0 |> Query.has [ Selector.class "klar-permissions__filter" ]
+                            ]
+                            ()
+                in
+                Expect.all
+                    [ \_ -> shape (Remote.Loaded (theMatrix (cellOf grants)))
+                    , \_ -> shape (Remote.refresh (Remote.Loaded (theMatrix (cellOf grants))))
+                    , \_ -> shape oldData
+                    ]
                     ()
         , test "data that is being refreshed stays as it is, editable, dimmed and busy" <|
             \_ ->
@@ -1857,16 +1899,72 @@ reviewTests =
                         [ Query.has [ Selector.text "Cancel orders denied to Supervisor" ]
                         , Query.hasNot [ Selector.text "unsaved" ]
                         ]
-        , test "a header checkbox is followed by the count it leads to" <|
+        , test "a header checkbox is followed by the count it leads to, once the application made the change" <|
             \_ ->
                 let
                     -- the checkbox of Supervisor grants the three permissions Supervisor does not have
                     acted =
                         state |> throughWith (PermissionMatrix.saved baseline :: editable) ( "change", Encode.object [ insideTarget { row = 0, column = 3 } ] )
+
+                    now =
+                        List.foldl (\p -> Set.insert ( roleKey Supervisor, permissionKey p )) grants [ CancelOrders, AdjustStock, ExportReports ]
+
+                    html =
+                        PermissionMatrix.view MatrixMsg (PermissionMatrix.saved baseline :: editable) acted (theMatrix (cellOf now))
+                in
+                Expect.all
+                    [ \_ -> html |> liveRegion |> Query.has [ Selector.text "Supervisor: 6 of 6 permissions granted. 5 unsaved changes" ]
+                    , \_ -> html |> H.inside [ Selector.class "klar-permissions__changes" ] [ Selector.text "5 unsaved changes" ]
+                    ]
+                    ()
+        , test "a header checkbox that the application refused is said as the role is, without a count" <|
+            \_ ->
+                let
+                    acted =
+                        state |> throughWith (PermissionMatrix.saved baseline :: editable) ( "change", Encode.object [ insideTarget { row = 0, column = 3 } ] )
                 in
                 PermissionMatrix.view MatrixMsg (PermissionMatrix.saved baseline :: editable) acted (theMatrix (cellOf grants))
                     |> liveRegion
-                    |> Query.has [ Selector.text "Supervisor: 3 of 6 permissions granted. 5 unsaved changes" ]
+                    |> Expect.all
+                        [ Query.has [ Selector.text "Supervisor: 3 of 6 permissions granted" ]
+                        , Query.hasNot [ Selector.text "unsaved" ]
+                        ]
+        , test "a change the application made together with others gets no count: the one above the grid is the true one" <|
+            \_ ->
+                let
+                    acted =
+                        state |> throughWith (PermissionMatrix.saved baseline :: editable) (click (place CancelOrders Supervisor))
+
+                    -- cancelling orders needs editing them: the application grants Dispatcher both
+                    now =
+                        grants
+                            |> Set.insert ( roleKey Supervisor, permissionKey CancelOrders )
+                            |> Set.insert ( roleKey Dispatcher, permissionKey EditOrders )
+
+                    html =
+                        PermissionMatrix.view MatrixMsg (PermissionMatrix.saved baseline :: editable) acted (theMatrix (cellOf now))
+                in
+                Expect.all
+                    [ \_ -> html |> liveRegion |> Query.has [ Selector.text "Cancel orders granted to Supervisor" ]
+                    , \_ -> html |> liveRegion |> Query.hasNot [ Selector.text "unsaved" ]
+                    , \_ -> html |> H.inside [ Selector.class "klar-permissions__changes" ] [ Selector.text "4 unsaved changes" ]
+                    ]
+                    ()
+        , test "a change that is made later (after the server answered) gets its count then" <|
+            \_ ->
+                let
+                    acted =
+                        state |> throughWith (PermissionMatrix.saved baseline :: editable) (click (place CancelOrders Supervisor))
+
+                    textWith given =
+                        PermissionMatrix.view MatrixMsg (PermissionMatrix.saved baseline :: editable) acted (theMatrix (cellOf given))
+                            |> liveRegion
+                in
+                Expect.all
+                    [ \_ -> textWith grants |> Query.hasNot [ Selector.text "unsaved" ]
+                    , \_ -> textWith (Set.insert ( roleKey Supervisor, permissionKey CancelOrders ) grants) |> Query.has [ Selector.text "Cancel orders granted to Supervisor. 3 unsaved changes" ]
+                    ]
+                    ()
         , test "a key that is held down changes a cell once: the application hears nothing from a repeat" <|
             \_ ->
                 viewIt editable

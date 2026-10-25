@@ -79,22 +79,37 @@ Do not use when: only a history of what happened is shown, use `Klar.Timeline`, 
     import Klar
     import Klar.ApprovalFlow as ApprovalFlow
     import Klar.Avatar as Avatar
+    import Klar.Locale as Locale
     import Klar.Remote as Remote
+    import Klar.Toast as Toast
 
     -- model
     { approval : Remote Approval -- the decisions, from your server
     , deciding : Bool -- a decision is on its way
+    , toasts : Toast.State Msg
     }
 
     -- update
     Approve ->
         ( { model | deciding = True }, Api.approve model.creditNote DecisionSent )
 
-    DecisionSent result ->
-        -- the buttons go away with the decision: the flow takes the focus
-        ( { model | deciding = False, approval = Remote.refresh model.approval }
+    DecisionSent (Err problem) ->
+        -- not recorded: the buttons stay, with the focus on them, so the viewer can try again
+        let
+            ( toasts, cmd ) =
+                Toast.push [ Toast.danger, Toast.key "approval", Toast.title "Your decision was not saved", Toast.message (Remote.title Locale.en problem) ] model.toasts
+        in
+        ( { model | deciding = False, toasts = toasts }, Cmd.map ToastMsg cmd )
+
+    DecisionSent (Ok ()) ->
+        -- recorded: the buttons stay busy until the flow is reloaded, then leave with the
+        -- decision, so the flow takes the focus
+        ( { model | approval = Remote.refresh model.approval }
         , Cmd.batch [ Api.loadApproval model.creditNote ApprovalLoaded, Klar.focus "credit-note-approval" NoOp ]
         )
+
+    ApprovalLoaded result ->
+        ( { model | deciding = False, approval = Remote.refreshWith model.approval result model.now }, Cmd.none )
 
     -- view
     ApprovalFlow.viewRemote personOf
@@ -209,10 +224,12 @@ the reason of a rejection, the request to the server and the new decision are
 yours. A reject message is the place to open a comment field; when the answer
 comes back, put it in the decision (`rejected { at = ..., comment = ... }`). While the
 request is on its way say `deciding True`: the buttons show that they are busy, keep the
-focus and cannot send the decision twice (they are busy too while the flow is refreshed).
-The buttons leave with the decision, and the focus with them (it would fall to the page
-body and a screen reader would say nothing): give the flow an `id` and call `Klar.focus`
-with it in the same `update` that records the decision.
+focus and cannot send the decision twice (a refresh of the flow does not make them busy).
+When the answer is an error, set `deciding False` and say what went wrong (a toast): the
+buttons are still there with the focus on them, so the viewer can try again. When it is a
+success, reload the flow: the buttons leave with the new decision, and the focus with them
+(it would fall to the page body and a screen reader would say nothing), so give the flow an
+`id` and call `Klar.focus` with it in the same `update`.
 
 **Remote data.** `viewRemote` draws a skeleton while the flow loads and the problem with
 "Try again" (`onRetry`) when it failed. Data that is `Kept` stays: dimmed and `aria-busy`
@@ -253,7 +270,7 @@ viewRemote :
 The same for a flow that comes from the backend. `Loaded` shows the flow, `Failed`
 shows the problem with a "Try again" button (`onRetry`), and `NotAsked` and `Loading`
 show a skeleton of steps. `Kept` shows the flow it keeps: dimmed and `aria-busy` while it
-is refreshed (and the decide buttons busy), and with "Old data from 14:05" and a retry
+is refreshed (the decide buttons stay as they are: only `deciding` makes them busy), and with "Old data from 14:05" and a retry
 above the steps when the last refresh failed. The `id` is on the flow in every state.
 
     ApprovalFlow.viewRemote personOf [ ApprovalFlow.onRetry Reload ] (Remote.map toFlow model.approval)
@@ -361,8 +378,9 @@ atLeast : Int -> Quorum
 
 This many approvals approve the step ("2 of 3 must approve"). The step is rejected
 as soon as so many have rejected that the number can no longer be reached. The number
-is taken between 1 and the number of approvers of the step: `atLeast 1` is `any`, and
-a number of at least all the approvers is `all`.
+is taken between 1 and the number of approvers of the step: `atLeast 1` (or less) is
+`any`, and a number of at least all the approvers is `all`, with their rule, progress
+and summary texts ("Any one of 3 must approve", "All must approve").
 
     ApprovalFlow.step "Board" (ApprovalFlow.atLeast 2) (ApprovalFlow.approver ada ApprovalFlow.pending) [ ApprovalFlow.approver grace ApprovalFlow.pending, ApprovalFlow.approver alan ApprovalFlow.pending ]
 
@@ -617,8 +635,9 @@ Whether a decision of the viewer is on its way: set it to `True` when you send t
 request (in the branch of the `onApprove` or `onReject` message, or when the reason of a
 rejection is sent) and back to `False` when the answer comes. While it is `True` the
 "Approve" and "Reject" buttons show a spinner, say `aria-busy`, ignore clicks and keep the
-focus, so a slow request is not sent twice. The default is `False`; the buttons are also
-busy while `viewRemote` shows a flow that is being refreshed.
+focus, so a slow request is not sent twice. The default is `False`. Only this makes the
+buttons busy: while `viewRemote` shows a flow that is being refreshed (a poll, a reload)
+the flow is dimmed and `aria-busy`, but the buttons stay as they are.
 
     ApprovalFlow.deciding model.deciding
 
@@ -652,7 +671,8 @@ horizontal : Attribute approver msg
 
 Lays the steps out side by side, for a wide and short strip. The default is
 vertical, one step below the other, which suits a side panel and long comments. A
-row with many steps scrolls sideways.
+row with many steps scrolls sideways; so that it can be scrolled from the keyboard, the
+strip is a tab stop of its own (named like the flow), also when it fits.
 
 ### `headingLevel`
 

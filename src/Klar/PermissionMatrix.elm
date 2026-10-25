@@ -50,6 +50,15 @@ Quick path: `init`, `update`, `matrix`, `onChange`, `saved`, `unsavedChanges`, `
         , Cmd.batch [ Api.loadGrants GrantsLoaded, Klar.focus "role-matrix" NoOp ]
         )
 
+    GrantsLoaded (Ok fromServer) ->
+        -- the unsaved changes stay on top of what the server has now
+        let
+            unsaved =
+                PermissionMatrix.unsavedChanges (cellOf model.savedGrants)
+                    (toMatrix (Remote.withDefault model.savedGrants model.grants))
+        in
+        ( { model | grants = Remote.Loaded (applyChanges unsaved fromServer), savedGrants = fromServer }, Cmd.none )
+
     applyChanges changes grants =
         List.foldl store grants changes
 
@@ -144,7 +153,10 @@ with "Old data from 14:05" and a retry above the grid when the last refresh fail
 in the zone of `settings`). The grid is the same element while it refreshes, so the focus
 stays on the cell it was on. The id given to `init` is on the frame of the matrix in every
 state, and the frame can take focus: "Try again" goes away while the data loads, so call
-`Klar.focus` with that id in the update branch of the retry message.
+`Klar.focus` with that id in the update branch of the retry message. The matrix keeps no
+values of its own: data that loads replaces the grid, and with it the unsaved changes the
+toolbar counts, so a reload while there are some should keep them (or ask first) in your
+`update`, as the example does.
 
 **Keyboard.** The grid is one tab stop. The arrow keys move between cells, `Home` and
 `End` to the first and last cell of the row, `Ctrl+Home` and `Ctrl+End` to the first
@@ -167,16 +179,20 @@ grid is described by a short instruction ("Space or Enter changes a cell") and e
 can change names its keys in `aria-keyshortcuts`. There is one polite region. What a person
 does is announced in it ("Cancel orders granted to Supervisor. 2 unsaved changes"), from the
 value that `cell` gives afterwards, so a change you refuse is not announced as made. The
-number is the one the change led to, so a save does not say the change again, and the
-announcement is cleared after five seconds, so a refresh later does not either. While the
-filter is used the region says how many permissions match. Headers and the filter have names;
+number is said only while the matrix is the one the change leads to (not when you refused
+the change, have not made it yet or changed other cells with it), and a save does not change
+it, so the change is not said again. The announcement is cleared after five seconds, so a
+refresh later does not say it either. While the filter is used the region says how many
+permissions match, until the next change. Headers and the filter have names;
 the state is never colour alone.
 
 **Size.** Only the permissions that are shown are turned into HTML, up to 500 rows (a
 note says how many were cut: use the filter or the groups). Events are caught once on
 the grid, so no cell has handlers of its own, and each cell is drawn from a few plain values
-with `Html.Lazy`: a key that moves the focus draws two cells again, and a toggle the cells it
-changed, also in a grid of 200 permissions and 25 roles (5 000 cells). Header checkboxes act
+with `Html.Lazy`: a key that moves the focus redraws only the two cells that changed, and a
+toggle the cells it changed. The matrix is still walked once per render (your `cell` is
+called for every cell, and the row headers are built again), so a key costs about as much as
+one pass over the cells: in a grid of 200 permissions and 25 roles (5 000 cells) a few frames. Header checkboxes act
 on every permission that matches the filter, folded groups and rows beyond the cap included.
 
 The built-in text follows `locale` (English by default). Names come from you.
@@ -802,24 +818,37 @@ type alias StateData =
 
     -- counts the announcements, so that the timer of an old one does not clear a new one
     , announced : Int
+
+    -- the person acted since the filter changed: the region does not say the matches again
+    , quiet : Bool
     }
 
 
-{-| What the person did last, for the announcement: the subject, and how many changes were
-unsaved once the change was made (`Nothing` without `saved`). The number is taken when the
-person acts, so that a save afterwards does not change the text and say it again.
+{-| What the person did last, for the announcement: the subject, and what the change leads
+to (`Nothing` without `saved`).
 -}
 type alias Acted =
     { subject : Subject
-    , unsaved : Maybe Int
+    , unsaved : Maybe Unsaved
     }
 
 
-{-| What the person did last, as keys: a cell (with the own access asked for, to tell a change
-the application refused), a whole role or a whole permission.
+{-| What a change leads to, worked out when the person acts: how many changes are unsaved
+once it is made, and a fingerprint of the own access of every cell once it is made. The
+number is said only while the matrix is that matrix (the application made exactly this
+change, nothing more and nothing less), and it is kept when only the saved values change,
+so that a save afterwards does not change the text and say the change again.
+-}
+type alias Unsaved =
+    { count : Int
+    , matrix : Int
+    }
+
+
+{-| What the person did last, as keys: a cell, a whole role or a whole permission.
 -}
 type Subject
-    = CellOf String String (Maybe Access)
+    = CellOf String String
     | RoleOf String
     | PermissionOf String
 
@@ -831,7 +860,7 @@ the prefix of the ids of its cells.
 -}
 init : String -> State
 init id =
-    State { id = id, query = "", collapsed = Set.empty, focus = Nothing, acted = Nothing, announced = 0 }
+    State { id = id, query = "", collapsed = Set.empty, focus = Nothing, acted = Nothing, announced = 0, quiet = False }
 
 
 {-| The text in the filter box. Only the permissions that contain every word are shown.
@@ -845,7 +874,7 @@ query (State data) =
 -}
 setQuery : String -> State -> State
 setQuery text (State data) =
-    State { data | query = text, acted = Nothing }
+    State { data | query = text, acted = Nothing, quiet = False }
 
 
 {-| The names of the groups that are folded, in alphabetical order.
@@ -872,7 +901,7 @@ type Msg
     | GroupToggled String
     | Focused RowKey ColumnKey
     | Moved RowKey ColumnKey
-    | Did Subject (Maybe Int)
+    | Did Acted
     | Cleared Int
     | Noop
 
@@ -892,7 +921,7 @@ update : Msg -> State -> ( State, Cmd Msg )
 update msg (State data) =
     case msg of
         QueryChanged text ->
-            ( State { data | query = text, acted = Nothing }, Cmd.none )
+            ( State { data | query = text, acted = Nothing, quiet = False }, Cmd.none )
 
         GroupToggled name ->
             ( State
@@ -915,12 +944,12 @@ update msg (State data) =
             , Internal.focus (Grid.domId data.id row column) Noop
             )
 
-        Did subject unsaved ->
+        Did acted ->
             let
                 number =
                     data.announced + 1
             in
-            ( State { data | acted = Just { subject = subject, unsaved = unsaved }, announced = number }
+            ( State { data | acted = Just acted, announced = number, quiet = True }
             , Process.sleep announcementMs |> Task.perform (\_ -> Cleared number)
             )
 
@@ -1496,10 +1525,11 @@ rowChanges env permissionIndex yes =
     List.filterMap (toChange env) (rowEdits env permissionIndex yes)
 
 
-{-| How many changes are unsaved once these edits are made, the way the count above the
-grid will say it. `Nothing` without `saved`.
+{-| What these edits lead to: how many changes are unsaved once they are made, the way the
+count above the grid will say it, and the fingerprint of the matrix they make. `Nothing`
+without `saved`.
 -}
-unsavedAfter : Env role permission msg -> List Edit -> Maybe Int
+unsavedAfter : Env role permission msg -> List Edit -> Maybe Unsaved
 unsavedAfter env edits =
     case env.savedCells of
         Nothing ->
@@ -1513,24 +1543,72 @@ unsavedAfter env edits =
 
                     else
                         0
+
+                asked =
+                    List.foldl (\edit -> Dict.insert ( edit.permission, edit.role ) edit.access) Dict.empty edits
             in
             Just
-                (List.foldl
-                    (\edit total ->
-                        let
-                            will =
-                                case savedAt env edit.permission edit.role of
-                                    Just (Cell before) ->
-                                        edit.access /= before.own
+                { matrix =
+                    fingerprint
+                        (\p r own ->
+                            case Dict.get ( p, r ) asked of
+                                Just access ->
+                                    access
 
-                                    Nothing ->
-                                        False
-                        in
-                        total + one will - one (isChanged env edit.permission edit.role)
-                    )
-                    (changedCount env)
-                    edits
-                )
+                                Nothing ->
+                                    own
+                        )
+                        env.cells
+                , count =
+                    List.foldl
+                        (\edit total ->
+                            let
+                                will =
+                                    case savedAt env edit.permission edit.role of
+                                        Just (Cell before) ->
+                                            edit.access /= before.own
+
+                                        Nothing ->
+                                            False
+                            in
+                            total + one will - one (isChanged env edit.permission edit.role)
+                        )
+                        (changedCount env)
+                        edits
+                }
+
+
+{-| A number that is the same for the same own access in every cell, in the same order, and
+almost surely different otherwise. `own` gives the own access of the cell at a place.
+-}
+fingerprint : (Int -> Int -> Maybe Access -> Maybe Access) -> Array (Array Cell) -> Int
+fingerprint own cells =
+    Array.foldl
+        (\row ( p, hash ) ->
+            ( p + 1
+            , Array.foldl
+                (\(Cell theCell) ( r, h ) -> ( r + 1, modBy 1000000007 (h * 31 + accessCode (own p r theCell.own)) ))
+                ( 0, hash )
+                row
+                |> Tuple.second
+            )
+        )
+        ( 0, 17 )
+        cells
+        |> Tuple.second
+
+
+accessCode : Maybe Access -> Int
+accessCode access =
+    case access of
+        Nothing ->
+            1
+
+        Just AccessGranted ->
+            2
+
+        Just AccessDenied ->
+            3
 
 
 {-| The matrix.
@@ -1600,7 +1678,8 @@ viewRemote toMsg attributes state data =
 
 {-| The frame of the matrix, the same element in every state: it carries the id of `init`
 and can take focus (`tabindex` -1), so `Klar.focus` finds the matrix while it loads, after
-a failure and once it is there, and the focus stays where it is when the state changes.
+a failure and once it is there, and the focus stays where it is when the state changes. It is
+a group named like the grid, so a screen reader says where the focus landed.
 -}
 frame :
     Config role permission msg
@@ -1628,6 +1707,10 @@ frame config (State state) options children =
             )
         , Attr.id state.id
         , Attr.tabindex -1
+
+        -- a place the focus can be sent to has a name, in every state
+        , Attr.attribute "role" "group"
+        , Attr.attribute "aria-label" (Maybe.withDefault (texts config.locale).gridLabel config.label)
         , if waiting then
             Attr.attribute "aria-busy" "true"
 
@@ -2505,11 +2588,13 @@ cellName t names facts isLocked changed =
 
 {-| The one polite region of the matrix. What a person did last is said from the value the
 application gives now (so a change it refused is not announced as made), followed by how many
-changes were unsaved once it was made: that number is taken when the person acts, so that a
-save afterwards does not change the text, which would say the change again. A cell whose own
-access is not the one asked for (the application refused it) gets no number. The
-announcement is cleared after `announcementMs`. Typing in the filter forgets what was done,
-and the region says how many permissions match instead.
+changes are unsaved once it is made. That number is worked out when the person acts, and it is
+said only while the matrix is the one the change leads to: not when the application refused
+the change or has not made it yet, and not when it changed other cells too (the count above
+the grid is then the one to read). A save afterwards changes only the saved values, so the
+text stays and the change is not said again. The announcement is cleared after
+`announcementMs`, to an empty region. Typing in the filter forgets what was done, and the
+region says how many permissions match instead.
 -}
 liveText : Env role permission msg -> String
 liveText env =
@@ -2524,11 +2609,16 @@ liveText env =
                     announcement env acted.subject
 
                 count =
-                    if refused env acted.subject then
-                        Nothing
+                    case acted.unsaved of
+                        Just unsaved ->
+                            if fingerprint (\_ _ own -> own) env.cells == unsaved.matrix then
+                                Just unsaved.count
 
-                    else
-                        acted.unsaved
+                            else
+                                Nothing
+
+                        Nothing ->
+                            Nothing
             in
             case count of
                 Just unsaved ->
@@ -2542,7 +2632,8 @@ liveText env =
                     said
 
         Nothing ->
-            if not env.filtering then
+            if not env.filtering || env.state.quiet then
+                -- after an announcement the region goes quiet: the matches are said again when the filter changes
                 ""
 
             else if List.isEmpty env.layout.matches then
@@ -2550,24 +2641,6 @@ liveText env =
 
             else
                 t.matchCount (List.length env.layout.matches) env.layout.total
-
-
-{-| Whether the application did not make the change of a cell that the person asked for: the
-cell's own access is not the one asked for.
--}
-refused : Env role permission msg -> Subject -> Bool
-refused env subject =
-    case subject of
-        CellOf roleKey permissionKey requested ->
-            case Maybe.map2 (cellAt env) (Dict.get permissionKey env.permissionByKey) (Dict.get roleKey env.roleByKey) of
-                Just (Just (Cell now)) ->
-                    now.own /= requested
-
-                _ ->
-                    True
-
-        _ ->
-            False
 
 
 {-| What a person did last, said from the value the application gives now.
@@ -2579,7 +2652,7 @@ announcement env subject =
             env.t
     in
     case subject of
-        CellOf roleKey permissionKey _ ->
+        CellOf roleKey permissionKey ->
             case ( Dict.get roleKey env.roleByKey, Dict.get permissionKey env.permissionByKey ) of
                 ( Just r, Just p ) ->
                     case ( roleAt env r, permissionAt env p, cellAt env p r ) of
@@ -2811,14 +2884,14 @@ cellEdit env target intent =
                 Nothing
 
 
-{-| What the matrix remembers of a click or a key on a cell that changes it: the cell, the own
-access asked for, and how many changes are unsaved once it is made.
+{-| What the matrix remembers of a click or a key on a cell that changes it: the cell, and
+what the change leads to.
 -}
 didOnCell : Env role permission msg -> Target -> Intent -> Maybe Msg
 didOnCell env target intent =
     case ( cellEdit env target intent, subjectOf env target ) of
-        ( Just edit, Just (CellOf roleKey permissionKey _) ) ->
-            Just (Did (CellOf roleKey permissionKey edit.access) (unsavedAfter env [ edit ]))
+        ( Just edit, Just ((CellOf _ _) as subject) ) ->
+            Just (Did { subject = subject, unsaved = unsavedAfter env [ edit ] })
 
         _ ->
             Nothing
@@ -2884,7 +2957,7 @@ subjectOf env target =
             Just (PermissionOf permissionKey)
 
         ( Just (PermissionKey permissionKey), Just (RoleKey roleKey) ) ->
-            Just (CellOf roleKey permissionKey Nothing)
+            Just (CellOf roleKey permissionKey)
 
         _ ->
             Nothing
@@ -2935,14 +3008,14 @@ clickDecoder env =
             )
 
 
-{-| A header checkbox: remembered as the whole role or the whole permission, with how many
-changes are unsaved once its cells change (the same cells as the checkbox asks for).
+{-| A header checkbox: remembered as the whole role or the whole permission, with what the
+change of its cells leads to (the same cells as the checkbox asks for).
 -}
 changeDecoder : Env role permission msg -> Decoder Msg
 changeDecoder env =
     let
         did subject edits =
-            Decode.succeed (Did subject (unsavedAfter env edits))
+            Decode.succeed (Did { subject = subject, unsaved = unsavedAfter env edits })
     in
     targetDecoder
         |> Decode.andThen

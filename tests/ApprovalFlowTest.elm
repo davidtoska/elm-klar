@@ -141,6 +141,11 @@ auditTests =
                 Expect.all
                     [ \_ -> viewIt [ ApprovalFlow.horizontal ] creditNote |> H.has [ Selector.tag "ol", Selector.attribute (Attr.tabindex 0) ]
                     , \_ -> viewIt [] creditNote |> H.none [ Selector.tag "ol", Selector.attribute (Attr.tabindex 0) ]
+
+                    -- a stop has a name: the flow's own, or the default
+                    , \_ -> viewIt [ ApprovalFlow.horizontal ] creditNote |> H.has [ Selector.tag "ol", H.attr "aria-label" "Approval steps" ]
+                    , \_ -> viewIt [ ApprovalFlow.horizontal, ApprovalFlow.ariaLabel "Credit note 1042" ] creditNote |> H.has [ Selector.tag "ol", H.attr "aria-label" "Credit note 1042" ]
+                    , \_ -> viewIt [] creditNote |> H.none [ Selector.tag "ol", H.attr "aria-label" "Approval steps" ]
                     ]
                     ()
         , test "atLeast 2 of 3: two approvals approve the step, two rejections reject it, one of each keeps it open" <|
@@ -184,6 +189,31 @@ auditTests =
                     , \_ -> withRule (ApprovalFlow.atLeast 0) [ N, P ] |> Expect.equal (withRule ApprovalFlow.any [ N, P ])
                     , \_ -> withRule (ApprovalFlow.atLeast 5) [ Y, N ] |> Expect.equal (withRule ApprovalFlow.all [ Y, N ])
                     , \_ -> withRule (ApprovalFlow.atLeast 5) [ Y, Y ] |> Expect.equal (withRule ApprovalFlow.all [ Y, Y ])
+                    ]
+                    ()
+        , test "and so are its texts: the rule, the progress and the summary are those of any and all" <|
+            \_ ->
+                let
+                    board quorum decisions =
+                        case List.indexedMap (\place d -> ApprovalFlow.approver place (decision d)) decisions of
+                            first :: rest ->
+                                ApprovalFlow.flow [ ApprovalFlow.step "Board" quorum first rest ]
+
+                            [] ->
+                                ApprovalFlow.flow []
+
+                    summary quorum decisions =
+                        viewIt [] (board quorum decisions)
+                            |> Query.fromHtml
+                            |> Query.find [ H.attr "role" "status" ]
+                in
+                Expect.all
+                    [ \_ -> viewIt [] (board (ApprovalFlow.atLeast 1) [ P, P, P ]) |> H.has [ Selector.text "Any one of 3 must approve" ]
+                    , \_ -> viewIt [] (board (ApprovalFlow.atLeast 1) [ P, P, P ]) |> H.hasNot [ Selector.text "1 of 3 must approve" ]
+                    , \_ -> viewIt [] (board (ApprovalFlow.atLeast 3) [ Y, P, P ]) |> H.has [ Selector.text "All must approve" ]
+                    , \_ -> viewIt [] (board (ApprovalFlow.atLeast 9) [ Y, P, P ]) |> H.hasNot [ Selector.text "3 of 3 must approve" ]
+                    , \_ -> summary (ApprovalFlow.atLeast 3) [ Y, P, P ] |> Query.has [ Selector.text "In progress: step 1 of 1 (Board), 1 of 3 approved" ]
+                    , \_ -> summary (ApprovalFlow.atLeast 0) [ N, P ] |> Query.has [ Selector.text "In progress: step 1 of 1 (Board), 1 of 2 rejected" ]
                     ]
                     ()
         , test "the new words in Norwegian" <|
@@ -1150,16 +1180,24 @@ remoteTests =
                         ]
                     )
                     ()
-        , test "a flow that is being refreshed stays, dimmed and busy, and its decide buttons are busy too" <|
+        , test "a flow that is being refreshed stays, dimmed and busy, but its decide buttons are not: only deciding makes them busy" <|
             \_ ->
                 ApprovalFlow.viewRemote person (deciderAttributes 2) (Remote.refresh (Remote.Loaded creditNote))
                     |> Query.fromHtml
                     |> Expect.all
                         [ Query.has [ Selector.class "klar-approval", Selector.class "klar-refreshing", H.attr "aria-busy" "true" ]
                         , Query.has [ Selector.class "klar-approval__steps" ]
-                        , Query.findAll [ Selector.tag "button", H.attr "aria-busy" "true" ] >> Query.count (Expect.equal 2)
+                        , Query.findAll [ Selector.tag "button" ] >> Query.count (Expect.equal 2)
+                        , Query.findAll [ Selector.tag "button", H.attr "aria-busy" "true" ] >> Query.count (Expect.equal 0)
+                        , Query.findAll [ Selector.tag "button", H.attr "aria-disabled" "true" ] >> Query.count (Expect.equal 0)
                         , Query.hasNot [ Selector.class "klar-stale" ]
                         ]
+        , test "while refreshing, a decision on its way still makes the buttons busy" <|
+            \_ ->
+                ApprovalFlow.viewRemote person (ApprovalFlow.deciding True :: deciderAttributes 2) (Remote.refresh (Remote.Loaded creditNote))
+                    |> Query.fromHtml
+                    |> Query.findAll [ Selector.tag "button", H.attr "aria-busy" "true" ]
+                    |> Query.count (Expect.equal 2)
         , test "old data whose refresh failed says so above the steps, with a retry that sends the message" <|
             \_ ->
                 let

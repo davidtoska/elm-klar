@@ -123,6 +123,15 @@ Quick path: `init`, `update`, `matrix`, `onChange`, `saved`, `unsavedChanges`, `
         , Cmd.batch [ Api.loadGrants GrantsLoaded, Klar.focus "role-matrix" NoOp ]
         )
 
+    GrantsLoaded (Ok fromServer) ->
+        -- the unsaved changes stay on top of what the server has now
+        let
+            unsaved =
+                PermissionMatrix.unsavedChanges (cellOf model.savedGrants)
+                    (toMatrix (Remote.withDefault model.savedGrants model.grants))
+        in
+        ( { model | grants = Remote.Loaded (applyChanges unsaved fromServer), savedGrants = fromServer }, Cmd.none )
+
     applyChanges changes grants =
         List.foldl store grants changes
 
@@ -217,7 +226,10 @@ with "Old data from 14:05" and a retry above the grid when the last refresh fail
 in the zone of `settings`). The grid is the same element while it refreshes, so the focus
 stays on the cell it was on. The id given to `init` is on the frame of the matrix in every
 state, and the frame can take focus: "Try again" goes away while the data loads, so call
-`Klar.focus` with that id in the update branch of the retry message.
+`Klar.focus` with that id in the update branch of the retry message. The matrix keeps no
+values of its own: data that loads replaces the grid, and with it the unsaved changes the
+toolbar counts, so a reload while there are some should keep them (or ask first) in your
+`update`, as the example does.
 
 **Keyboard.** The grid is one tab stop. The arrow keys move between cells, `Home` and
 `End` to the first and last cell of the row, `Ctrl+Home` and `Ctrl+End` to the first
@@ -240,16 +252,20 @@ grid is described by a short instruction ("Space or Enter changes a cell") and e
 can change names its keys in `aria-keyshortcuts`. There is one polite region. What a person
 does is announced in it ("Cancel orders granted to Supervisor. 2 unsaved changes"), from the
 value that `cell` gives afterwards, so a change you refuse is not announced as made. The
-number is the one the change led to, so a save does not say the change again, and the
-announcement is cleared after five seconds, so a refresh later does not either. While the
-filter is used the region says how many permissions match. Headers and the filter have names;
+number is said only while the matrix is the one the change leads to (not when you refused
+the change, have not made it yet or changed other cells with it), and a save does not change
+it, so the change is not said again. The announcement is cleared after five seconds, so a
+refresh later does not say it either. While the filter is used the region says how many
+permissions match, until the next change. Headers and the filter have names;
 the state is never colour alone.
 
 **Size.** Only the permissions that are shown are turned into HTML, up to 500 rows (a
 note says how many were cut: use the filter or the groups). Events are caught once on
 the grid, so no cell has handlers of its own, and each cell is drawn from a few plain values
-with `Html.Lazy`: a key that moves the focus draws two cells again, and a toggle the cells it
-changed, also in a grid of 200 permissions and 25 roles (5 000 cells). Header checkboxes act
+with `Html.Lazy`: a key that moves the focus redraws only the two cells that changed, and a
+toggle the cells it changed. The matrix is still walked once per render (your `cell` is
+called for every cell, and the row headers are built again), so a key costs about as much as
+one pass over the cells: in a grid of 200 permissions and 25 roles (5 000 cells) a few frames. Header checkboxes act
 on every permission that matches the filter, folded groups and rows beyond the cap included.
 
 The built-in text follows `locale` (English by default). Names come from you.
