@@ -733,15 +733,20 @@ update msg ((State state) as current) =
             ( State { state | folds = Dict.insert key count state.folds }
               -- the focus goes to the first row that appeared: the button that was
               -- pressed is gone, and the button above (the fold that opened, far
-              -- up in a long run) would scroll the page back
-            , Internal.focus
-                (if before == 0 then
-                    foldDomId state.id key
+              -- up in a long run) would scroll the page back. Only every `rowStep`th
+              -- row has an id; a count kept from an earlier diff can stop in between,
+              -- and then the next row with an id, or the fold itself, takes the focus,
+              -- so that it never falls to the page
+            , if before == 0 then
+                Internal.focus (foldDomId state.id key) Noop
 
-                 else
-                    rowDomId state.id key before
-                )
-                Noop
+              else
+                Internal.focusFirst
+                    [ rowDomId state.id key before
+                    , rowDomId state.id key ((before // rowStep + 1) * rowStep)
+                    , foldDomId state.id key
+                    ]
+                    Noop
             )
 
         Hide key ->

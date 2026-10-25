@@ -82,8 +82,9 @@ module safe for text you did not write:
 bullet and numbered lists (nested, tight or loose, a numbered list keeps the
 number it starts at), task lists (`- [ ]` and `- [x]` become disabled check
 boxes that screen readers announce), fenced code (```` ``` ```` and `~~~`, the language
-is kept as a label) and indented code, thematic breaks, tables with alignment,
-emphasis, strong text, `~~strikethrough~~`, code spans, links with titles,
+is kept as a label) and indented code, thematic breaks, tables with alignment
+(`:---` is left and `---:` right, as in GFM, also in a text that reads right to left;
+a column without one starts where the text starts), emphasis, strong text, `~~strikethrough~~`, code spans, links with titles,
 `<autolinks>`, plain `https://` addresses, images, backslash escapes and hard
 line breaks. Character references become the characters they stand for: numbers
 (`&#8217;`, `&#x1F600;`) and the common names (`&amp;`, `&nbsp;`, `&mdash;`, `&aelig;`

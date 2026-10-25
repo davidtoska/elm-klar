@@ -1,7 +1,7 @@
 module Klar.Compare exposing
     ( view, viewRemote
     , Field, text, maybe, html, longText, heading
-    , Attribute, baseline, onlyDifferences, onOnlyDifferences, onRetry, id, density, maxHeight, emptyState, locale, settings
+    , Attribute, baseline, onBaseline, onlyDifferences, onOnlyDifferences, onRetry, id, density, maxHeight, emptyState, locale, settings
     )
 
 {-| Records side by side, with the differences marked: two or more products,
@@ -43,8 +43,8 @@ Do not use when: the change between two versions of one text or record is the po
         model.products
 
 Fields are the rows and the records are the columns. The first record is the
-baseline (or the one you name with `baseline`); every other record is compared
-with it, cell by cell. A cell that differs says so with a sign (`≠`) and with hidden
+baseline (or the one you name with `baseline`, which the user can choose in the
+headings with `onBaseline`); every other record is compared with it, cell by cell. A cell that differs says so with a sign (`≠`) and with hidden
 text ("Differs from baseline") as well as with a color, a cell that is the same says
 "Same as baseline" to a screen reader, and a row where every record is equal is
 dimmed, or left out while `onlyDifferences` is `True` (the switch "Show only
@@ -104,12 +104,13 @@ but are hard to read).
 
 # Attributes
 
-@docs Attribute, baseline, onlyDifferences, onOnlyDifferences, onRetry, id, density, maxHeight, emptyState, locale, settings
+@docs Attribute, baseline, onBaseline, onlyDifferences, onOnlyDifferences, onRetry, id, density, maxHeight, emptyState, locale, settings
 
 -}
 
 import Html exposing (Html)
 import Html.Attributes as Attr
+import Html.Events as Events
 import Html.Keyed as Keyed
 import Html.Lazy as Lazy
 import Klar.Compare.Rows as Rows exposing (Mark(..), Value(..))
@@ -228,6 +229,7 @@ type Attribute id msg
 
 type alias Config id msg =
     { baseline : Maybe id
+    , onBaseline : Maybe (id -> msg)
     , onlyDifferences : Bool
     , onOnlyDifferences : Maybe (Bool -> msg)
     , onRetry : Maybe msg
@@ -244,6 +246,7 @@ configure : List (Attribute id msg) -> Config id msg
 configure attributes =
     List.foldl (\(Attribute change) config -> change config)
         { baseline = Nothing
+        , onBaseline = Nothing
         , onlyDifferences = False
         , onOnlyDifferences = Nothing
         , onRetry = Nothing
@@ -264,6 +267,22 @@ record is the baseline again, and its column says so.
 baseline : id -> Attribute id msg
 baseline value =
     Attribute (\config -> { config | baseline = Just value })
+
+
+{-| Lets the user choose the baseline: the heading of every record gets a small button
+"Set as baseline", and the function gets the id of the record that was chosen. Keep
+it in your model and give it back with `baseline`. The heading of the baseline says
+"Baseline" in the same place, as a button that cannot be pressed
+(`aria-disabled`), so the focus stays where the user pressed. Without this attribute
+the baseline is the application's choice alone. With a single record there is no
+button.
+
+    Compare.onBaseline BaselineChosen
+
+-}
+onBaseline : (id -> msg) -> Attribute id msg
+onBaseline toMsg =
+    Attribute (\config -> { config | onBaseline = Just toMsg })
 
 
 {-| While `True`, the rows where every record is equal are left out, and so are the
@@ -379,6 +398,7 @@ settings given =
 type alias Texts =
     { field : String
     , baseline : String
+    , setBaseline : String
     , differs : String
     , same : String
     , notProvided : String
@@ -408,6 +428,7 @@ texts loc =
     in
     { field = pick "Felt" "Field"
     , baseline = pick "Referanse" "Baseline"
+    , setBaseline = pick "Bruk som referanse" "Set as baseline"
     , differs = pick "Avviker fra referansen" "Differs from baseline"
     , same = pick "Lik referansen" "Same as baseline"
     , notProvided = pick "Ikke oppgitt" "Not provided"
@@ -775,11 +796,42 @@ viewRecords config t columns freshness records =
                                 , Attr.scope "col"
                                 ]
                                 [ Html.div [ Internal.cls [ "klar-compare__title" ] ] [ columns.header record ]
-                                , if isBaseline then
-                                    Html.span [ Internal.cls [ "klar-compare__tag" ] ] [ Html.text t.baseline ]
+                                , case ( config.onBaseline, recordCount >= 2 ) of
+                                    ( Just toMsg, True ) ->
+                                        -- every record has the button, the baseline's says so and
+                                        -- cannot be pressed: the button that was pressed stays, with
+                                        -- the focus, and becomes the one of the baseline
+                                        Html.button
+                                            [ Internal.cls
+                                                [ "klar-compare__pick"
+                                                , if isBaseline then
+                                                    "klar-compare__pick--baseline"
 
-                                  else
-                                    Html.text ""
+                                                  else
+                                                    ""
+                                                ]
+                                            , Attr.type_ "button"
+                                            , if isBaseline then
+                                                Attr.attribute "aria-disabled" "true"
+
+                                              else
+                                                Events.onClick (toMsg (columns.id record))
+                                            ]
+                                            [ Html.text
+                                                (if isBaseline then
+                                                    t.baseline
+
+                                                 else
+                                                    t.setBaseline
+                                                )
+                                            ]
+
+                                    _ ->
+                                        if isBaseline then
+                                            Html.span [ Internal.cls [ "klar-compare__tag" ] ] [ Html.text t.baseline ]
+
+                                        else
+                                            Html.text ""
                                 ]
                             )
                         )

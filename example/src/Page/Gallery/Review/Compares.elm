@@ -177,11 +177,12 @@ productsExample : Locale -> Model -> Html Msg
 productsExample locale model =
     Doc.example
         { title = "Three products"
-        , description = Just "The buttons put the table in each of its states. \"Refresh\" keeps the table, dimmed, with a progress line (Remote.refresh). \"Refresh, then fail\" ends with the old data still shown, marked \"Old data from\" its time, with \"Try again\" in the toolbar. Choose the baseline to compare the others with a different record. The \"Summary\" field marks the words that differ from the baseline."
+        , description = Just "The buttons put the table in each of its states. \"Refresh\" keeps the table, dimmed, with a progress line (Remote.refresh). \"Refresh, then fail\" ends with the old data still shown, marked \"Old data from\" its time, with \"Try again\" in the toolbar. Choose the baseline with \"Set as baseline\" in the heading of a record (Compare.onBaseline), or with the buttons above, to compare the others with a different record. The \"Summary\" field marks the words that differ from the baseline."
         , code = Just """Compare.viewRemote
     [ Compare.baseline model.baseline
     , Compare.onlyDifferences model.onlyDifferences
     , Compare.onOnlyDifferences OnlyDifferences
+    , Compare.onBaseline SetBaseline
     , Compare.onRetry Retry
     , Compare.id "compare-products"
     , Compare.locale locale
@@ -237,6 +238,7 @@ productsExample locale model =
                     [ [ Compare.onlyDifferences model.onlyDifferences
                       , Compare.onOnlyDifferences OnlyDifferences
                       , Compare.onRetry Retry
+                      , Compare.onBaseline SetBaseline
                       , Compare.id compareId
                       , Compare.density model.density
                       , Compare.emptyState [ EmptyState.description "Add at least two products from the product list." ]

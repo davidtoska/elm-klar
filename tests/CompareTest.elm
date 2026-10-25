@@ -20,6 +20,7 @@ import Time
 type Msg
     = Retry
     | OnlyDifferences Bool
+    | Chosen Int
 
 
 type alias Product =
@@ -454,6 +455,32 @@ baselineTests =
                 shown [ Compare.baseline 99 ] products
                     |> Query.find [ byClass "klar-compare__head--baseline" ]
                     |> Query.has [ Selector.text "Widget" ]
+        , test "the user can choose the baseline in the heading of a record" <|
+            \_ ->
+                shown [ Compare.onBaseline Chosen ] products
+                    |> Query.findAll [ Selector.tag "button", Selector.containing [ Selector.text "Set as baseline" ] ]
+                    |> Expect.all
+                        [ Query.count (Expect.equal 2)
+                        , Query.index 1 >> Event.simulate Event.click >> Event.expect (Chosen 3)
+                        ]
+        , test "the baseline has the button in the same place, saying so, and it cannot be pressed" <|
+            \_ ->
+                shown [ Compare.onBaseline Chosen, Compare.baseline 2 ] products
+                    |> Query.find [ byClass "klar-compare__head--baseline" ]
+                    |> Query.find [ Selector.tag "button" ]
+                    |> Expect.all
+                        [ Query.has [ Selector.text "Baseline", Selector.attribute (Attr.attribute "aria-disabled" "true") ]
+                        , Event.simulate Event.click >> Event.toResult >> Expect.err
+                        ]
+        , test "without the attribute the baseline is a tag and there are no buttons" <|
+            \_ ->
+                shown [] products
+                    |> Expect.all
+                        [ Query.hasNot [ Selector.tag "button" ]
+                        , Query.has [ byClass "klar-compare__tag" ]
+                        ]
+        , test "a single record has nothing to choose" <|
+            \_ -> shown [ Compare.onBaseline Chosen ] [ widget ] |> Query.hasNot [ Selector.tag "button" ]
         , test "a single record is not called the baseline" <|
             \_ -> shown [] [ widget ] |> Query.hasNot [ byClass "klar-compare__head--baseline" ]
         ]

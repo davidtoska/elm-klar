@@ -32,6 +32,7 @@ heading : String -> Field record msg
 -- Attributes
 type Attribute id msg  -- opaque: no constructors are exposed
 baseline : id -> Attribute id msg
+onBaseline : (id -> msg) -> Attribute id msg
 onlyDifferences : Bool -> Attribute id msg
 onOnlyDifferences : (Bool -> msg) -> Attribute id msg
 onRetry : msg -> Attribute id msg
@@ -84,8 +85,8 @@ Do not use when: the change between two versions of one text or record is the po
         model.products
 
 Fields are the rows and the records are the columns. The first record is the
-baseline (or the one you name with `baseline`); every other record is compared
-with it, cell by cell. A cell that differs says so with a sign (`≠`) and with hidden
+baseline (or the one you name with `baseline`, which the user can choose in the
+headings with `onBaseline`); every other record is compared with it, cell by cell. A cell that differs says so with a sign (`≠`) and with hidden
 text ("Differs from baseline") as well as with a color, a cell that is the same says
 "Same as baseline" to a screen reader, and a row where every record is equal is
 dimmed, or left out while `onlyDifferences` is `True` (the switch "Show only
@@ -282,6 +283,22 @@ baseline : id -> Attribute id msg
 The record the others are compared with, by its id. The default is the first
 record. When no record has this id (it was taken out of the comparison), the first
 record is the baseline again, and its column says so.
+
+### `onBaseline`
+
+```elm
+onBaseline : (id -> msg) -> Attribute id msg
+```
+
+Lets the user choose the baseline: the heading of every record gets a small button
+"Set as baseline", and the function gets the id of the record that was chosen. Keep
+it in your model and give it back with `baseline`. The heading of the baseline says
+"Baseline" in the same place, as a button that cannot be pressed
+(`aria-disabled`), so the focus stays where the user pressed. Without this attribute
+the baseline is the application's choice alone. With a single record there is no
+button.
+
+    Compare.onBaseline BaselineChosen
 
 ### `onlyDifferences`
 
