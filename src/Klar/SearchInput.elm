@@ -1,8 +1,8 @@
 module Klar.SearchInput exposing
     ( view, Attribute
     , State, Msg, init, update
-    , text, committed, isPending
-    , setText, clear
+    , value, committed, isPending
+    , setValue, clear
     , debounce
     , label, labelHidden, ariaLabel, hint, error, errorMaybe, optionalText
     , placeholder, shortcut, remote, size, disabled, name
@@ -66,11 +66,11 @@ Quick path: `init`, `update`, `view`, `committed`
         ]
         model.search
 
-**Debounce without ports.** The state holds two texts: `text`, what is in the
+**Debounce without ports.** The state holds two texts: `value`, what is in the
 field right now, and `committed`, the text the application should search for.
 Every keystroke starts a short timer (`debounce`, 300 ms) and remembers a
 counter; when the timer fires only the last keystroke is still current, and
-only then is `committed` set to `text`, without the spaces at its ends (so a
+only then is `committed` set to `value`, without the spaces at its ends (so a
 space typed at the end starts no new search). Enter commits at once, and the
 clear button (or Escape) empties and commits at once. The application starts a
 search when `committed` differs from before `update`. The timer is a `Cmd`
@@ -118,12 +118,12 @@ spinner) follow `locale`.
 
 # Reading the search
 
-@docs text, committed, isPending
+@docs value, committed, isPending
 
 
 # Changing the search from the application
 
-@docs setText, clear
+@docs setValue, clear
 
 
 # Timing
@@ -193,12 +193,12 @@ init id =
 
 {-| What is in the field right now, including text that is not committed yet.
 -}
-text : State -> String
-text (State state) =
+value : State -> String
+value (State state) =
     state.text
 
 
-{-| The text to search for: `text` after the user paused (or pressed Enter),
+{-| The text to search for: `value` after the user paused (or pressed Enter),
 without the spaces at its ends. Compare it before and after `update` to know
 when to start a search.
 -}
@@ -218,16 +218,16 @@ isPending (State state) =
 {-| Puts a text in the field and commits it at once, for example a search
 restored from the address. A pause timer that is still running is ignored.
 -}
-setText : String -> State -> State
-setText value (State state) =
-    State { state | text = value, committed = String.trim value, version = state.version + 1 }
+setValue : String -> State -> State
+setValue given (State state) =
+    State { state | text = given, committed = String.trim given, version = state.version + 1 }
 
 
 {-| Empties the field and commits the empty text.
 -}
 clear : State -> State
 clear =
-    setText ""
+    setValue ""
 
 
 
@@ -254,23 +254,23 @@ is dropped, typed text is never committed (Enter still commits).
 update : Msg -> State -> ( State, Cmd Msg )
 update msg (State state) =
     case msg of
-        Typed delay value ->
+        Typed delay given ->
             let
                 version =
                     state.version + 1
             in
             if delay <= 0 then
-                ( State { state | text = value, committed = String.trim value, version = version }, Cmd.none )
+                ( State { state | text = given, committed = String.trim given, version = version }, Cmd.none )
 
             else
-                ( State { state | text = value, version = version }
+                ( State { state | text = given, version = version }
                 , Process.sleep (toFloat delay)
                     |> Task.perform (\_ -> Pause version)
                 )
 
-        Composing value ->
+        Composing given ->
             -- not final yet: no timer, and the one of the last keystroke is stale
-            ( State { state | text = value, version = state.version + 1 }, Cmd.none )
+            ( State { state | text = given, version = state.version + 1 }, Cmd.none )
 
         Pause version ->
             -- Only the timer of the last keystroke commits.
@@ -345,8 +345,8 @@ search field usually has no visible label: then give it an `ariaLabel` (the
 default is "Search").
 -}
 label : String -> Attribute msg
-label value =
-    updateField (Field.setLabel value)
+label given =
+    updateField (Field.setLabel given)
 
 
 {-| Hides the `label` visually but keeps it for screen readers. Use it when the
@@ -364,16 +364,16 @@ shown. Default "Search" (see `locale`). It is ignored when there is a `label`.
 
 -}
 ariaLabel : String -> Attribute msg
-ariaLabel value =
-    Attribute (\config -> { config | ariaLabel = Just value })
+ariaLabel given =
+    Attribute (\config -> { config | ariaLabel = Just given })
 
 
 {-| Help text shown under the field, for example the format you expect. Screen
 readers read it together with the label (`aria-describedby`).
 -}
 hint : String -> Attribute msg
-hint value =
-    updateField (Field.setHint value)
+hint given =
+    updateField (Field.setHint given)
 
 
 {-| Shows an error message under the field and marks the field invalid (red
@@ -381,8 +381,8 @@ border, `aria-invalid`). Screen readers announce the message when it appears.
 To show an error only sometimes, use `errorMaybe`.
 -}
 error : String -> Attribute msg
-error value =
-    updateField (Field.setError (Just value))
+error given =
+    updateField (Field.setError (Just given))
 
 
 {-| Like `error`, but takes a `Maybe`: `Just message` shows the message and
@@ -398,8 +398,8 @@ shown. A search field has no `required` attribute, so the text is shown whenever
 there is a label.
 -}
 optionalText : String -> Attribute msg
-optionalText value =
-    updateField (Field.setOptionalText value)
+optionalText given =
+    updateField (Field.setOptionalText given)
 
 
 {-| Text shown inside the empty field, for example `"Search orders ..."`. It is
@@ -407,8 +407,8 @@ not a substitute for an accessible name (see `ariaLabel`), and it disappears as
 soon as the user types. Default: none.
 -}
 placeholder : String -> Attribute msg
-placeholder value =
-    Attribute (\config -> { config | placeholder = Just value })
+placeholder given =
+    Attribute (\config -> { config | placeholder = Just given })
 
 
 {-| Milliseconds to wait after the last keystroke before the text is committed.
@@ -453,8 +453,8 @@ remote results =
 clear button is hidden. Default `False`.
 -}
 disabled : Bool -> Attribute msg
-disabled value =
-    Attribute (\config -> { config | disabled = value })
+disabled given =
+    Attribute (\config -> { config | disabled = given })
 
 
 {-| The size of the field: `Small` (26px high), `Medium` (32px) or `Large`
@@ -462,16 +462,16 @@ disabled value =
 [Klar.Theme](Klar-Theme). Default `Medium`.
 -}
 size : Size -> Attribute msg
-size value =
-    Attribute (\config -> { config | size = value })
+size given =
+    Attribute (\config -> { config | size = given })
 
 
 {-| The HTML `name` of the input. Browsers use it to fill in saved values, and a
 native form sends the value under this name. Default: none.
 -}
 name : String -> Attribute msg
-name value =
-    Attribute (\config -> { config | name = Just value })
+name given =
+    Attribute (\config -> { config | name = Just given })
 
 
 {-| The language of the built-in text: the default accessible name ("Search"),
@@ -480,8 +480,8 @@ runs ("Searching ..."). Default `Locale.default`, which is English. Texts you
 pass in yourself are shown as they are.
 -}
 locale : Locale -> Attribute msg
-locale value =
-    Attribute (\config -> { config | locale = value })
+locale given =
+    Attribute (\config -> { config | locale = given })
 
 
 
@@ -568,7 +568,7 @@ view toMsg attributes (State state) =
                        , Internal.attrMaybe (Attr.attribute "aria-label") name_
                        , Internal.attrMaybe Attr.name config.name
                        , Events.on "input" (inputDecoder toMsg config.debounce)
-                       , Events.on "compositionend" (Decode.map (\value -> toMsg (Typed config.debounce value)) targetValue)
+                       , Events.on "compositionend" (Decode.map (\given -> toMsg (Typed config.debounce given)) targetValue)
                        , Events.preventDefaultOn "keydown" (keyDecoder toMsg hasText)
                        ]
                 )
@@ -623,12 +623,12 @@ targetValue =
 inputDecoder : (Msg -> msg) -> Int -> Decoder msg
 inputDecoder toMsg delay =
     Decode.map2
-        (\isComposing value ->
+        (\isComposing given ->
             if isComposing then
-                toMsg (Composing value)
+                toMsg (Composing given)
 
             else
-                toMsg (Typed delay value)
+                toMsg (Typed delay given)
         )
         TextField.composing
         targetValue

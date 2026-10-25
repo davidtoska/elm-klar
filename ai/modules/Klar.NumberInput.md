@@ -176,13 +176,14 @@ away from zero, on the decimal digits, as `Klar.Format` rounds: `1.005` is
 throws away the text being typed and brings back the number from before; its
 default is then prevented, so a dialog around the field stays open. The + and -
 buttons are not in the Tab order; held down with the mouse, they step again and
-again (after 400 ms, every 60 ms) until they are let go or a limit is reached.
+again (after 400 ms, every 60 ms) until they are let go, the field is left, a
+limit is reached or 15 seconds have passed.
 
-**Phones.** A field whose `min` is 0 or more asks for the numeric keyboard
-(`inputmode` decimal, or numeric with `decimals 0`). A field that takes
-negative numbers, or has no `min`, gets the full keyboard, because the numeric
-keyboard of an iPhone has no minus key; give a field for amounts that cannot be
-negative `min 0`.
+**Phones.** The field asks for the numeric keyboard (`inputmode` decimal, or
+numeric with `decimals 0`), also when it has no `min`. A field whose `min` is
+below zero gets the full keyboard instead, because the numeric keyboard of an
+iPhone has no minus key (Android's has one); a field without `min` keeps the
+numeric keyboard, so an iPhone user cannot type a minus sign there.
 
 **Accessibility.** The input has the role `spinbutton` with `aria-valuemin`,
 `aria-valuemax` and `aria-valuenow`, and an `aria-valuetext` that is the text

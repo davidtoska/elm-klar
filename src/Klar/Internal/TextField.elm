@@ -55,6 +55,15 @@ type Stage
     | Over
 
 
+{-| How many characters left count as near the limit: a tenth of the limit, or
+a fifth up to 10 characters, whichever is more. A short field (a postal code of
+4, a PIN of 6) is near only at its last character or two, and never at 0.
+-}
+nearAt : Int -> Int
+nearAt limit =
+    Basics.max (Basics.min 10 (limit // 5)) (limit // 10)
+
+
 stageOf : Int -> Int -> Stage
 stageOf limit length =
     let
@@ -67,7 +76,7 @@ stageOf limit length =
     else if remaining == 0 then
         AtLimit
 
-    else if remaining <= Basics.max 10 (limit // 10) then
+    else if remaining <= nearAt limit then
         Near
 
     else
@@ -78,8 +87,8 @@ stageOf limit length =
 `Field.viewWithAside`). It never cuts the text: a text over the limit is shown as
 such.
 
-  - For the eye: `12/200`, amber when the limit is near (10 characters or a tenth
-    of the limit left, whichever is more), red past it.
+  - For the eye: `12/200`, amber when the limit is near (a tenth of the limit
+    left, or a fifth up to 10 characters, whichever is more), red past it.
   - For `aria-describedby`, with the given id: "12 of 200 characters" (and "60 too
     many" past the limit), read when the field gets focus.
   - A live region that is always there and speaks only when the text comes near

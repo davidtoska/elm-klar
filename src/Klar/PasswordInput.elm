@@ -150,6 +150,7 @@ import Klar.Internal as Internal
 import Klar.Internal.TextField as TextField
 import Klar.Locale as Locale exposing (Locale)
 import Klar.Theme as Theme exposing (Size(..))
+import Set
 
 
 
@@ -508,8 +509,11 @@ is what `strengthMeter` shows. Length counts most, as current advice (NIST SP
   - 4 strong: at least 16 characters of three kinds, 12 of all four, or 24 of
     any kind
 
-A common password inside a longer one (`password`, `qwerty`, `letmein` ... and
-the usual Norwegian ones) counts for nothing: the password is rated as if the
+A password counts as at most twice as long as its number of different
+characters, so a repeated block or one letter again and again
+(`aaaaaaaaaaaaaaab`, `abcabcabcabcabcabc`, `Aa1!Aa1!Aa1!Aa1!`) is not made strong
+by its length. A common password inside a longer one (`password`, `qwerty`,
+`letmein` ... and the usual Norwegian ones) counts for nothing: the password is rated as if the
 word were not there, and one that is mostly that word is weak. The meter has no
 locale, so the English and the Norwegian entries always count. The list is
 short, as is every other pattern the meter knows: it is a guide for the user,
@@ -543,6 +547,11 @@ strength password =
 
         common =
             commonPart password
+
+        -- `aaaaaaab` or `abcabcabc` is no longer than its few different
+        -- characters make it
+        distinct =
+            Set.size (Set.fromList characters)
     in
     if length == 0 then
         0
@@ -551,7 +560,7 @@ strength password =
         1
 
     else
-        Basics.max 1 (rate kinds (length - common))
+        Basics.max 1 (rate kinds (Basics.min (length - common) (2 * distinct)))
 
 
 {-| The rating of a password of this many characters (the common words taken
@@ -947,15 +956,19 @@ view toMsg attributes (State state) =
 
             -- The live regions are always there, so that their first text is
             -- read out too; they only change their text.
+            -- Two regions: when the Caps Lock warning goes, the notice of the
+            -- show/hide button must not come back and be read again.
             , Html.span [ Internal.cls [ "klar-sr-only" ], Attr.attribute "role" "status" ]
                 [ Html.text
                     (if capsOn then
                         capsText
 
                      else
-                        notice
+                        ""
                     )
                 ]
+            , Html.span [ Internal.cls [ "klar-sr-only" ], Attr.attribute "role" "status" ]
+                [ Html.text notice ]
             , if config.strengthMeter then
                 Html.span [ Internal.cls [ "klar-sr-only" ], Attr.id strengthId, Attr.attribute "role" "status" ]
                     [ Html.text strengthText ]
@@ -968,8 +981,9 @@ view toMsg attributes (State state) =
 
 {-| Enter for the application's `onEnter`; every other key tells whether Caps
 Lock is on, when it says something new: a letter in capitals without Shift (or
-small with Shift) means it is on, the Caps Lock key itself turns the warning
-around.
+small with Shift) means it is on. The Caps Lock key itself only clears the
+warning, until the next letter tells again. It is a guess from the letters, as
+Elm cannot ask the browser for the state of the key.
 -}
 keyDecoder : (Msg -> msg) -> Maybe msg -> Bool -> Decoder ( msg, Bool )
 keyDecoder toMsg onEnterMsg capsKnown =
@@ -992,7 +1006,14 @@ keyDecoder toMsg onEnterMsg capsKnown =
                             Decode.fail "no onEnter"
 
                 else if event.key == "CapsLock" then
-                    Decode.succeed ( toMsg (CapsSeen (not capsKnown)), False )
+                    -- The key says nothing sure (macOS sends it only when Caps
+                    -- Lock goes on, and it may have been on before the focus
+                    -- came): it clears the warning, and the next letter tells.
+                    if capsKnown then
+                        Decode.succeed ( toMsg (CapsSeen False), False )
+
+                    else
+                        Decode.fail "nothing new"
 
                 else
                     case capsFromLetter event of

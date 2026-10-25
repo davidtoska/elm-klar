@@ -73,7 +73,7 @@ init =
             ]
     , searches =
         Dict.fromList
-            [ ( "search-loading", SearchInput.setText "Fjord" (SearchInput.init "search-loading") ) ]
+            [ ( "search-loading", SearchInput.setValue "Fjord" (SearchInput.init "search-loading") ) ]
     , search = SearchInput.init "search-main"
     , keystrokes = 0
     , searchesStarted = 0
@@ -165,7 +165,7 @@ update msg model =
                     query /= SearchInput.committed model.search
 
                 typed =
-                    SearchInput.text search /= SearchInput.text model.search
+                    SearchInput.value search /= SearchInput.value model.search
             in
             ( { model
                 | search = search
@@ -696,7 +696,7 @@ searchChanged =
                     ]
                     model.search
                 , Layout.row [ Layout.gap 6, Layout.wrap ]
-                    [ readout ("In the field: \"" ++ SearchInput.text model.search ++ "\"")
+                    [ readout ("In the field: \"" ++ SearchInput.value model.search ++ "\"")
                     , readout ("Searching for: \"" ++ SearchInput.committed model.search ++ "\"")
                     , readout ("Keystrokes: " ++ String.fromInt model.keystrokes)
                     , readout ("Searches started: " ++ String.fromInt model.searchesStarted)
