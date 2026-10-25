@@ -99,3 +99,7 @@ Execution notes for resuming a long run:
 - Next: Update.
 
 - Update: format, full check, byte-identical docs and 22 identical table roots passed.
+- Commit 4ad231b: Update complete.
+- Next: Processing.
+
+- Processing: format, full check, byte-identical docs and 22 identical table roots passed.
