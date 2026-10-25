@@ -74,7 +74,16 @@ type End
     | Until Date
 
 
-{-| Everything that can be wrong with a rule or with the text of one.
+{-| Everything that can be wrong with a rule or with the text of one. The
+`String`s are parts of an RRULE (data, as the text has them); the words around
+them come from `Words.problemText`.
+
+  - `MissingPart names`: none of these parts is there (`[ "BYMONTHDAY", "BYDAY" ]`
+    means one of the two is needed).
+  - `Conflict first second`: two parts that cannot be used together.
+  - `StartDayNotInMonth month day`: the rule names a month but no day, the day
+    comes from the start date, and that month never has it (30 February).
+
 -}
 type Problem
     = IntervalTooSmall Int
@@ -87,11 +96,12 @@ type Problem
     | NoSuchDate Int Int
     | NoWeekdays
     | EmptyText
-    | MissingPart String
+    | MissingPart (List String)
     | RepeatedPart String
     | CannotRead String
     | Unsupported String Reason
-    | Conflict String
+    | Conflict String String
+    | StartDayNotInMonth Int Int
 
 
 {-| Why a part of an RRULE is not read. The `String` of `Unsupported` is the

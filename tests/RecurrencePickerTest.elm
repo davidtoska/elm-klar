@@ -1082,7 +1082,114 @@ choiceTests =
 
                     Err problem ->
                         Expect.fail (Recurrence.problemText Locale.en problem)
+        , fuzz2 startFuzzer frequencies "every choice of the day that is offered gives a rule of its own" <|
+            \startDate frequencyKey ->
+                case run [ frequency frequencyKey ] (RecurrencePicker.init id startDate) of
+                    Ok state ->
+                        rulesOfChoices state |> distinct |> Expect.equal True
+
+                    Err message ->
+                        Expect.fail message
+        , fuzz3 startFuzzer paramsFuzzer startFuzzer "and so does the choice of a loaded rule" <|
+            \ruleStart params otherStart ->
+                case Reference.build ruleStart params of
+                    Ok rule ->
+                        RecurrencePicker.init id ruleStart
+                            |> RecurrencePicker.setValue (Just rule)
+                            |> RecurrencePicker.setStart otherStart
+                            |> rulesOfChoices
+                            |> distinct
+                            |> Expect.equal True
+
+                    Err problem ->
+                        Expect.fail (Recurrence.problemText Locale.en problem)
+        , test "yearly from 30 April: the day, and no 'last day of April' that means the same" <|
+            \_ ->
+                case run [ frequency "yearly" ] (from 2027 4 30) of
+                    Ok state ->
+                        Expect.all
+                            [ \_ -> query [] state |> Query.hasNot [ Selector.text "On the last day of April" ]
+                            , \_ -> query [] state |> Query.has [ Selector.text "On 30 April" ]
+                            , \_ -> byChoices state |> Query.count (Expect.equal 2)
+                            ]
+                            ()
+
+                    Err message ->
+                        Expect.fail message
+        , test "yearly from 29 February: the day with its question, and no 'last day of February'" <|
+            \_ ->
+                case run [ frequency "yearly" ] (from 2024 2 29) of
+                    Ok state ->
+                        Expect.all
+                            [ \_ -> query [] state |> Query.hasNot [ Selector.text "On the last day of February" ]
+                            , \_ -> query [] state |> Query.has [ Selector.text "In years without 29 February" ]
+                            ]
+                            ()
+
+                    Err message ->
+                        Expect.fail message
+        , test "a loaded yearly 29 February, from a start on 28 February, stands in the place of the last day of February" <|
+            \_ ->
+                let
+                    state =
+                        RecurrencePicker.init id (date 2027 2 28)
+                            |> RecurrencePicker.setValue (Recurrence.rule (Recurrence.yearlyOnDate Feb 29) [] |> Result.toMaybe)
+                in
+                Expect.all
+                    [ \_ -> query [] state |> Query.hasNot [ Selector.text "On the last day of February" ]
+                    , \_ -> query [] state |> Query.has [ Selector.text "On 29 February" ]
+                    , \_ -> byChoices state |> Query.count (Expect.equal 4)
+                    , \_ -> exactlyOneChecked state
+                    ]
+                    ()
+        , test "monthly from 30 April still offers the last day of the month next to the 30th" <|
+            \_ ->
+                case run [ frequency "monthly" ] (from 2027 4 30) of
+                    Ok state ->
+                        query [] state |> Query.has [ Selector.text "On day 30 of the month", Selector.text "On the last day of the month" ]
+
+                    Err message ->
+                        Expect.fail message
+        , test "the last day of the month, then yearly from 30 April: the day is ticked, with the same rule" <|
+            \_ ->
+                case run [ frequency "monthly", by "last-day", frequency "yearly" ] (from 2027 4 30) of
+                    Ok state ->
+                        Expect.all
+                            [ \_ -> exactlyOneChecked state
+                            , \_ -> RecurrencePicker.value state |> Expect.equal (Recurrence.rule (Recurrence.yearlyOnDate Apr 30) [] |> Result.toMaybe)
+                            ]
+                            ()
+
+                    Err message ->
+                        Expect.fail message
         ]
+
+
+{-| The radio buttons of the choice of the day.
+-}
+byChoices : State -> Query.Multiple Msg
+byChoices state =
+    query [] state
+        |> Query.findAll [ Selector.tag "input", Selector.attribute (Attr.name (id ++ "-by")) ]
+
+
+{-| The rule of every choice of the day that is offered, picked one at a time
+from the same state: only the rules the field can build.
+-}
+rulesOfChoices : State -> List Rule
+rulesOfChoices state =
+    [ "day", "nth", "last", "last-day", "own" ]
+        |> List.filterMap (\key -> by key state |> Result.toMaybe |> Maybe.andThen RecurrencePicker.value)
+
+
+distinct : List a -> Bool
+distinct list =
+    case list of
+        [] ->
+            True
+
+        first :: rest ->
+            not (List.member first rest) && distinct rest
 
 
 

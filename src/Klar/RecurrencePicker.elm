@@ -590,8 +590,8 @@ fill spec skipped s =
 
 {-| What a choice means for a start date.
 -}
-anchorFor : Date -> By -> Anchor
-anchorFor startDate by =
+anchorFor : Frequency -> Date -> By -> Anchor
+anchorFor frequency startDate by =
     case by of
         ByDay ->
             AnchorDay (Date.month startDate) (Date.day startDate)
@@ -604,14 +604,14 @@ anchorFor startDate by =
                 AnchorNth Spec.Last (Date.weekday startDate) (Date.month startDate)
 
             else
-                anchorFor startDate ByNth
+                anchorFor frequency startDate ByNth
 
         ByLastDay ->
-            if offersLastDay startDate then
+            if offersLastDay frequency startDate then
                 AnchorLastDay (Date.month startDate)
 
             else
-                anchorFor startDate ByDay
+                anchorFor frequency startDate ByDay
 
         Own anchor ->
             followStart startDate anchor
@@ -636,30 +636,15 @@ followStart startDate anchor =
             anchor
 
 
-{-| Whether two anchors give the same dates for a frequency: a monthly rule does
-not look at the month.
+{-| The pattern a choice gives, with the missing-day question at its default. Two
+choices with the same pattern here mean the same rule: a monthly rule does not
+look at the month, "the last day of April" is "30 April", and "29 February"
+that uses 28 February in other years is "the last day of February". The
+question is still asked about the choice that is listed.
 -}
-sameAnchor : Frequency -> Anchor -> Anchor -> Bool
-sameAnchor frequency a b =
-    case frequency of
-        Monthly ->
-            withoutMonth a == withoutMonth b
-
-        _ ->
-            a == b
-
-
-withoutMonth : Anchor -> Anchor
-withoutMonth anchor =
-    case anchor of
-        AnchorDay _ day ->
-            AnchorDay 0 day
-
-        AnchorNth ordinal weekday _ ->
-            AnchorNth ordinal weekday 0
-
-        AnchorLastDay _ ->
-            AnchorLastDay 0
+patternFor : Inner -> By -> Recurrence.Pattern
+patternFor s by =
+    patternOf { s | by = by, missing = Spec.UseLastDay }
 
 
 {-| The question about a missing day is only asked for a day that can be
@@ -677,7 +662,7 @@ keepMissing canBeMissing missing s =
 
 anchorOf : Inner -> Anchor
 anchorOf s =
-    anchorFor s.start s.by
+    anchorFor s.frequency s.start s.by
 
 
 {-| The first, second, third or fourth weekday of the month that the start date
@@ -718,24 +703,40 @@ offersLast date =
     endsMonth date && ordinalOfStart date /= Spec.Last
 
 
-{-| Whether "the last day of the month" is a choice of its own: the start date is
-the last day of its month and not the 31st, which `ByDay` already makes the last
-day of a shorter month.
+{-| Whether "the last day of the month" is a choice of its own, that is a rule
+that `ByDay` does not already give. Monthly: the start date is the last day of a
+month shorter than 31 days (the 31st is already the last day of every shorter
+month). Yearly: only 28 February of a common year, because "the last day of
+February" is then the 29th in leap years; on any other last day of a month the
+date itself is the last day every year.
 -}
-offersLastDay : Date -> Bool
-offersLastDay date =
-    Date.day date == Date.daysInMonth (Date.year date) (Date.month date) && Date.day date < 31
+offersLastDay : Frequency -> Date -> Bool
+offersLastDay frequency date =
+    let
+        lastOfItsMonth =
+            Date.day date == Date.daysInMonth (Date.year date) (Date.month date)
+    in
+    case frequency of
+        Monthly ->
+            lastOfItsMonth && Date.day date < 31
+
+        Yearly ->
+            lastOfItsMonth && Date.month date == 2 && Date.day date == 28
+
+        _ ->
+            False
 
 
-{-| The choices a monthly or yearly rule offers: the day, the n-th weekday and the
-last weekday when the start gives it. A rule that was loaded has its own choice,
-which stands in the place of the one that means the same, or comes last when the
-start gives none of them.
+{-| The choices a monthly or yearly rule offers: the day, the n-th weekday, the
+last weekday and the last day of the month when the start gives them, one choice
+per rule (a choice that gives the same rule as an earlier one is left out). A
+rule that was loaded has its own choice, which stands in the place of the one
+that means the same, or comes last when the start gives none of them.
 -}
 choices : Inner -> List By
 choices s =
     let
-        derived =
+        candidates =
             [ ByDay, ByNth ]
                 ++ (if offersLast s.start then
                         [ ByLast ]
@@ -743,18 +744,30 @@ choices s =
                     else
                         []
                    )
-                ++ (if offersLastDay s.start then
+                ++ (if offersLastDay s.frequency s.start then
                         [ ByLastDay ]
 
                     else
                         []
                    )
+
+        derived =
+            List.foldl
+                (\by kept ->
+                    if List.any (\other -> patternFor s other == patternFor s by) kept then
+                        kept
+
+                    else
+                        kept ++ [ by ]
+                )
+                []
+                candidates
     in
     case s.by of
         Own anchor ->
             let
                 same by =
-                    sameAnchor s.frequency (anchorFor s.start by) (followStart s.start anchor)
+                    patternFor s by == patternFor s (Own anchor)
             in
             if List.any same derived then
                 List.map
@@ -1728,7 +1741,7 @@ viewBy toMsg config text s =
             [ Radio.id (s.id ++ "-by")
             , Radio.label text.repeatOn
             , Radio.options
-                (List.map (\by -> Radio.option (byKey by) (anchorLabel config.locale s.frequency (anchorFor s.start by))) (choices s))
+                (List.map (\by -> Radio.option (byKey by) (anchorLabel config.locale s.frequency (anchorFor s.frequency s.start by))) (choices s))
             , Radio.selected (Just (byKey (shownBy s)))
             , Radio.onSelect (\key -> toMsg (messageOf ByChosen (byOfKey s key)))
             , Radio.size config.size
@@ -1737,19 +1750,24 @@ viewBy toMsg config text s =
         ]
 
 
-{-| The choice that is ticked: the last weekday falls back to the n-th when the
-start date moved and is not the last one any more.
+{-| The choice that is ticked. A choice the start no longer offers (the last
+weekday after the start moved, the last day of the month in a yearly rule) is
+shown as the listed choice that gives the same rule: the n-th weekday, the day.
 -}
 shownBy : Inner -> By
 shownBy s =
-    if s.by == ByLast && not (offersLast s.start) then
-        ByNth
-
-    else if s.by == ByLastDay && not (offersLastDay s.start) then
-        ByDay
+    let
+        offered =
+            choices s
+    in
+    if List.member s.by offered then
+        s.by
 
     else
-        s.by
+        offered
+            |> List.filter (\by -> patternFor s by == patternFor s s.by)
+            |> List.head
+            |> Maybe.withDefault ByDay
 
 
 viewMissing : (Msg -> msg) -> Config -> { legend : String, useLast : String, skip : String } -> Inner -> Html msg
