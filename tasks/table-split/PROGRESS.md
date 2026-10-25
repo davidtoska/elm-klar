@@ -91,3 +91,7 @@ Execution notes for resuming a long run:
 - Next: Config.
 
 - Config: format, full check, byte-identical docs and 22 identical table roots passed.
+- Commit abf10bb: Config complete.
+- Next: Window.
+
+- Window: format, full check, byte-identical docs and 22 identical table roots passed.
