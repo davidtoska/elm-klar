@@ -348,9 +348,10 @@ heading level =
             Html.h3
 
 
-{-| A text as a DOM id that is also a plain CSS identifier, without losing anything:
-ASCII letters, digits and `-` stay as they are, a space becomes `__`, and every
-other character becomes `_`, its code point in lowercase hex, and `_`.
+{-| A text as a valid HTML id, without losing anything: ASCII letters, digits and `-`
+stay as they are, a space becomes `__`, and every other character becomes `_`, its
+code point in lowercase hex, and `_`. (It is not always a CSS identifier as it
+stands: `1st` and `-1` need escaping in a selector.)
 
     sanitizeId "billing-address" -- "billing-address"
 
@@ -364,7 +365,10 @@ Two different texts never give the same id (the encoding can be read back: after
 `_` comes either a second `_` or hex digits and a `_`), so keys that differ only in a
 space, a punctuation mark or a letter outside ASCII still name two elements, and an
 `aria-controls` made from one key names that key's element. (Half of an emoji, which
-has no code point, becomes `_fffd_`, the replacement character.)
+has no code point, becomes `_fffd_`, as the replacement character does.) This holds
+for one text: an id joined from several parts with `-` (`id ++ "-tab-" ++ key`) can
+still meet another such id, because `-` stays as it is; join the parts of an id with
+`__` where two keys could otherwise meet.
 
 -}
 sanitizeId : String -> String
@@ -575,8 +579,10 @@ keysDecoder prevent bindings =
 
 
 {-| The message bound to a key press: by its name (`"Ctrl+Enter"`), or, with Ctrl or
-Meta held (not both), by its name with `Mod+` for that modifier, so `"Mod+A"` is
-Ctrl+A on Windows and Linux and Cmd+A on a Mac.
+Meta held (not both), by its name with `Mod+` for that modifier, so `"Mod+a"` is
+Ctrl+A on Windows and Linux and Cmd+A on a Mac. A letter is matched as
+`KeyboardEvent.key` gives it, without a `Shift+`: `"Mod+a"` without Shift, `"Mod+A"`
+with Shift.
 -}
 binding : KeyEvent -> List ( String, msg ) -> Maybe msg
 binding event bindings =
@@ -610,8 +616,10 @@ lookup key bindings =
 keys that match, which also tells the containers further out that the key is
 taken (`unhandled`). Key names follow `KeyboardEvent.key`, with modifiers in the
 order Ctrl, Meta, Alt, Shift: `"ArrowDown"`, `"Enter"`, `"Escape"`, `" "`,
-`"Shift+Tab"`, `"Ctrl+Enter"`. `Mod+` is Ctrl or Meta (Cmd on a Mac): `"Mod+A"`. A
-key of an input method composition matches nothing (`keyEvent`).
+`"Shift+Tab"`, `"Ctrl+Enter"`. `Mod+` is Ctrl or Meta (Cmd on a Mac): `"Mod+s"`. A
+letter or another printable key is named as `KeyboardEvent.key` gives it, with no
+`Shift+`: `"Mod+a"` is Ctrl+A, `"Mod+A"` is Ctrl+Shift+A. A key of an input method
+composition matches nothing (`keyEvent`).
 -}
 onKeys : List ( String, msg ) -> Attribute msg
 onKeys bindings =
