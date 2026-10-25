@@ -87,3 +87,7 @@ Execution notes for resuming a long run:
 - Next: Rows, Config, Window, Update, Processing.
 
 - Rows: format, full check, byte-identical docs and 22 identical table roots passed.
+- Commit e1d6d51: Rows complete.
+- Next: Config.
+
+- Config: format, full check, byte-identical docs and 22 identical table roots passed.

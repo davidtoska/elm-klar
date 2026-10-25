@@ -514,6 +514,7 @@ import Klar.Settings as Settings exposing (Settings)
 import Klar.Skeleton as Skeleton
 import Klar.Spinner as Spinner
 import Klar.Table.Columns as Columns
+import Klar.Table.Config as Config
 import Klar.Table.Core as Core
 import Klar.Table.Csv as Csv
 import Klar.Table.Identity exposing (idsOf, isJust, keysBetween, keysOf, lookup, toggled)
@@ -1504,7 +1505,7 @@ the `Query` refer to them.
 -}
 columns : List (Column row msg) -> Attribute id row msg
 columns arg1 =
-    fromCoreAttribute (Core.columns (List.map unwrapColumn arg1))
+    fromCoreAttribute (Config.columns (List.map unwrapColumn arg1))
 
 
 {-| The rows, as [Klar.Remote](Klar-Remote) data. `Loading` (and `NotAsked`)
@@ -1524,7 +1525,7 @@ button (`onRetry`).
 -}
 remote : Remote (List row) -> Attribute id row msg
 remote arg1 =
-    fromCoreAttribute (Core.remote arg1)
+    fromCoreAttribute (Config.remote arg1)
 
 
 {-| The rows of a client-mode table that has thousands of them, as `Rows` made
@@ -1537,7 +1538,7 @@ every value again on each message.
 -}
 remotePrepared : Remote (Rows row) -> Attribute id row msg
 remotePrepared arg1 =
-    fromCoreAttribute (Core.remotePrepared (Remote.map unwrapRows arg1))
+    fromCoreAttribute (Config.remotePrepared (Remote.map unwrapRows arg1))
 
 
 {-| Rows that the table has worked on in advance: for each row the text the search
@@ -1599,7 +1600,7 @@ The first argument says how your id type is written as a key and read back
 -}
 rowId : Ids id -> (row -> id) -> Attribute id row msg
 rowId arg1 arg2 =
-    fromCoreAttribute (Core.rowId arg1 arg2)
+    fromCoreAttribute (Config.rowId arg1 arg2)
 
 
 {-| How screen readers name a row, for example in the label of its checkbox
@@ -1608,7 +1609,7 @@ the text of the first visible column.
 -}
 rowLabel : (row -> String) -> Attribute id row msg
 rowLabel arg1 =
-    fromCoreAttribute (Core.rowLabel arg1)
+    fromCoreAttribute (Config.rowLabel arg1)
 
 
 {-| Switches to server mode: `remote` is the current page and `total` the number
@@ -1619,7 +1620,7 @@ client mode.
 -}
 server : { total : Int } -> Attribute id row msg
 server arg1 =
-    fromCoreAttribute (Core.server arg1)
+    fromCoreAttribute (Config.server arg1)
 
 
 {-| The name of the table that screen readers hear, such as "Orders" (it is not
@@ -1630,7 +1631,7 @@ table one.
 -}
 ariaLabel : String -> Attribute id row msg
 ariaLabel arg1 =
-    fromCoreAttribute (Core.ariaLabel arg1)
+    fromCoreAttribute (Config.ariaLabel arg1)
 
 
 {-| The settings of the application (`Klar.Settings`): the time zone of the time in
@@ -1641,7 +1642,7 @@ ariaLabel arg1 =
 -}
 settings : Settings -> Attribute id row msg
 settings arg1 =
-    fromCoreAttribute (Core.settings arg1)
+    fromCoreAttribute (Config.settings arg1)
 
 
 {-| The language of the built-in text, and the conventions that go with it:
@@ -1651,7 +1652,7 @@ CSV separator. The default is `Locale.default`, which is English; see
 -}
 locale : Locale -> Attribute id row msg
 locale arg1 =
-    fromCoreAttribute (Core.locale arg1)
+    fromCoreAttribute (Config.locale arg1)
 
 
 {-| Adds a search box to the toolbar. Every word the user types must be found in
@@ -1663,7 +1664,7 @@ only records the text (see `query`).
 -}
 searchable : Attribute id row msg
 searchable =
-    fromCoreAttribute Core.searchable
+    fromCoreAttribute Config.searchable
 
 
 {-| The placeholder of the search box. It also turns the search box on. The
@@ -1672,7 +1673,7 @@ just "Search ..." in server mode.
 -}
 searchPlaceholder : String -> Attribute id row msg
 searchPlaceholder arg1 =
-    fromCoreAttribute (Core.searchPlaceholder arg1)
+    fromCoreAttribute (Config.searchPlaceholder arg1)
 
 
 {-| Milliseconds to wait after typing before what was typed in the search box,
@@ -1682,7 +1683,7 @@ so that a server is not asked on every key press.
 -}
 searchDebounce : Int -> Attribute id row msg
 searchDebounce arg1 =
-    fromCoreAttribute (Core.searchDebounce arg1)
+    fromCoreAttribute (Config.searchDebounce arg1)
 
 
 {-| Client mode: an extra filter from outside the table, such as a
@@ -1693,7 +1694,7 @@ filters. Tell the table how many outside filters are active with
 -}
 rowFilter : (row -> Bool) -> Attribute id row msg
 rowFilter arg1 =
-    fromCoreAttribute (Core.rowFilter arg1)
+    fromCoreAttribute (Config.rowFilter arg1)
 
 
 {-| How many filters outside the table are active (the ones behind `rowFilter`,
@@ -1706,7 +1707,7 @@ it. Wire `onResetFilters` once, to clear both.
 -}
 activeExternalFilters : Int -> Attribute id row msg
 activeExternalFilters arg1 =
-    fromCoreAttribute (Core.activeExternalFilters arg1)
+    fromCoreAttribute (Config.activeExternalFilters arg1)
 
 
 {-| The message to send when the user clicks one of the table's reset buttons: the
@@ -1718,7 +1719,7 @@ filters (and maybe the search), so clear your outside filters too (see
 -}
 onResetFilters : msg -> Attribute id row msg
 onResetFilters arg1 =
-    fromCoreAttribute (Core.onResetFilters arg1)
+    fromCoreAttribute (Config.onResetFilters arg1)
 
 
 {-| Adds a checkbox column, a "select all on this page" checkbox in the header,
@@ -1734,7 +1735,7 @@ of selected rows when it changes.
 -}
 selectable : Attribute id row msg
 selectable =
-    fromCoreAttribute Core.selectable
+    fromCoreAttribute Config.selectable
 
 
 {-| Buttons for the bar that covers the toolbar while rows are selected, next to
@@ -1749,7 +1750,7 @@ it needs `rowId`: without it the table draws no checkboxes and no bar.
 -}
 bulkActions : List (Html msg) -> Attribute id row msg
 bulkActions arg1 =
-    fromCoreAttribute (Core.bulkActions arg1)
+    fromCoreAttribute (Config.bulkActions arg1)
 
 
 {-| A "more" menu at the end of every row, made of [Klar.Menu](Klar-Menu) items.
@@ -1768,7 +1769,7 @@ key opens the menu.
 -}
 rowActions : (row -> List (Menu.Item msg)) -> Attribute id row msg
 rowActions arg1 =
-    fromCoreAttribute (Core.rowActions arg1)
+    fromCoreAttribute (Config.rowActions arg1)
 
 
 {-| The message to send for a row, when the user clicks it (outside its own
@@ -1785,7 +1786,7 @@ open with `currentRow`.
 -}
 onRowClick : (row -> msg) -> Attribute id row msg
 onRowClick arg1 =
-    fromCoreAttribute (Core.onRowClick arg1)
+    fromCoreAttribute (Config.onRowClick arg1)
 
 
 {-| Marks the row whose details are shown elsewhere, such as the order open in a
@@ -1798,7 +1799,7 @@ most one row; without this attribute no row is marked.
 -}
 currentRow : (row -> Bool) -> Attribute id row msg
 currentRow arg1 =
-    fromCoreAttribute (Core.currentRow arg1)
+    fromCoreAttribute (Config.currentRow arg1)
 
 
 {-| Lets rows expand to show more under them: adds an arrow button at the start
@@ -1810,7 +1811,7 @@ this. Which rows are open is part of the state (see `expandedIds` and
 -}
 expandedRow : (row -> Html msg) -> Attribute id row msg
 expandedRow arg1 =
-    fromCoreAttribute (Core.expandedRow arg1)
+    fromCoreAttribute (Config.expandedRow arg1)
 
 
 {-| A colored accent at the start of some rows: return a `Tone` (from
@@ -1818,7 +1819,7 @@ expandedRow arg1 =
 -}
 rowTone : (row -> Maybe Tone) -> Attribute id row msg
 rowTone arg1 =
-    fromCoreAttribute (Core.rowTone arg1)
+    fromCoreAttribute (Config.rowTone arg1)
 
 
 {-| Rows that are shown but cannot be operated. A disabled row is dimmed and
@@ -1833,7 +1834,7 @@ disable.
 -}
 rowDisabled : (row -> Bool) -> Attribute id row msg
 rowDisabled arg1 =
-    fromCoreAttribute (Core.rowDisabled arg1)
+    fromCoreAttribute (Config.rowDisabled arg1)
 
 
 {-| Your own buttons at the right end of the toolbar, next to the table's own
@@ -1841,7 +1842,7 @@ tools.
 -}
 toolbarActions : List (Html msg) -> Attribute id row msg
 toolbarActions arg1 =
-    fromCoreAttribute (Core.toolbarActions arg1)
+    fromCoreAttribute (Config.toolbarActions arg1)
 
 
 {-| Adds a refresh button to the toolbar that sends this message. The button
@@ -1849,7 +1850,7 @@ shows a spinner while the rows are refreshing (`Remote.refresh`) or loading.
 -}
 onRefresh : msg -> Attribute id row msg
 onRefresh arg1 =
-    fromCoreAttribute (Core.onRefresh arg1)
+    fromCoreAttribute (Config.onRefresh arg1)
 
 
 {-| The message to send when the user clicks "Try again" in the error state, which
@@ -1860,7 +1861,7 @@ load.
 -}
 onRetry : msg -> Attribute id row msg
 onRetry arg1 =
-    fromCoreAttribute (Core.onRetry arg1)
+    fromCoreAttribute (Config.onRetry arg1)
 
 
 {-| Adds an "Export" menu to the toolbar (and to the bar that shows while rows are
@@ -1886,7 +1887,7 @@ file: map the `Cmd` of `update` back, as always.
 -}
 exportCsv : String -> Attribute id row msg
 exportCsv arg1 =
-    fromCoreAttribute (Core.exportCsv arg1)
+    fromCoreAttribute (Config.exportCsv arg1)
 
 
 {-| The field separator of the CSV export. The default is a comma in English and
@@ -1895,7 +1896,7 @@ separator.
 -}
 csvSeparator : Char -> Attribute id row msg
 csvSeparator arg1 =
-    fromCoreAttribute (Core.csvSeparator arg1)
+    fromCoreAttribute (Config.csvSeparator arg1)
 
 
 {-| Adds a "Columns" button to the toolbar that opens a list of checkboxes to
@@ -1905,7 +1906,7 @@ part of the state (see `isColumnVisible` and `setColumnVisible`).
 -}
 columnChooser : Attribute id row msg
 columnChooser =
-    fromCoreAttribute Core.columnChooser
+    fromCoreAttribute Config.columnChooser
 
 
 {-| Adds three buttons to the toolbar to choose the row height: compact, normal
@@ -1914,7 +1915,7 @@ or comfortable. The choice is part of the state (see `density` and
 -}
 densityToggle : Attribute id row msg
 densityToggle =
-    fromCoreAttribute Core.densityToggle
+    fromCoreAttribute Config.densityToggle
 
 
 {-| The choices of the "Rows per page" selector in the footer. The default is
@@ -1923,7 +1924,7 @@ densityToggle =
 -}
 pageSizes : List Int -> Attribute id row msg
 pageSizes arg1 =
-    fromCoreAttribute (Core.pageSizes arg1)
+    fromCoreAttribute (Config.pageSizes arg1)
 
 
 {-| Words the range in the footer yourself ("1–25 of 200" is the default): the first
@@ -1940,7 +1941,7 @@ Works the same in `ServerList.viewTable`.
 -}
 rangeText : (Int -> Int -> Int -> String) -> Attribute id row msg
 rangeText arg1 =
-    fromCoreAttribute (Core.rangeText arg1)
+    fromCoreAttribute (Config.rangeText arg1)
 
 
 {-| All rows on one page and no pagination footer. Every matching row is turned
@@ -1948,7 +1949,7 @@ into HTML, so keep it for short tables.
 -}
 unpaged : Attribute id row msg
 unpaged =
-    fromCoreAttribute Core.unpaged
+    fromCoreAttribute Config.unpaged
 
 
 {-| Shows the rows in one long list that scrolls, instead of in pages, and draws
@@ -1967,7 +1968,7 @@ in view, so a page can be a few hundred rows.
 -}
 virtual : Attribute id row msg
 virtual =
-    fromCoreAttribute Core.virtual
+    fromCoreAttribute Config.virtual
 
 
 {-| Lets the user sort by several columns: Shift-clicking a header adds that
@@ -1977,14 +1978,14 @@ only; without `multiSort`, Shift changes nothing.
 -}
 multiSort : Attribute id row msg
 multiSort =
-    fromCoreAttribute Core.multiSort
+    fromCoreAttribute Config.multiSort
 
 
 {-| Gives every second row a light gray background.
 -}
 zebra : Attribute id row msg
 zebra =
-    fromCoreAttribute Core.zebra
+    fromCoreAttribute Config.zebra
 
 
 {-| The rows scroll inside this height in pixels, under a header that stays in
@@ -1992,7 +1993,7 @@ view. Without it the table is as tall as its rows.
 -}
 maxHeight : Int -> Attribute id row msg
 maxHeight arg1 =
-    fromCoreAttribute (Core.maxHeight arg1)
+    fromCoreAttribute (Config.maxHeight arg1)
 
 
 {-| The table fills the height of its parent, which must have a height of its
@@ -2002,7 +2003,7 @@ a heading, put the table in a `Layout.stack [ Layout.fillRest ]` (inside an
 -}
 fillHeight : Attribute id row msg
 fillHeight =
-    fromCoreAttribute Core.fillHeight
+    fromCoreAttribute Config.fillHeight
 
 
 {-| Changes the empty state shown when there are no rows at all (titled "No data"
@@ -2018,7 +2019,7 @@ win.
 -}
 emptyState : List (EmptyState.Attribute msg) -> Attribute id row msg
 emptyState arg1 =
-    fromCoreAttribute (Core.emptyState arg1)
+    fromCoreAttribute (Config.emptyState arg1)
 
 
 {-| Draws the table: toolbar, header, rows, totals row and pagination. `toMsg`
