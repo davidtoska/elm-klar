@@ -42,6 +42,23 @@ suite =
 -- RANGES OF ROWS
 
 
+{-| A key pressed on a control inside a row, as the row hears it.
+-}
+keyFrom : { type_ : String, id : String, prevented : Bool } -> String -> ( String, Encode.Value )
+keyFrom target key =
+    Event.custom "keydown"
+        (Encode.object
+            [ ( "key", Encode.string key )
+            , ( "ctrlKey", Encode.bool False )
+            , ( "metaKey", Encode.bool False )
+            , ( "altKey", Encode.bool False )
+            , ( "shiftKey", Encode.bool False )
+            , ( "defaultPrevented", Encode.bool target.prevented )
+            , ( "target", Encode.object [ ( "id", Encode.string target.id ), ( "type", Encode.string target.type_ ) ] )
+            ]
+        )
+
+
 rangeTests : Test
 rangeTests =
     let
@@ -111,6 +128,25 @@ rangeTests =
                 keyOnRow { shift = False, ctrl = True } 0 "a" start
                     |> selected
                     |> Expect.equal (Ok everyOrder)
+        , test "ArrowDown on the checkbox of a row moves to the next row" <|
+            \_ ->
+                rowOf 0 start
+                    |> Event.simulate (keyFrom { type_ = "checkbox", id = "", prevented = False } "ArrowDown")
+                    |> Event.toResult
+                    |> Result.map (\msg -> rowOf 1 (Orders.applyMsg msg start) |> Query.has [ Selector.attribute (Attr.tabindex 0) ])
+                    |> Result.withDefault (Expect.fail "the key did nothing")
+        , test "a key that the control used itself is left to it" <|
+            \_ ->
+                rowOf 0 start
+                    |> Event.simulate (keyFrom { type_ = "checkbox", id = "", prevented = True } "ArrowDown")
+                    |> Event.toResult
+                    |> Expect.err
+        , test "the arrow keys in a text box of a cell are left to the text box" <|
+            \_ ->
+                rowOf 0 start
+                    |> Event.simulate (keyFrom { type_ = "text", id = "note-1", prevented = False } "ArrowDown")
+                    |> Event.toResult
+                    |> Expect.err
         , test "the number of selected rows is announced" <|
             \_ ->
                 render selectable (Table.select Ids.strings [ "ORD-2001", "ORD-2002" ] start)

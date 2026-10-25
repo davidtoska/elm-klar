@@ -304,7 +304,8 @@ multi-column sort, see `multiSort`). The rows are one tab stop, not fifty: when
 rows are clickable, selectable, expandable or have a menu, Tab reaches the row
 that last had focus, and from it that row's checkbox and menu button. ArrowUp,
 ArrowDown, PageUp, PageDown, Home and End move to other rows (which then get the
-tab stops of their own controls), Enter opens the row (or its menu, when the row
+tab stops of their own controls), also from the row's checkbox and menu button (where
+ArrowDown opens the menu), Enter opens the row (or its menu, when the row
 does nothing else), Space selects it (Shift+Space, or Shift and a click on a
 checkbox, the rows from the one picked last; Ctrl+A or Cmd+A every row of the
 page), ArrowRight and ArrowLeft expand and collapse it, and Shift+F10 or the menu key opens its menu; a `rowDisabled` row
@@ -6825,6 +6826,7 @@ viewRow ctx index row key expanded =
 
                 else
                     Just (ctx.toMsg (RowMenuOpened key menuId fallback))
+            , menuTrigger = menuId ++ "-trigger"
             }
 
         pinClass =
@@ -7190,10 +7192,12 @@ type alias RowInfo msg =
     , expanded : Bool
     , click : Maybe msg
     , menu : Maybe msg
+    , menuTrigger : String
     }
 
 
-{-| Keys on a focused row (not on the controls inside it).
+{-| Keys on a focused row, and the keys that move between rows on its checkbox
+and its menu button.
 -}
 rowKeys : Ctx row msg -> RowInfo msg -> Decoder ( msg, Bool )
 rowKeys ctx info =
@@ -7209,7 +7213,29 @@ rowKeys ctx info =
         |> Decode.andThen
             (\event ->
                 if event.targetId /= info.domId then
-                    Decode.fail "not on the row"
+                    -- On the row's checkbox or menu button the keys that move to other
+                    -- rows still work, unless the control used the key itself (the
+                    -- menu button opens its menu with ArrowDown).
+                    if List.member event.key [ "ArrowDown", "ArrowUp", "Home", "End", "PageDown", "PageUp" ] && not event.command && not event.alt then
+                        Decode.map2 Tuple.pair
+                            (Decode.oneOf [ Decode.at [ "target", "type" ] Decode.string, Decode.succeed "" ])
+                            (Decode.oneOf [ Decode.field "defaultPrevented" Decode.bool, Decode.succeed False ])
+                            |> Decode.andThen
+                                (\( targetType, prevented ) ->
+                                    if not prevented && (targetType == "checkbox" || event.targetId == info.menuTrigger) then
+                                        case rowKeyMsg ctx info event.key event.shift of
+                                            Just msg ->
+                                                Decode.succeed ( msg, True )
+
+                                            Nothing ->
+                                                Decode.fail "unhandled key"
+
+                                    else
+                                        Decode.fail "not on a control of the row"
+                                )
+
+                    else
+                        Decode.fail "not on the row"
 
                 else if event.command && not event.alt && String.toLower event.key == "a" && ctx.hasSelect then
                     -- Ctrl+A (Cmd+A): every row of the page, or every matching row of a table that scrolls

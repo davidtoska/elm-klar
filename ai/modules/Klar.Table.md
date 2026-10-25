@@ -502,7 +502,8 @@ multi-column sort, see `multiSort`). The rows are one tab stop, not fifty: when
 rows are clickable, selectable, expandable or have a menu, Tab reaches the row
 that last had focus, and from it that row's checkbox and menu button. ArrowUp,
 ArrowDown, PageUp, PageDown, Home and End move to other rows (which then get the
-tab stops of their own controls), Enter opens the row (or its menu, when the row
+tab stops of their own controls), also from the row's checkbox and menu button (where
+ArrowDown opens the menu), Enter opens the row (or its menu, when the row
 does nothing else), Space selects it (Shift+Space, or Shift and a click on a
 checkbox, the rows from the one picked last; Ctrl+A or Cmd+A every row of the
 page), ArrowRight and ArrowLeft expand and collapse it, and Shift+F10 or the menu key opens its menu; a `rowDisabled` row
