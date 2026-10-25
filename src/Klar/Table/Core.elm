@@ -38,6 +38,7 @@ import Klar.Table.ColumnLogic exposing (exportValue, findColumn, hasFooter, isSh
 import Klar.Table.Columns exposing (actions, alignCenter, alignRight, alwaysVisible, badge, baseColumn, bool, build, cell, custom, date, exportAs, filterOptions, filterRange, filterSelect, filterText, filterValue, float, footer, footerAverage, footerSum, hiddenByDefault, hint, includeInSearch, int, maybeDate, minWidth, money, noTooltip, notExported, notSearchable, pinned, sortDate, sortMaybeNumber, sortNumber, sortText, sortWith, status, text, unsortable, width, wrap)
 import Klar.Table.Config exposing (activeExternalFilters, ariaLabel, bulkActions, columnChooser, columns, configure, csvSeparator, currentRow, densityToggle, emptyState, expandedRow, exportCsv, fillHeight, finish, locale, maxHeight, multiSort, onRefresh, onResetFilters, onRetry, onRowClick, pageSizes, rangeText, remote, remotePrepared, rowActions, rowDisabled, rowFilter, rowId, rowLabel, rowTone, searchDebounce, searchPlaceholder, searchable, selectable, server, settings, toolbarActions, unpaged, virtual, zebra)
 import Klar.Table.Csv as Csv
+import Klar.Table.CsvRows exposing (csvText, withSuffix)
 import Klar.Table.DomIds exposing (bulkDomId, detailDomId, filterInputId, popupDomId, popupSuffix, rowDomId, scrollDomId, triggerDomId)
 import Klar.Table.Filter exposing (activeDrafts, canonicalChoice, choiceLabels, choiceOf, choicesOf, filterTest, fold, localChoice, parseNumber, searchTest, searchText, searchWords, toDraft, toFilter, withinRange)
 import Klar.Table.Identity exposing (idsOf, isJust, keysBetween, keysOf, lookup, toggled)
@@ -912,34 +913,6 @@ semicolon in Norwegian.
 csvSeparatorOf : Ctx row msg -> Char
 csvSeparatorOf ctx =
     Maybe.withDefault (Locale.pick ctx.loc { nb = ';', en = ',' }) ctx.config.csvSeparator
-
-
-{-| The CSV text of some rows: a line of titles, then a line per row with the
-exported values of these columns.
--}
-csvText : Char -> List (ColumnConfig row msg) -> Locale -> List row -> String
-csvText separator exported loc someRows =
-    Csv.encode separator
-        (List.map .title exported
-            :: List.map (\row -> List.map (\col -> exportValue loc col row) exported) someRows
-        )
-
-
-{-| "orders.csv" + "-selected" = "orders-selected.csv" (the suffix is "-valgte" in
-Norwegian)
--}
-withSuffix : String -> String -> String
-withSuffix suffix filename =
-    if String.isEmpty suffix then
-        filename
-
-    else
-        case List.reverse (String.split "." filename) of
-            extension :: ((_ :: _) as restReversed) ->
-                String.join "." (List.reverse restReversed) ++ suffix ++ "." ++ extension
-
-            _ ->
-                filename ++ suffix
 
 
 viewBulkBar : Ctx row msg -> Html msg

@@ -22,7 +22,8 @@ Internal implementations keep their original bodies. No markup or styles change.
 4. Query and State: JSON, accessors and setters; Columns: constructors/attributes;
    Window: pagination and virtual geometry (uses ColumnLogic.hasFooter).
 5. Rows: preparation and source access; Config: table attributes; Update: transitions
-   and focus, timer, scroll and download commands.
+   and focus, timer, scroll and download commands; CsvRows: pure column-to-CSV
+   assembly and filename suffixes (uses ColumnLogic and the existing Csv encoder).
 6. Processing: the client/server row pipeline.
 7. Popup and Keyboard: markup/event decoding and focus helpers; Layout: shared
    geometry, column sizing and cell attributes.

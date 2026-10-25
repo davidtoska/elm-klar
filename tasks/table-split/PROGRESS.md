@@ -25,11 +25,12 @@ Execution notes for resuming a long run:
   adds focused new tests, runs validate.mjs, commits only on success, and stops on
   failure. verify-original.mjs confirms all 312 original declarations have one
   unchanged internal implementation and checks the dependency graph.
-- State, Query and Columns are complete. The second pipeline (84947) stopped on
-  syntax in the new ColumnLogic test; its second validation passed. Resume with
-  Rows, Config, Window, Update and Processing (active exec session 6175); inspect the pipeline's
-  result before further edits. Completion hashes are appended below.
-- After that: Popup, Layout, Keyboard, Export, Bulk, HeaderFilters, Header,
+- All logic groups through Processing are complete. The second pipeline (84947)
+  stopped on syntax in the new ColumnLogic test; its second validation passed.
+  The resumed pipeline (6175) completed Rows, Config, Window, Update and Processing.
+  Next is CsvRows followed by the rendering groups; inspect its active result
+  before further edits. Completion hashes are appended below.
+- After that: CsvRows, Popup, Layout, Keyboard, Export, Bulk, HeaderFilters, Header,
   Toolbar, Body, Footer, then rename remaining Core composition to View and clean
   imports. Recheck dependencies before each move; Toolbar depends on HeaderFilters.
 - Table must satisfy every done condition and have its REPORT.md committed before
@@ -103,3 +104,7 @@ Execution notes for resuming a long run:
 - Next: Processing.
 
 - Processing: format, full check, byte-identical docs and 22 identical table roots passed.
+- Commit ad3e39e: Processing complete.
+- Next: inspect the remaining dependency groups before the next move.
+
+- CsvRows: format, full check, byte-identical docs and 22 identical table roots passed.
