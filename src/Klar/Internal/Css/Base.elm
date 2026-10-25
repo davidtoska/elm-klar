@@ -198,9 +198,16 @@ table {
   user-select: none;
 }
 
-/* A highlighted match inside search results (Klar.Search.highlight). */
-.klar-mark {
+/* A highlighted match inside search results (Klar.Search.highlight, a `mark`). The
+   element in the selector keeps it a highlight, whatever another rule for a klar-mark
+   (the color dot) says later in the stylesheet: it undoes the shape of a dot. */
+mark.klar-mark {
+  display: inline;
+  flex: initial;
+  width: auto;
+  height: auto;
   background: var(--klar-highlight);
+  box-shadow: none;
   color: inherit;
   border-radius: 2px;
   padding: 0 1px;
