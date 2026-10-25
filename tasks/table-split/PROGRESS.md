@@ -133,3 +133,7 @@ Execution notes for resuming a long run:
 - Next: HeaderFilters.
 
 - HeaderFilters: format, full check, byte-identical docs and 22 identical table roots passed.
+- Commit 3e711b8: HeaderFilters complete.
+- Next: Header.
+
+- Header: format, full check, byte-identical docs and 22 identical table roots passed.
