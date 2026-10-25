@@ -26,6 +26,7 @@ type alias Model =
     , orgnr : MaskedInput.State
     , account : MaskedInput.State
     , gtin : MaskedInput.State
+    , nordic : { se : MaskedInput.State, dk : MaskedInput.State, fi : MaskedInput.State }
     , postalNo : MaskedInput.State
     , postalNl : MaskedInput.State
     , postalCountry : String
@@ -45,6 +46,9 @@ type Msg
     | OrgnrMsg MaskedInput.Msg
     | AccountMsg MaskedInput.Msg
     | GtinMsg MaskedInput.Msg
+    | SwedishMsg MaskedInput.Msg
+    | DanishMsg MaskedInput.Msg
+    | FinnishMsg MaskedInput.Msg
     | PostalNoMsg MaskedInput.Msg
     | PostalNlMsg MaskedInput.Msg
     | PostalCountryPicked String
@@ -64,6 +68,11 @@ init =
       , orgnr = MaskedInput.init "structured-orgnr" MaskedInput.norwegianOrganisationNumber
       , account = MaskedInput.init "structured-account" MaskedInput.norwegianBankAccount
       , gtin = MaskedInput.init "structured-gtin" MaskedInput.ean13
+      , nordic =
+            { se = MaskedInput.init "structured-se" MaskedInput.swedishOrganisationNumber
+            , dk = MaskedInput.init "structured-dk" MaskedInput.danishCvrNumber
+            , fi = MaskedInput.init "structured-fi" MaskedInput.finnishBusinessId
+            }
       , postalNo = MaskedInput.init "structured-postal-no" MaskedInput.norwegianPostalCode
       , postalNl = MaskedInput.init "structured-postal-nl" (MaskedInput.postalCode "NL" |> Maybe.withDefault MaskedInput.norwegianPostalCode)
       , postalCountry = "NL"
@@ -109,6 +118,15 @@ update msg model =
 
         GtinMsg inner ->
             masked inner model.gtin (\state -> { model | gtin = state }) GtinMsg
+
+        SwedishMsg inner ->
+            masked inner model.nordic.se (\state -> { model | nordic = { se = state, dk = model.nordic.dk, fi = model.nordic.fi } }) SwedishMsg
+
+        DanishMsg inner ->
+            masked inner model.nordic.dk (\state -> { model | nordic = { se = model.nordic.se, dk = state, fi = model.nordic.fi } }) DanishMsg
+
+        FinnishMsg inner ->
+            masked inner model.nordic.fi (\state -> { model | nordic = { se = model.nordic.se, dk = model.nordic.dk, fi = state } }) FinnishMsg
 
         PostalNoMsg inner ->
             masked inner model.postalNo (\state -> { model | postalNo = state }) PostalNoMsg
@@ -258,6 +276,26 @@ viewIdentifiers locale model =
                 , Layout.stack [ Layout.gap 2 ]
                     [ MaskedInput.view AccountMsg [ MaskedInput.label "Bank account", MaskedInput.hint "For example 8601.11.17947.", MaskedInput.locale locale ] model.account
                     , readout model.account
+                    ]
+                ]
+            )
+        , Doc.example
+            { title = "Business numbers of Sweden, Denmark and Finland"
+            , description = Just "Each with its check digit: Luhn for Sweden, modulus 11 for Denmark and Finland. Try 556012-5790, 24256790 and 0112038-9."
+            , code = Just "MaskedInput.init \"supplier-se\" MaskedInput.swedishOrganisationNumber"
+            }
+            (grid
+                [ Layout.stack [ Layout.gap 2 ]
+                    [ MaskedInput.view SwedishMsg [ MaskedInput.label "Organisationsnummer (Sweden)", MaskedInput.locale locale ] model.nordic.se
+                    , readout model.nordic.se
+                    ]
+                , Layout.stack [ Layout.gap 2 ]
+                    [ MaskedInput.view DanishMsg [ MaskedInput.label "CVR number (Denmark)", MaskedInput.locale locale ] model.nordic.dk
+                    , readout model.nordic.dk
+                    ]
+                , Layout.stack [ Layout.gap 2 ]
+                    [ MaskedInput.view FinnishMsg [ MaskedInput.label "Y-tunnus (Finland)", MaskedInput.locale locale ] model.nordic.fi
+                    , readout model.nordic.fi
                     ]
                 ]
             )
