@@ -526,10 +526,15 @@ css =
 .klar-table__row--danger { --_tone: var(--klar-red-500); }
 
 /* The row whose details are open elsewhere (Table.currentRow): under the
-   selection, over hover and zebra, with a bar at its start. */
-.klar-table__row--current > .klar-table__td { background: var(--klar-surface-active); }
-.klar-table__row--current > .klar-table__td:first-child { box-shadow: inset 3px 0 0 var(--klar-primary); }
-.klar-table__row--current.klar-table__row--selected > .klar-table__td { background: var(--klar-primary-subtle-hover); }
+   selection, over hover and zebra (the .klar-table prefix outweighs their
+   three classes), with a bar at its start. A toned row that is current shows
+   both bars: the tone at the edge, the current bar inside it. */
+.klar-table .klar-table__row--current > .klar-table__td { background: var(--klar-surface-active); }
+.klar-table .klar-table__row--current > .klar-table__td:first-child { box-shadow: inset 3px 0 0 var(--klar-primary); }
+.klar-table .klar-table__row--current.klar-table__row--tone > .klar-table__td:first-child {
+  box-shadow: inset 3px 0 0 var(--_tone), inset 6px 0 0 var(--klar-primary);
+}
+.klar-table .klar-table__row--current.klar-table__row--selected > .klar-table__td { background: var(--klar-primary-subtle-hover); }
 
 /* Windows high contrast drops backgrounds and box-shadows: the focused,
    selected, current and toned rows and the active sort and filter are drawn
@@ -547,7 +552,11 @@ css =
 
   .klar-table__row--selected:focus-visible > .klar-table__td { outline-color: CanvasText; }
   .klar-table__row--tone > .klar-table__td:first-child { border-inline-start: 3px solid CanvasText; }
-  .klar-table__row--current > .klar-table__td:first-child { border-inline-start: 3px solid Highlight; }
+
+  /* the current bar (over a tone bar); on a selected row, whose background is
+     Highlight, it is drawn in HighlightText */
+  .klar-table .klar-table__row--current > .klar-table__td:first-child { border-inline-start: 3px solid Highlight; }
+  .klar-table .klar-table__row--current.klar-table__row--selected > .klar-table__td:first-child { border-inline-start-color: HighlightText; }
   .klar-table__row--disabled > .klar-table__td { color: GrayText; }
 
   .klar-table__sort-icon--active {

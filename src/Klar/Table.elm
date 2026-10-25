@@ -311,19 +311,22 @@ checkbox, the rows from the one picked last; Ctrl+A or Cmd+A every row of the
 page), ArrowRight and ArrowLeft expand and collapse it, and Shift+F10 or the menu key opens its menu; a `rowDisabled` row
 only takes part in the movement. Controls you put in an `actions` column stay tab
 stops in every row. Filter popovers and menus close with Escape, and Escape in
-the search box clears it; a dialog or drawer around the table stays open then, and
-only an Escape in the empty box closes it. When an action removes the control that had focus (a
+the search box clears it. Both use the key up (its default is prevented), so a
+dialog or drawer that closes only on an Escape that nothing inside took stays open;
+an Escape in the empty box is left to it. When an action removes the control that had focus (a
 bulk action that deletes the selected rows takes the bulk bar with it), give the
 table focus again with `focus`.
 
 **Accessibility.** Sortable headers carry `aria-sort`, the table has
 `aria-rowcount`, `aria-colcount` and, while it loads, `aria-busy`, and a polite
 live region announces loading, refreshing, the range shown and the sort order.
-When the rows take focus (clickable, selectable, expandable or with a menu) the
-table is a `grid`, or a `treegrid` with `expandedRow`: screen readers leave the
-arrow keys to the rows, the first cell of a row is its row header, a selectable
-grid is `aria-multiselectable` with `aria-selected` on its rows, and an expandable
-row says `aria-expanded` itself. A table that only shows data stays a plain table.
+A table stays a plain `table`, also when its rows take focus, so that a screen
+reader can read it cell by cell; a selectable row says `aria-selected`, and its
+checkbox whether it is checked. With `expandedRow` the table is a `treegrid` (focus
+on rows, ArrowRight and ArrowLeft expand and collapse, as in the ARIA pattern):
+screen readers leave the arrow keys to the rows, the first cell of a row is its row
+header, a selectable tree grid is `aria-multiselectable`, a row that can open its
+details says `aria-expanded`, and the details are a row one level down.
 Name the table with `ariaLabel`; the page controls in its footer are named after it
 too ("Pages of Orders"), so that two tables on a page can be told apart.
 `rowLabel` names a row for screen readers ("Select Ada Lovelace" on its checkbox).
@@ -1096,7 +1099,7 @@ deselect ids values (State model) =
 
 {-| Makes the selection exactly these rows, as a whole: to restore a selection, or
 to keep only the rows that are still there. It also ends an "all matching"
-selection.
+selection. To deselect everything use `clearSelection`.
 -}
 setSelectedIds : Ids id -> List id -> State id -> State id
 setSelectedIds ids values (State model) =
@@ -1173,8 +1176,9 @@ collapse ids id (State model) =
     State { model | expanded = Set.remove (Ids.toKey ids id) model.expanded }
 
 
-{-| Expands the row with this id when it is collapsed, and collapses it when it is
-expanded, as its arrow button does.
+{-| Toggles the details of a row (`expandedRow`), not its selection: expands the
+row with this id when it is collapsed, and collapses it when it is expanded, as its
+arrow button does. To toggle a selection use `select` and `deselect`.
 -}
 toggle : Ids id -> id -> State id -> State id
 toggle ids id (State model) =
@@ -1192,6 +1196,7 @@ toggled key set =
 
 {-| Makes these rows, and no others, the expanded ones: to restore the rows that
 were open, or to expand every row (`setExpandedIds orderIds (List.map .id orders)`).
+To collapse every row use `collapseAll`.
 -}
 setExpandedIds : Ids id -> List id -> State id -> State id
 setExpandedIds ids values (State model) =
@@ -2266,11 +2271,14 @@ currency code in the format of the table's locale (`NOK 1,234.50` in English,
 
 It sorts by amount, `filterRange` filters by the amount in whole units of the
 currency (100 is 100 kroner), and the CSV export writes the plain amount with the
-locale's decimal separator (`1234.50`, `1234,50`). `footerSum` and `footerAverage`
-add the amounts exactly, as `Money` and not as `Float`, with one total for each
-currency when the column holds several (`NOK 1,250.00 · EUR 300.00`). The search
-box skips it unless you add `includeInSearch`. Use it instead of `float` for every
-amount of money.
+locale's decimal separator (`1234.50`, `1234,50`). Sorting and the range filter
+compare the amounts without their currency, so they are meant for a column of one
+currency: in a column of several, 100 EUR and 100 NOK sort as equal. `footerSum`
+and `footerAverage` add the amounts exactly, as `Money` and not as `Float`, with one
+total for each currency in the order of their codes when the column holds several
+(`EUR 300.00 · NOK 1,250.00`); prepared rows (`remotePrepared`) work them out once.
+The search box skips it unless you add `includeInSearch`. Use it instead of `float`
+for every amount of money.
 
 -}
 money : ColumnId -> String -> (row -> Money) -> List (ColumnAttribute row msg) -> Column row msg
@@ -2298,6 +2306,32 @@ money (ColumnId colId) title toMoney attributes =
         attributes
 
 
+{-| The decimals the numbers of the range filter of this column are shown with:
+those of the currency of a money column (none for yen, three for dinars), read
+from its first row, else the column's own.
+-}
+rangeDecimals : Ctx row msg -> ColumnConfig row msg -> Int
+rangeDecimals ctx col =
+    let
+        firstRow =
+            case ctx.config.rows of
+                Remote.Loaded (FromList list) ->
+                    List.head list
+
+                Remote.Loaded (FromRows (Rows prep)) ->
+                    Array.get 0 prep.array
+
+                _ ->
+                    Nothing
+    in
+    case ( col.money, firstRow ) of
+        ( Just toMoney, Just row ) ->
+            Money.decimals (Money.currencyOf (toMoney row))
+
+        _ ->
+            col.decimals
+
+
 {-| An amount in whole units of its currency (12.5 for 12,50 kroner), for sorting
 and the range filter.
 -}
@@ -2306,11 +2340,20 @@ majorAmount amount =
     toFloat (Money.toMinor amount) / toFloat (10 ^ Money.decimals (Money.currencyOf amount))
 
 
-{-| The amounts of a money column added up exactly, one total for each currency in
-the order the currencies first appear, with the number of amounts in each. A total
-beyond the range of `Money` is `Nothing`.
+{-| The amounts of one currency in a money column added up exactly, with how many
+there are. A total beyond the range of `Money` is `Nothing`.
 -}
-moneyTotals : (row -> Money) -> List row -> List { total : Maybe Money, count : Int }
+type alias MoneyTotal =
+    { total : Maybe Money
+    , count : Int
+    }
+
+
+{-| The amounts of a money column added up exactly, one total for each currency in
+the order of the currency codes (so that sorting or filtering the rows never moves
+them), with the number of amounts in each.
+-}
+moneyTotals : (row -> Money) -> List row -> List MoneyTotal
 moneyTotals toMoney someRows =
     let
         add row groups =
@@ -2324,19 +2367,16 @@ moneyTotals toMoney someRows =
             case Dict.get code groups of
                 Just group ->
                     Dict.insert code
-                        { group
-                            | total = group.total |> Maybe.andThen (\running -> Result.toMaybe (Money.add running amount))
-                            , count = group.count + 1
+                        { total = group.total |> Maybe.andThen (\running -> Result.toMaybe (Money.add running amount))
+                        , count = group.count + 1
                         }
                         groups
 
                 Nothing ->
-                    Dict.insert code { place = Dict.size groups, total = Just amount, count = 1 } groups
+                    Dict.insert code { total = Just amount, count = 1 } groups
     in
     List.foldl add Dict.empty someRows
         |> Dict.values
-        |> List.sortBy .place
-        |> List.map (\group -> { total = group.total, count = group.count })
 
 
 {-| A calendar date ([Klar.Date](Klar-Date)), sorted by date and shown as
@@ -3024,6 +3064,9 @@ type Rows row
         , columnIds : List String
         , searchIds : List String
         , index : Index
+
+        -- the exact totals of the money columns with a footer, over every row
+        , moneyTotals : Dict String (List MoneyTotal)
         }
 
 
@@ -3082,6 +3125,21 @@ prepareRows loc givenColumns array =
                         )
                         allColumns
                 }
+        , moneyTotals =
+            List.filterMap
+                (\col ->
+                    case ( col.footer, col.money ) of
+                        ( Just FooterSum, Just toMoney ) ->
+                            Just ( col.id, moneyTotals toMoney (Array.toList array) )
+
+                        ( Just FooterAverage, Just toMoney ) ->
+                            Just ( col.id, moneyTotals toMoney (Array.toList array) )
+
+                        _ ->
+                            Nothing
+                )
+                allColumns
+                |> Dict.fromList
         }
 
 
@@ -3199,8 +3257,9 @@ locale value =
 
 {-| Adds a search box to the toolbar. Every word the user types must be found in
 one of the visible, searchable columns (case and accents are ignored), and the
-match is highlighted. Escape clears the box (and a dialog around the table stays
-open; an Escape in the empty box goes on to the dialog); in server mode the table
+match is highlighted. Escape clears the box and is used up (its default is
+prevented, so a dialog that closes only on an Escape nothing inside took stays
+open); an Escape in the empty box is left to the dialog. In server mode the table
 only records the text (see `query`).
 -}
 searchable : Attribute id row msg
@@ -3283,7 +3342,8 @@ selectable =
 the count, the export menu and a Cancel button that clears the selection. Your
 buttons send plain messages: read `selection` in your update, which is
 `AllMatching { except }` after "Select all N matching" in server mode (then
-`selectedIds` is `[]`). Use small buttons; it also turns on `selectable`.
+`selectedIds` is `[]`). Use small buttons; it also turns on `selectable`, and like
+it needs `rowId`: without it the table draws no checkboxes and no bar.
 
     Table.bulkActions [ Button.view [ Button.small, Button.onClick DeleteSelected ] "Delete" ]
 
@@ -3578,6 +3638,9 @@ type alias Data row =
     -- matching rows and the row itself: a count that never builds the list of rows.
     , countMatching : (Int -> row -> Bool) -> Int
     , totals : String -> Maybe Index.Totals
+
+    -- the exact totals of a money column, kept by prepared rows while no row is left out
+    , moneyTotals : String -> Maybe (List MoneyTotal)
     , total : Int
     , available : Int
     , page : Int
@@ -3607,6 +3670,7 @@ process config model allColumns visible =
             , matchingRows = \_ -> []
             , countMatching = \_ -> 0
             , totals = \_ -> Nothing
+            , moneyTotals = \_ -> Nothing
             , total = Maybe.withDefault 0 config.server
             , available = Maybe.withDefault 0 config.server
             , page = max 1 model.page
@@ -3648,6 +3712,7 @@ process config model allColumns visible =
                     , matchingRows = \_ -> allRows
                     , countMatching = \test -> List.length (List.filter (\( index, row ) -> test index row) (List.indexedMap Tuple.pair allRows))
                     , totals = \_ -> Nothing
+                    , moneyTotals = \_ -> Nothing
                     , total = total
                     , available = total
                     , page = current
@@ -3799,6 +3864,18 @@ processClient config model allColumns visible source =
             Just (Rows prep) ->
                 -- read from the numbers kept per position: no row is turned into a number again
                 \id -> Index.totalsOver id matches prep.index
+
+            Nothing ->
+                \_ -> Nothing
+    , moneyTotals =
+        case prepared of
+            Just (Rows prep) ->
+                if total == Array.length array then
+                    -- every row matched: the totals worked out once by prepareRows
+                    \id -> Dict.get id prep.moneyTotals
+
+                else
+                    \_ -> Nothing
 
             Nothing ->
                 \_ -> Nothing
@@ -4544,9 +4621,9 @@ viewSearch ctx =
     Html.div
         [ Internal.cls [ "klar-table__search" ]
 
-        -- Escape clears the text and is used up (its default is prevented, so a
-        -- dialog or drawer around the table leaves it alone); in an empty box it
-        -- is left to the dialog, which then closes.
+        -- Escape clears the text and is used up: its default is prevented, so a
+        -- dialog or drawer that reads defaultPrevented (keys are layered) leaves
+        -- it alone; in an empty box it is left to the dialog.
         , Internal.attrIf (ctx.model.searchInput /= "")
             (Internal.onKeys [ ( "Escape", ctx.toMsg (SearchChanged "" 0) ) ])
         ]
@@ -4701,7 +4778,7 @@ describeDraft ctx col draft =
         RangeDraft from to ->
             let
                 show =
-                    formatNumber ctx.loc col.decimals
+                    formatNumber ctx.loc (rangeDecimals ctx col)
             in
             col.title
                 ++ ": "
@@ -5419,8 +5496,10 @@ viewFrame ctx =
              -- A table with nothing to focus in it is left alone: Chrome makes
              -- such a scroll area focusable, so it can be scrolled with the keys.
              -- One that scrolls is a tab stop while the row that Tab should reach
-             -- is not drawn, and hands the focus to that row.
-             , Internal.attrIf (hasFocusableContent ctx)
+             -- is not drawn, and hands the focus to that row. With onResetFilters
+             -- it can always take focus: it is where focus goes after "Reset
+             -- filters" when the table has no search box or filter button.
+             , Internal.attrIf (hasFocusableContent ctx || isJust config.onResetFilters)
                 (Attr.tabindex
                     (if activeRowHidden ctx then
                         0
@@ -5451,21 +5530,11 @@ viewFrame ctx =
                     [ Internal.cls [ "klar-table__table" ]
                     , Internal.styleVars [ ( "min-width", Internal.px (tableMinWidth ctx) ) ]
 
-                    -- Rows that take focus and keys make a grid (a tree grid when rows
-                    -- expand): screen readers then leave the arrow keys to the rows
-                    -- and announce selection. A table that only shows data stays a table.
-                    , if ctx.interactiveRows then
-                        Attr.attribute "role"
-                            (if ctx.hasExpand then
-                                "treegrid"
-
-                             else
-                                "grid"
-                            )
-
-                      else
-                        Internal.noAttr
-                    , Internal.attrIf (ctx.interactiveRows && ctx.hasSelect) (Attr.attribute "aria-multiselectable" "true")
+                    -- Rows that expand make a tree grid (see isTreegrid): screen
+                    -- readers then leave the arrow keys to the rows. Every other
+                    -- table, also one whose rows take focus, stays a table.
+                    , Internal.attrIf (isTreegrid ctx) (Attr.attribute "role" "treegrid")
+                    , Internal.attrIf (isTreegrid ctx && ctx.hasSelect) (Attr.attribute "aria-multiselectable" "true")
                     , Internal.attrMaybe (Attr.attribute "aria-label") config.label
                     , Attr.attribute "aria-rowcount"
                         (if ctx.data.status == Ready then
@@ -6221,7 +6290,7 @@ viewFilterContent ctx col =
                 , Internal.viewMaybe
                     (\( low, high ) ->
                         Html.p [ Internal.cls [ "klar-table__popover-note" ] ]
-                            [ Html.text (t.rangeHint (formatNumber ctx.loc col.decimals low) (formatNumber ctx.loc col.decimals high)) ]
+                            [ Html.text (t.rangeHint (formatNumber ctx.loc (rangeDecimals ctx col) low) (formatNumber ctx.loc (rangeDecimals ctx col) high)) ]
                     )
                     bounds
                 ]
@@ -6669,17 +6738,28 @@ dataCellClasses ctx index col =
     ]
 
 
-{-| The role of a row or cell in the grid of a table whose rows take focus
-(`row`, `columnheader`, `rowheader`, `gridcell`). A table that only shows data
-is a plain table, where the elements have their roles already.
+{-| The role of a row or cell in the tree grid of a table whose rows expand
+(`row`, `columnheader`, `rowheader`, `gridcell`). Every other table is a plain
+table, where the elements have their roles already.
 -}
 gridPart : Ctx row msg -> String -> Html.Attribute msg
 gridPart ctx role =
-    if ctx.interactiveRows then
+    if isTreegrid ctx then
         Attr.attribute "role" role
 
     else
         Internal.noAttr
+
+
+{-| A table whose rows take focus and expand is a `treegrid`, the ARIA pattern
+where focus is on rows and ArrowRight and ArrowLeft expand and collapse them, as
+here. Rows that only take focus (clickable, selectable, with a menu) keep the
+semantics of a plain table: a `grid` would promise arrow keys between cells, and
+a screen reader in a grid gives up reading the table cell by cell in browse mode.
+-}
+isTreegrid : Ctx row msg -> Bool
+isTreegrid ctx =
+    ctx.interactiveRows && ctx.hasExpand
 
 
 pinStyle : Ctx row msg -> Int -> Html.Attribute msg
@@ -6713,7 +6793,7 @@ viewRowAndDetail ctx index row =
                     , gridPart ctx "row"
 
                     -- in the tree grid the details are the child of their row
-                    , Internal.attrIf ctx.interactiveRows (Attr.attribute "aria-level" "2")
+                    , Internal.attrIf (isTreegrid ctx) (Attr.attribute "aria-level" "2")
                     ]
                     [ Html.td
                         [ Internal.cls [ "klar-table__detail" ]
@@ -7030,9 +7110,10 @@ viewRow ctx index row key expanded =
                   , Internal.attrIf current (Attr.attribute "aria-current" "true")
                   , gridPart ctx "row"
 
-                  -- a tree grid tells on the row whether its details are open
-                  , Internal.attrIf (ctx.interactiveRows && ctx.hasExpand) (Attr.attribute "aria-level" "1")
-                  , Internal.attrIf (ctx.interactiveRows && ctx.hasExpand)
+                  -- a tree grid tells on the row whether its details are open; a
+                  -- disabled row cannot open them, so it says nothing (unless they are open)
+                  , Internal.attrIf (isTreegrid ctx) (Attr.attribute "aria-level" "1")
+                  , Internal.attrIf (isTreegrid ctx && (expanded || not disabled))
                         (Attr.attribute "aria-expanded"
                             (if expanded then
                                 "true"
@@ -7485,9 +7566,13 @@ footerContent ctx matched index col =
             , Html.span [ Internal.cls [ "klar-table__aggregate" ] ] [ Html.text value ]
             ]
 
-        -- a money column: exact totals, one for each currency
+        -- a money column: exact totals, one for each currency (kept by prepared
+        -- rows while no row is left out, so that a scroll adds up nothing again)
         moneyAggregate name toValue toMoney =
-            case moneyTotals toMoney (matched ()) of
+            case
+                ctx.data.moneyTotals col.id
+                    |> Maybe.withDefault (moneyTotals toMoney (matched ()))
+            of
                 [] ->
                     aggregate name "–"
 

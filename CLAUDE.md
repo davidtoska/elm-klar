@@ -14,7 +14,8 @@ application with it; `README.md` is the front page of the package.
 - Vanilla Elm (0.19.1 to 0.19.3, built with 0.19.3). The library depends only on the
   official `elm/*` packages from the Elm team: core, html, browser, json, time, url (for
   `AppShell` and `LeaveGuard`) and file (for `FileDrop` and the file fields of `Klar.Form`,
-  which hand the application the `File` values; the library never reads or sends one).
+  which hand the application the `File` values, and for the CSV export of `Klar.Table`,
+  which saves its file with `File.Download.string`; the library never reads or sends a file).
   `svg`, `bytes`, `parser`, `regex` and `random` are allowed, added only when a component
   needs them. Never `elm/http` (Klar is transport neutral), never a third-party package.
 - No ports, no kernel code, no `Debug`, no JavaScript in the library or the example.
