@@ -124,6 +124,41 @@ sameKeysTests =
     describe "two shortcuts with the same keys"
         [ check "in a field the one marked inInputs fires" (Just Slash) (firesAmong list (press "Escape" |> inField))
         , check "elsewhere the first one fires" (Just Close) (firesAmong list (press "Escape"))
+        , check "both can fire, so they are no conflict" [] (Shortcut.conflicts list |> List.map .label)
+        , check "the shortcuts of the imaginary application have no conflicts" [] (Shortcut.conflicts shortcuts |> List.map .label)
+        , check "a second shortcut with the same keys never fires"
+            [ { label = "Save again", hiddenBy = "Save" } ]
+            (Shortcut.conflicts
+                [ Shortcut.shortcut (Keys.parse "mod+s") "Orders" "Save" Save
+                , Shortcut.shortcut (Keys.parse "mod+s") "Orders" "Save again" Save
+                ]
+                |> List.map (\found -> { label = found.label, hiddenBy = found.hiddenBy })
+            )
+        , check "a second shortcut marked inInputs hides nothing in fields, but the first one marked inInputs hides the second"
+            [ "Close the panel" ]
+            (Shortcut.conflicts
+                [ Shortcut.shortcut Shortcut.escape "Search" "Clear the search" Slash |> Shortcut.inInputs
+                , Shortcut.shortcut Shortcut.escape "Navigation" "Close the panel" Close
+                ]
+                |> List.map .label
+            )
+        , check "a key by itself hides a sequence that begins with it, wherever it is in the list"
+            [ { label = "Go to orders", hiddenBy = "Go" } ]
+            (Shortcut.conflicts
+                [ Shortcut.shortcut (Keys.parse "g o") "Navigation" "Go to orders" GoToOrders
+                , Shortcut.shortcut (Keys.parse "g") "Navigation" "Go" GoToCustomers
+                ]
+                |> List.map (\found -> { label = found.label, hiddenBy = found.hiddenBy })
+            )
+        , check "the keys of the hidden shortcut come with it"
+            [ Keys.parse "g o" ]
+            (Shortcut.conflicts
+                [ Shortcut.shortcut (Keys.parse "g") "Navigation" "Go" GoToCustomers
+                , Shortcut.shortcut (Keys.parse "g o") "Navigation" "Go to orders" GoToOrders
+                ]
+                |> List.map .keys
+            )
+        , check "an empty sequence hides nothing" [] (Shortcut.conflicts [ Shortcut.shortcut (Shortcut.sequence []) "X" "Nothing" Save, Shortcut.shortcut (Keys.parse "g o") "Y" "Go" GoToOrders ] |> List.map .label)
         ]
 
 

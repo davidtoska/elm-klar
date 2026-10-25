@@ -1,5 +1,5 @@
 module Klar.Shortcut exposing
-    ( Shortcut, shortcut, inInputs, keysOf, groupOf, labelOf, firesInInputs
+    ( Shortcut, shortcut, inInputs, keysOf, groupOf, labelOf, firesInInputs, conflicts
     , Keys, char, function, escape, enter, tab, space, backspace, delete, home, end, pageUp, pageDown, up, down, left, right
     , mod, alt, shift, sequence
     , State, init, Msg, update, listen, subscription
@@ -15,7 +15,7 @@ Quick path: `init`, `listen`, `subscription`, `update`
 A shortcut is the keys, a group and a label (which
 [Klar.ShortcutHelp](Klar-ShortcutHelp) lists) and the message to send. Keep all
 shortcuts in one list and give that list to `listen`, `subscription` and
-`update`.
+`update`; `conflicts` finds the shortcuts in it that can never fire.
 
     import Klar.Shortcut as Shortcut
 
@@ -108,7 +108,7 @@ either. Holding a key down does not repeat a shortcut.
 
 # Defining shortcuts
 
-@docs Shortcut, shortcut, inInputs, keysOf, groupOf, labelOf, firesInInputs
+@docs Shortcut, shortcut, inInputs, keysOf, groupOf, labelOf, firesInInputs, conflicts
 
 
 # Keys
@@ -212,6 +212,52 @@ labelOf (Shortcut entry) =
 firesInInputs : Shortcut msg -> Bool
 firesInInputs (Shortcut entry) =
     entry.inInputs
+
+
+{-| The shortcuts of a list that can never fire, each with the label of the one
+that takes its keys first: a second shortcut with the same keys (unless only the
+second is marked `inInputs`, which then still fires in fields), and a sequence
+that begins with the keys of another shortcut (`g` alone hides `g o`). An empty
+list means that every shortcut can fire, which a test of the application can
+check when it puts lists together:
+
+    Shortcut.conflicts (History.shortcuts Locale.en historyMessages ++ shortcuts) == []
+
+-}
+conflicts : List (Shortcut msg) -> List { keys : Keys, label : String, hiddenBy : String }
+conflicts wrapped =
+    let
+        entries =
+            List.map unwrap wrapped
+
+        hides earlier later =
+            let
+                first =
+                    Notation.steps earlier.keys
+
+                second =
+                    Notation.steps later.keys
+            in
+            if List.isEmpty first then
+                -- an empty sequence is never pressed
+                False
+
+            else if first == second then
+                earlier.inInputs || not later.inInputs
+
+            else
+                List.length first < List.length second && List.take (List.length first) second == first
+
+        check ( index, later ) =
+            entries
+                |> List.indexedMap Tuple.pair
+                |> List.filter (\( other, earlier ) -> other /= index && (other < index || List.length (Notation.steps earlier.keys) < List.length (Notation.steps later.keys)) && hides earlier later)
+                |> List.head
+                |> Maybe.map (\( _, earlier ) -> { keys = Notation.Keys later.keys, label = later.label, hiddenBy = earlier.label })
+    in
+    entries
+        |> List.indexedMap Tuple.pair
+        |> List.filterMap check
 
 
 

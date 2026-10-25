@@ -17,6 +17,7 @@ keysOf : Shortcut msg -> Keys
 groupOf : Shortcut msg -> String
 labelOf : Shortcut msg -> String
 firesInInputs : Shortcut msg -> Bool
+conflicts : List (Shortcut msg) -> List { keys : Keys, label : String, hiddenBy : String }
 
 -- Keys
 type alias Keys = Internal.Keys.Keys
@@ -62,7 +63,7 @@ Quick path: `init`, `listen`, `subscription`, `update`
 A shortcut is the keys, a group and a label (which
 [Klar.ShortcutHelp](Klar.ShortcutHelp.md) lists) and the message to send. Keep all
 shortcuts in one list and give that list to `listen`, `subscription` and
-`update`.
+`update`; `conflicts` finds the shortcuts in it that can never fire.
 
     import Klar.Shortcut as Shortcut
 
@@ -229,6 +230,21 @@ firesInInputs : Shortcut msg -> Bool
 ```
 
 Whether the shortcut was marked with `inInputs`.
+
+### `conflicts`
+
+```elm
+conflicts : List (Shortcut msg) -> List { keys : Keys, label : String, hiddenBy : String }
+```
+
+The shortcuts of a list that can never fire, each with the label of the one
+that takes its keys first: a second shortcut with the same keys (unless only the
+second is marked `inInputs`, which then still fires in fields), and a sequence
+that begins with the keys of another shortcut (`g` alone hides `g o`). An empty
+list means that every shortcut can fire, which a test of the application can
+check when it puts lists together:
+
+    Shortcut.conflicts (History.shortcuts Locale.en historyMessages ++ shortcuts) == []
 
 ## Keys
 

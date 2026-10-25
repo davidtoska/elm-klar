@@ -4835,8 +4835,8 @@
         "groupOf",
         "labelOf",
         "firesInInputs",
-        "char",
-        "function"
+        "conflicts",
+        "char"
       ],
       "related": [
         "Klar.Kbd",
