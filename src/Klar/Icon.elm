@@ -20,6 +20,7 @@ module Klar.Icon exposing
 
 Use when: a button, menu item or message needs a small line icon that follows the text color.
 Do not use when: you need one of the rarer icons, which live in the `Klar.Icon.*` modules, or a picture (use an `img`).
+Quick path: `view`, `labelled`, `sized`, `fromSvg`
 
     import Klar.Icon as Icon
 
@@ -161,7 +162,7 @@ view =
 sized : Size -> Icon -> Html msg
 sized size icon =
     Html.span
-        (Internal.cls [ "klar-icon", "klar-icon--" ++ name icon, sizeClass size ]
+        (Internal.cls [ "klar-icon", nameClass icon, sizeClass size ]
             :: Attr.attribute "aria-hidden" "true"
             :: drawing icon
         )
@@ -172,38 +173,64 @@ sized size icon =
 
     Icon.labelled "Overdue" Icon.warning
 
+A blank label is no name: the icon is then drawn as a decorative one (`view`), not as
+an image without a name.
+
 -}
 labelled : String -> Icon -> Html msg
 labelled label icon =
-    Html.span
-        (Internal.cls [ "klar-icon", "klar-icon--" ++ name icon ]
-            :: Attr.attribute "role" "img"
-            :: Attr.attribute "aria-label" label
-            :: drawing icon
-        )
-        []
+    case Internal.nonEmpty label of
+        Just accessibleName ->
+            Html.span
+                (Internal.cls [ "klar-icon", nameClass icon ]
+                    :: Attr.attribute "role" "img"
+                    :: Attr.attribute "aria-label" accessibleName
+                    :: drawing icon
+                )
+                []
+
+        Nothing ->
+            view icon
+
+
+{-| The class of the name. A name is written by an application (`fromSvg`, `custom`),
+so a character that cannot be in a class (a space, a dot) becomes a dash. The size
+classes below start with `size-`, so a short name such as `lg` is not a size.
+-}
+nameClass : Icon -> String
+nameClass icon =
+    "klar-icon--"
+        ++ String.map
+            (\c ->
+                if Char.isAlphaNum c || c == '-' || c == '_' then
+                    c
+
+                else
+                    '-'
+            )
+            (name icon)
 
 
 sizeClass : Size -> String
 sizeClass size =
     case size of
         ExtraSmall ->
-            "klar-icon--xs"
+            "klar-icon--size-12"
 
         Small ->
-            "klar-icon--sm"
+            "klar-icon--size-14"
 
         Medium ->
             ""
 
         Large ->
-            "klar-icon--lg"
+            "klar-icon--size-20"
 
         ExtraLarge ->
-            "klar-icon--xl"
+            "klar-icon--size-24"
 
         Huge ->
-            "klar-icon--xxl"
+            "klar-icon--size-32"
 
 
 
@@ -229,9 +256,11 @@ text color):
         Icon.fromSvg "invoice"
             "<path d='M6 2h9l5 5v15H6z'/><path d='M9 13h8M9 17h8'/>"
 
-Use single quotes inside the markup. The icons of this library are made the same
-way, with a 2 pixel stroke and round ends and corners (`stroke-width`,
-`stroke-linecap` and `stroke-linejoin` are set for you), so yours will fit in.
+Use single quotes inside the markup (double quotes are turned into single ones). The
+markup may span several lines: line breaks and tabs are spaces in SVG, and they are
+written as spaces. The icons of this library are made the same way, with a 2 pixel
+stroke and round ends and corners (`stroke-width`, `stroke-linecap` and
+`stroke-linejoin` are set for you), so yours will fit in.
 
 -}
 fromSvg : String -> String -> Icon
@@ -244,6 +273,13 @@ fromSvg iconName shapes =
                         |> String.replace "\"" "'"
                         |> String.replace "%" "%25"
                         |> String.replace "#" "%23"
+                        -- A line break ends a CSS string (the drawing would be lost) and a
+                        -- backslash starts a CSS escape: neither may reach the url.
+                        |> String.replace "\u{000D}\n" " "
+                        |> String.replace "\n" " "
+                        |> String.replace "\u{000D}" " "
+                        |> String.replace "\t" " "
+                        |> String.replace "\\" "%5C"
                    )
                 ++ "</svg>\")"
         }
@@ -267,7 +303,8 @@ custom iconName =
     Icon { name = iconName, style = "" }
 
 
-{-| The name of an icon. The class of an icon is `klar-icon--<name>`.
+{-| The name of an icon, as it was given. The class of an icon is `klar-icon--<name>`,
+with every character other than a letter, a digit, `-` and `_` written as `-`.
 
     Icon.name Icon.chevronDown --> "chevron-down"
 

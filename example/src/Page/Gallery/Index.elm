@@ -114,13 +114,13 @@ viewSection ( section, hits ) =
                 (String.fromInt (List.length (Catalog.components section)))
             ]
         , Card.footer
-            (Button.view
+            [ Button.view
                 [ Button.href (Route.path (Route.Components (Just (Catalog.slug section))))
                 , Button.iconRight Icon.arrowRight
                 , Button.small
                 ]
                 "Open page"
-            )
+            ]
         ]
         [ Layout.row [ Layout.gap 2, Layout.wrap ]
             (List.map (\name -> Tag.view [] name) hits)

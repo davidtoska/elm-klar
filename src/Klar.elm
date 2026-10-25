@@ -12,7 +12,7 @@ packages it needs nothing, and it has no ports and no JavaScript.
 
 Use when: you start any application with Klar, to put its stylesheet on the page once.
 Do not use when: you look for a component, each of which has its own module (`Klar.Button`, `Klar.Table`); this module holds only the stylesheet and `focus`.
-Quick path: `stylesheet`, `focus`
+Quick path: `stylesheet`, `stylesheetFor`, `focus`
 
 
 # Start here
@@ -122,7 +122,10 @@ of the submit, for a form you wire by hand.
 
 **Language.** Built-in text (placeholders, labels read by screen readers, month
 names) is English by default and Norwegian Bokmål with `locale Locale.nb`; see
-[Klar.Locale](Klar-Locale). Your own text always comes from your application.
+[Klar.Locale](Klar-Locale). Keep the language in the [Klar.Settings](Klar-Settings) of
+the model, with the time zone, the time now and the theme, and give each component
+`locale (Settings.locale model.settings)`. Your own text always comes from your
+application.
 
 **Honest with input.** Nothing changes what the user typed behind their back. A
 number outside its range stays in the field with an error; only an explicit action
@@ -164,6 +167,7 @@ package.elm-lang.org, in the same order.
 -}
 
 import Html exposing (Html)
+import Html.Lazy
 import Klar.Internal as Internal
 import Klar.Internal.Css as Css
 import Klar.Settings as Settings exposing (Settings)
@@ -191,22 +195,26 @@ application chooses a theme or lets the person choose light or dark.
 
     Klar.stylesheetFor model.settings
 
-With the default settings it draws exactly what `stylesheet` does.
+With the default settings it draws exactly what `stylesheet` does. The colors of the
+theme are computed once for a theme and a mode, not on every view.
 
 -}
 stylesheetFor : Settings -> Html msg
 stylesheetFor settings =
     Html.div [ Internal.cls [ "klar-settings" ] ]
         [ stylesheet
-        , Theme.style (Settings.theme settings) (Settings.mode settings)
+        , Html.Lazy.lazy2 Theme.style (Settings.theme settings) (Settings.mode settings)
         ]
 
 
 {-| The same rules as text. Use it where the ready-made element does not fit: to
-give the `<style>` element a `nonce` of your own, or to put the rules into a shadow
-root.
+give the `<style>` element a `nonce` of your own. Draw `Theme.style` after it for a
+theme other than the default.
 
     Html.node "style" [ Html.Attributes.attribute "nonce" model.nonce ] [ Html.text Klar.css ]
+
+The rules are written for a whole page (the tokens are on `:root`, the reset on
+`body`), so they do not work inside a shadow root.
 
 -}
 css : String

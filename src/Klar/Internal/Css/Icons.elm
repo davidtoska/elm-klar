@@ -30,6 +30,10 @@ css =
   -webkit-mask: var(--klar-icon, var(--_missing)) center / contain no-repeat;
   mask: var(--klar-icon, var(--_missing)) center / contain no-repeat;
   vertical-align: -0.2em;
+  /* The color is a background, which a browser leaves out when it prints: keep it, or
+     every icon, status icons included, prints as nothing. */
+  -webkit-print-color-adjust: exact;
+  print-color-adjust: exact;
 }
 
 /* Windows high contrast mode replaces background colors, which would turn the
@@ -41,11 +45,11 @@ css =
   }
 }
 
-.klar-icon--xs { --klar-icon-size: 12px; }
-.klar-icon--sm { --klar-icon-size: 14px; }
-.klar-icon--md { --klar-icon-size: 16px; }
-.klar-icon--lg { --klar-icon-size: 20px; }
-.klar-icon--xl { --klar-icon-size: 24px; }
-.klar-icon--xxl { --klar-icon-size: 32px; }
-.klar-icon--xxxl { --klar-icon-size: 48px; }
+/* Icon.Size. The modifiers start with `size-`, which the name of an icon (also a
+   `klar-icon--` modifier) never does in practice, so `custom "lg"` is not a size. */
+.klar-icon--size-12 { --klar-icon-size: 12px; }
+.klar-icon--size-14 { --klar-icon-size: 14px; }
+.klar-icon--size-20 { --klar-icon-size: 20px; }
+.klar-icon--size-24 { --klar-icon-size: 24px; }
+.klar-icon--size-32 { --klar-icon-size: 32px; }
 """

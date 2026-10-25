@@ -10,6 +10,7 @@ footer.
 
 Use when: related content belongs together on a bordered surface with an optional title, actions and footer.
 Do not use when: the content is a whole page region with its own header (as `Klar.PageHeader`) or an overlay (as `Klar.Modal`).
+Quick path: `view`, `title`, `actions`, `footer`, `RemoteView.view`
 
     import Klar.Button as Button
     import Klar.Card as Card
@@ -29,12 +30,32 @@ with `headingLevel`, so that the title fits the outline of the page (see
 the body, for tables and lists that go edge to edge; `accent`, `sunken` and
 `raised` change the look.
 
+A card with an `id` and a title is a named region: its title is what a screen reader
+says for it, so a person can jump from card to card on a dashboard.
+
 A card that shows one piece of remote data takes its body from
 [Klar.RemoteView](Klar-RemoteView): the loading skeleton, the failure with a
-retry, and old or refreshing data, without a `case` of your own.
+retry, and old or refreshing data, without a `case` of your own. Give the body an
+`id` and move focus to it when the retry starts, because the "Try again" button that
+had the focus is replaced by the skeleton:
 
+    -- view
     Card.view [ Card.title "Order 1042" ]
-        (RemoteView.view [ RemoteView.onRetry ReloadOrder ] model.order viewOrder)
+        (RemoteView.view
+            [ RemoteView.id "order-body"
+            , RemoteView.onRetry ReloadOrder
+            , RemoteView.settings model.settings
+            , RemoteView.locale (Settings.locale model.settings)
+            ]
+            model.order
+            viewOrder
+        )
+
+    -- update
+    ReloadOrder ->
+        ( { model | order = Remote.refresh model.order }
+        , Cmd.batch [ fetchOrder, Klar.focus "order-body" NoOp ]
+        )
 
 
 # View
@@ -75,7 +96,7 @@ type alias Config msg =
     { title : Maybe String
     , subtitle : Maybe String
     , actions : List (Html msg)
-    , footer : Maybe (Html msg)
+    , footer : List (Html msg)
     , flush : Bool
     , sunken : Bool
     , raised : Bool
@@ -92,7 +113,7 @@ configure attributes =
         , headingLevel = 2
         , subtitle = Nothing
         , actions = []
-        , footer = Nothing
+        , footer = []
         , flush = False
         , sunken = False
         , raised = False
@@ -125,7 +146,8 @@ headingLevel level =
     Attribute (\config -> { config | headingLevel = clamp 1 6 level })
 
 
-{-| A smaller line under the title, such as a period or a count.
+{-| A smaller line under the title, such as a period or a count. An empty text is no
+subtitle.
 -}
 subtitle : String -> Attribute msg
 subtitle value =
@@ -140,13 +162,16 @@ actions value =
     Attribute (\config -> { config | actions = value })
 
 
-{-| A single element in a tinted strip below the body, such as a summary or a
-row of buttons. To put several elements in the footer, wrap them in a
-`Layout.row`.
+{-| A tinted strip below the body, such as a summary or a few buttons, laid out in a
+row that wraps. It starts at the left; a `Layout.spacer` pushes what comes after it
+to the right end. An empty list is no footer.
+
+    Card.footer [ Text.caption "Updated 3 minutes ago", Layout.spacer, Button.view [ Button.small ] "View all" ]
+
 -}
-footer : Html msg -> Attribute msg
+footer : List (Html msg) -> Attribute msg
 footer value =
-    Attribute (\config -> { config | footer = Just value })
+    Attribute (\config -> { config | footer = value })
 
 
 {-| No padding around the body, so that a table, a list or a picture goes edge to
@@ -183,7 +208,8 @@ accent value =
     Attribute (\config -> { config | accent = Just value })
 
 
-{-| The DOM id of the card.
+{-| The DOM id of the card. With a title, it also makes the card a named region: the
+title gets the id `<id>-title` and the card points at it with `aria-labelledby`.
 -}
 id : String -> Attribute msg
 id value =
@@ -206,8 +232,20 @@ view attributes children =
         titleText =
             Maybe.andThen Internal.nonEmpty config.title
 
+        subtitleText =
+            Maybe.andThen Internal.nonEmpty config.subtitle
+
         hasHeader =
-            titleText /= Nothing || config.subtitle /= Nothing || not (List.isEmpty config.actions)
+            titleText /= Nothing || subtitleText /= Nothing || not (List.isEmpty config.actions)
+
+        -- A section is a region landmark only when it has a name: the title, by its id.
+        titleId =
+            case ( config.id, titleText ) of
+                ( Just cardId, Just _ ) ->
+                    Just (cardId ++ "-title")
+
+                _ ->
+                    Nothing
     in
     Html.section
         [ Internal.cls
@@ -235,17 +273,25 @@ view attributes children =
                     ""
             ]
         , Internal.attrMaybe Attr.id config.id
+        , Internal.attrMaybe (Attr.attribute "aria-labelledby") titleId
         ]
         [ Internal.viewIf hasHeader
             (Html.header [ Internal.cls [ "klar-card__header" ] ]
                 [ Html.div [ Internal.cls [ "klar-card__heading" ] ]
-                    [ Internal.viewMaybe (\t -> Internal.heading config.headingLevel [ Internal.cls [ "klar-card__title" ] ] [ Html.text t ]) titleText
-                    , Internal.viewMaybe (\t -> Html.p [ Internal.cls [ "klar-card__subtitle" ] ] [ Html.text t ]) config.subtitle
+                    [ Internal.viewMaybe
+                        (\t ->
+                            Internal.heading config.headingLevel
+                                [ Internal.cls [ "klar-card__title" ], Internal.attrMaybe Attr.id titleId ]
+                                [ Html.text t ]
+                        )
+                        titleText
+                    , Internal.viewMaybe (\t -> Html.p [ Internal.cls [ "klar-card__subtitle" ] ] [ Html.text t ]) subtitleText
                     ]
                 , Internal.viewIf (not (List.isEmpty config.actions))
                     (Html.div [ Internal.cls [ "klar-card__actions" ] ] config.actions)
                 ]
             )
         , Html.div [ Internal.cls [ "klar-card__body" ] ] children
-        , Internal.viewMaybe (\f -> Html.footer [ Internal.cls [ "klar-card__footer" ] ] [ f ]) config.footer
+        , Internal.viewIf (not (List.isEmpty config.footer))
+            (Html.footer [ Internal.cls [ "klar-card__footer" ] ] config.footer)
         ]

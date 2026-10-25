@@ -36,7 +36,8 @@ function visit(directory) {
     const relative = path.relative(root, full).split(path.sep).join('/');
     if (entry.isDirectory()) {
       if (!skipDirectories.has(entry.name)) visit(full);
-    } else if (!skipFiles.has(relative) && isText(relative)) {
+    } else if (!skipFiles.has(relative) && !/^example\/examples\/[^/]+\.js$/.test(relative) && isText(relative)) {
+      // example/examples/*.js are built by `npm run build:example` (and ignored by git), like example/main.js
       inspect(full, relative);
     }
   }

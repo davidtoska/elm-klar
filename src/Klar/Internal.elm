@@ -287,15 +287,15 @@ markDot tone color =
     case ( color, tone ) of
         ( Just value, _ ) ->
             Html.span
-                [ cls [ "klar-mark" ]
-                , Attr.attribute "style" ("--klar-mark:" ++ Color.toHex value)
+                [ cls [ "klar-dot" ]
+                , Attr.attribute "style" ("--klar-dot:" ++ Color.toHex value)
                 , Attr.attribute "aria-hidden" "true"
                 ]
                 []
 
         ( Nothing, Just value ) ->
             Html.span
-                [ cls [ "klar-mark", "klar-mark--" ++ toneSuffix value ]
+                [ cls [ "klar-dot", "klar-dot--" ++ toneSuffix value ]
                 , Attr.attribute "aria-hidden" "true"
                 ]
                 []

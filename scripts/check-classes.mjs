@@ -112,6 +112,31 @@ if (process.argv.includes('--update')) {
   process.exit(0);
 }
 
+// One class, one owner: a bare class selector (`.klar-mark {`) that starts rules in two
+// stylesheet modules is two components that picked the same name, and the later module
+// silently restyles the earlier one's elements.
+const owners = new Map();
+const clashes = [];
+for (const file of walk(path.join(root, 'src', 'Klar', 'Internal', 'Css'), '.elm')) {
+  const name = path.basename(file);
+  const text = fs.readFileSync(file, 'utf8').replace(/\/\*[\s\S]*?\*\//g, '');
+  for (const m of text.matchAll(/(?:^|[\n};])\s*([^{}@;]+?)\s*\{/g)) {
+    for (const selector of m[1].split(',').map((s) => s.trim())) {
+      if (!/^\.klar-[a-zA-Z0-9_-]+$/.test(selector)) continue;
+      const cls = selector.slice(1);
+      const first = owners.get(cls);
+      if (first === undefined) owners.set(cls, name);
+      else if (first !== name) clashes.push(`${cls}: ${first} and ${name}`);
+    }
+  }
+}
+if (clashes.length > 0) {
+  console.log(`${clashes.length} class(es) with rules of their own in two stylesheet modules:`);
+  for (const c of clashes) console.log(`  - ${c}`);
+  console.log('Give one of them another name.');
+  process.exit(1);
+}
+
 const problems = missing.filter((m) => !hooks.has(m.name));
 const stale = [...hooks].filter(
   (h) => cssClasses.has(h) || (!used.has(h) && !prefixes.has(h) && !expanded.has(h)),

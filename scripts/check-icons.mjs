@@ -59,7 +59,7 @@ for (const f of fs.readdirSync(iconDir)) {
 }
 
 const css = fs.readFileSync(path.join(root, 'src', 'Klar', 'Internal', 'Css', 'Icons.elm'), 'utf8');
-const sizes = new Set(['xs', 'sm', 'md', 'lg', 'xl', 'xxl', 'xxxl']);
+const sizes = new Set(['size-12', 'size-14', 'size-20', 'size-24', 'size-32']);
 for (const m of css.matchAll(/^\.klar-icon--([a-z0-9-]+)\s*\{/gm)) {
   if (!sizes.has(m[1])) problems.push(`Klar.Internal.Css.Icons has a rule for "${m[1]}": icon drawings belong in Elm (Icon.fromSvg)`);
 }

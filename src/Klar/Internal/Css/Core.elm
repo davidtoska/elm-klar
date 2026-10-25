@@ -29,6 +29,18 @@ css =
   font-weight: var(--klar-weight-bold);
   letter-spacing: -0.01em;
   color: var(--klar-text);
+  font-variant-numeric: tabular-nums;
+}
+
+/* One line with an ellipsis; inline-block so that it cuts inside a paragraph too. */
+.klar-text--truncated {
+  display: inline-block;
+  max-width: 100%;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  vertical-align: bottom;
 }
 
 .klar-text--heading {
@@ -182,7 +194,9 @@ css =
 .klar-stack--justify-end { justify-content: flex-end; }
 .klar-stack--justify-between { justify-content: space-between; }
 
-.klar-scroll { max-height: var(--klar-max-h); overflow: auto; }
+/* `Layout.maxHeight` sets --klar-max-h; `Layout.scroll` alone has none, so the
+   max-height is the initial `none` and the height comes from the parent (fillRest, grow). */
+.klar-scroll { max-height: var(--klar-max-h); min-height: 0; overflow: auto; }
 
 /* A scroll area takes keyboard focus (tabindex 0): the ring goes inside. */
 .klar-scroll:focus-visible { outline-offset: -2px; }
@@ -191,6 +205,8 @@ css =
 .klar-grow { flex: 1 1 0; min-width: 0; }
 .klar-fixed-w { flex: 0 0 var(--klar-fixed-w); width: var(--klar-fixed-w); max-width: 100%; min-width: 0; }
 .klar-fill-rest { flex: 1 1 auto; min-height: 0; }
+/* A container with fillRest hands the height on to a fillRest stack inside it. */
+.klar-container.klar-fill-rest { display: flex; flex-direction: column; }
 .klar-padded { padding: var(--klar-pad, 0); }
 .klar-spacer { flex: 1 1 auto; }
 
@@ -255,7 +271,8 @@ css =
   gap: var(--klar-space-2) var(--klar-space-3);
   padding: var(--klar-space-3) var(--klar-space-4);
   border-bottom: 1px solid var(--klar-border);
-  min-height: 44px;
+  /* 44px at normal density; the control token makes it follow the density of the page. */
+  min-height: calc(var(--klar-control) + var(--klar-space-3));
 }
 
 /* The actions drop below the title when the title would get narrower than 12rem. */
@@ -288,7 +305,22 @@ css =
 
 .klar-card--flush > .klar-card__body { padding: 0; }
 
+/* ---- Print: text, layout and cards ------------------------------------
+   Paper has no scroll bars: a scroll area prints all of its content, a code block
+   wraps its long lines, and a card is not cut between two pages when it fits on one. */
+
+@media print {
+  .klar-scroll { max-height: none; overflow: visible; }
+  .klar-code-block { white-space: pre-wrap; overflow-wrap: anywhere; }
+  .klar-card { break-inside: avoid; }
+  .klar-card--raised { box-shadow: none; }
+}
+
 .klar-card__footer {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--klar-space-2) var(--klar-space-3);
   padding: var(--klar-space-3) var(--klar-space-4);
   border-top: 1px solid var(--klar-border);
   background: var(--klar-surface-subtle);
@@ -589,28 +621,35 @@ css =
 .klar-status--warning { --_c: var(--klar-amber-500); }
 .klar-status--danger { --_c: var(--klar-red-500); }
 
-/* ---- Mark: the dot that colors an option or a tag ----------------------
-   A status color (a tone, follows the theme) or a color of the data (--klar-mark, set from
-   a checked color code). It is for the eye only; the label carries the meaning. */
+/* ---- Dot: the color that marks an option or a tag ----------------------
+   A status color (a tone, follows the theme) or a color of the data (--klar-dot, set from
+   a checked color code). It is for the eye only; the label carries the meaning.
+   (`.klar-mark` is the highlighted match of a search, in the base rules.) */
 
-.klar-mark {
+.klar-dot {
   --_c: var(--klar-gray-500);
   display: inline-block;
   flex: none;
   width: 8px;
   height: 8px;
   border-radius: 50%;
-  background: var(--klar-mark, var(--_c));
+  background: var(--klar-dot, var(--_c));
+  /* An edge in the text color, so that a data color close to the surface (white on a
+     white card, near black in dark mode) is still a dot. */
   box-shadow: inset 0 0 0 1px var(--klar-tint-border);
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--klar-text) 24%, transparent);
+  /* Printed as it is: a browser leaves out backgrounds when it prints. */
+  -webkit-print-color-adjust: exact;
+  print-color-adjust: exact;
 }
 
-.klar-mark--primary, .klar-mark--info { --_c: var(--klar-blue-500); }
-.klar-mark--success { --_c: var(--klar-green-500); }
-.klar-mark--warning { --_c: var(--klar-amber-500); }
-.klar-mark--danger { --_c: var(--klar-red-500); }
+.klar-dot--primary, .klar-dot--info { --_c: var(--klar-blue-500); }
+.klar-dot--success { --_c: var(--klar-green-500); }
+.klar-dot--warning { --_c: var(--klar-amber-500); }
+.klar-dot--danger { --_c: var(--klar-red-500); }
 
 @media (forced-colors: active) {
-  .klar-mark { forced-color-adjust: none; }
+  .klar-dot { forced-color-adjust: none; }
 }
 
 /* ---- Tag (chip) ------------------------------------------------------ */

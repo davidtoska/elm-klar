@@ -1201,13 +1201,13 @@ anchorLabel lang frequency anchor =
             Locale.pick lang
                 { nb =
                     if frequency == Yearly then
-                        "Den " ++ String.fromInt day ++ ". " ++ Locale.monthName lang month
+                        "Den " ++ String.fromInt day ++ ". " ++ Locale.monthLong lang month
 
                     else
                         "Den " ++ String.fromInt day ++ ". i måneden"
                 , en =
                     if frequency == Yearly then
-                        "On " ++ String.fromInt day ++ " " ++ Locale.monthName lang month
+                        "On " ++ String.fromInt day ++ " " ++ Locale.monthLong lang month
 
                     else
                         "On day " ++ String.fromInt day ++ " of the month"
@@ -1221,13 +1221,13 @@ anchorLabel lang frequency anchor =
             Locale.pick lang
                 { nb =
                     if frequency == Yearly then
-                        "Den " ++ phrase ++ " i " ++ Locale.monthName lang month
+                        "Den " ++ phrase ++ " i " ++ Locale.monthLong lang month
 
                     else
                         "Den " ++ phrase ++ " i måneden"
                 , en =
                     if frequency == Yearly then
-                        "On the " ++ phrase ++ " of " ++ Locale.monthName lang month
+                        "On the " ++ phrase ++ " of " ++ Locale.monthLong lang month
 
                     else
                         "On the " ++ phrase ++ " of the month"

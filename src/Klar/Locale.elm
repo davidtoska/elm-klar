@@ -2,7 +2,7 @@ module Klar.Locale exposing
     ( Locale, en, nb, default, all, pick
     , name, toCode, fromCode
     , thousandSeparator, decimalSeparator
-    , firstDayOfWeek, monthName, monthShort, weekdayLong, weekdayShort
+    , firstDayOfWeek, monthLong, monthShort, weekdayLong, weekdayShort
     )
 
 {-| The language and the regional conventions of the text the library writes
@@ -11,6 +11,7 @@ names, validation messages, number separators.
 
 Use when: the text the library writes itself must come in another language than English, or you pick between two of your own texts.
 Do not use when: you need to translate your own labels and messages, which stay in your application.
+Quick path: `Settings.withLocale`, `Settings.locale`, `fromCode`, `pick`
 
     import Klar.Locale as Locale exposing (Locale)
 
@@ -27,9 +28,10 @@ version without breaking your code. Text of your application never goes through
 the library: your own labels, column titles and messages come from your
 application, and `pick` is just a convenient way to choose between two of them.
 
-Switch the language of a whole page by keeping a `Locale` in your model and
-passing it to every component; `Klar.AppShell` also sets the `lang` attribute of
-the page content from it, which screen readers use to choose the voice.
+Switch the language of a whole page by keeping it in the [Klar.Settings](Klar-Settings)
+of your model (`Settings.withLocale`) and passing `Settings.locale model.settings` to
+every component; `AppShell.locale` also sets the `lang` attribute of the page content
+from it, which screen readers use to choose the voice.
 
 
 # Choosing a language
@@ -49,7 +51,7 @@ the page content from it, which screen readers use to choose the voice.
 
 # Calendar
 
-@docs firstDayOfWeek, monthName, monthShort, weekdayLong, weekdayShort
+@docs firstDayOfWeek, monthLong, monthShort, weekdayLong, weekdayShort
 
 -}
 
@@ -62,7 +64,8 @@ type Locale
     | En
 
 
-{-| English. This is the default.
+{-| English, international: the week starts on Monday and a date is written the
+ISO way (`2026-10-20`), so it reads the same in every country. This is the default.
 -}
 en : Locale
 en =
@@ -125,24 +128,41 @@ toCode locale =
     pick locale { nb = "nb", en = "en" }
 
 
-{-| Reads a language code, ignoring case. `"no"` is taken as Bokmål, like most
-browsers do. Use it on `navigator.language` that your application gets in its
-flags, or on a stored setting.
+{-| Reads a language code as a browser gives it (`navigator.language`, which your
+application gets in its flags) or as you stored it. Only the language counts, not
+the region or the case: `"en-US"`, `"en_GB"` and `"EN"` are English, `"nb-NO"` and
+`"no"` are Bokmål. Nynorsk (`"nn"`, `"nn-NO"`) is read as Bokmål too, which its
+readers understand better than English.
 
-    Locale.fromCode "nb" -- Just Locale.nb
+    Locale.fromCode "nb-NO" -- Just Locale.nb
 
-    Locale.fromCode "EN" -- Just Locale.en
+    Locale.fromCode "en-US" -- Just Locale.en
 
-    Locale.fromCode "sv" -- Nothing
+    Locale.fromCode "sv-SE" -- Nothing
+
+Fall back to `Locale.default` on `Nothing`.
 
 -}
 fromCode : String -> Maybe Locale
 fromCode code =
-    case String.toLower code of
+    let
+        language =
+            code
+                |> String.trim
+                |> String.toLower
+                |> String.replace "_" "-"
+                |> String.split "-"
+                |> List.head
+                |> Maybe.withDefault ""
+    in
+    case language of
         "nb" ->
             Just nb
 
         "no" ->
+            Just nb
+
+        "nn" ->
             Just nb
 
         "en" ->
@@ -178,13 +198,13 @@ firstDayOfWeek _ =
 {-| The name of a month, from 1 (January) to 12 (December); an empty text for
 any other number.
 
-    Locale.monthName Locale.en 3 -- "March"
+    Locale.monthLong Locale.en 3 -- "March"
 
-    Locale.monthName Locale.nb 3 -- "mars"
+    Locale.monthLong Locale.nb 3 -- "mars"
 
 -}
-monthName : Locale -> Int -> String
-monthName locale month =
+monthLong : Locale -> Int -> String
+monthLong locale month =
     let
         names =
             pick locale
@@ -195,7 +215,7 @@ monthName locale month =
     nth month names
 
 
-{-| The short name of a month: `Mar` or `mar`.
+{-| The short name of a month, from 1 (January) to 12 (December): `Mar` or `mar`.
 -}
 monthShort : Locale -> Int -> String
 monthShort locale month =

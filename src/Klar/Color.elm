@@ -1,4 +1,4 @@
-module Klar.Color exposing (Color, rgb, hex, toHex)
+module Klar.Color exposing (Color, rgb, hex, toHex, toRgb)
 
 {-| A color that comes from data: the color of a status, a category, a team, a
 customer. It marks an option in a select, a chip or a tag with a small dot.
@@ -28,7 +28,7 @@ is a `Nothing` you decide about, never a broken style. The color is drawn as it 
 in light and dark mode alike; it is a mark, never the only carrier of the meaning,
 so the label of the option must say it too ("Red", "Delayed").
 
-@docs Color, rgb, hex, toHex
+@docs Color, rgb, hex, toHex, toRgb
 
 -}
 
@@ -52,7 +52,9 @@ rgb r g b =
 
 {-| A color from a color code: `"#2a9461"` or the short `"#2a9"`, with or without
 the `#`, in any case. `Nothing` for anything else, so a missing or bad code is
-visible in your code and not on the page.
+visible in your code and not on the page. A code with an alpha channel (`"#2a946180"`,
+`"#2a98"`) is `Nothing` too: a color of Klar is opaque, and a half transparent color
+drawn opaque would be another color.
 
     Color.hex "#D6453A" |> Maybe.map Color.toHex -- Just "#d6453a"
 
@@ -152,6 +154,17 @@ store a color or send it back to a backend.
 toHex : Color -> String
 toHex (Color r g b) =
     "#" ++ pair r ++ pair g ++ pair b
+
+
+{-| The red, green and blue of the color, each from 0 to 255: for a backend that
+stores the channels, or a computation of your own.
+
+    Color.hex "#2a9461" |> Maybe.map Color.toRgb -- Just { red = 42, green = 148, blue = 97 }
+
+-}
+toRgb : Color -> { red : Int, green : Int, blue : Int }
+toRgb (Color r g b) =
+    { red = r, green = g, blue = b }
 
 
 pair : Int -> String

@@ -23,10 +23,16 @@ graphite : Theme
 sand : Theme
 contrast : Theme
 all : List Theme
-name : Theme -> String
+name : Locale.Locale -> Theme -> String
 key : Theme -> String
 fromKey : String -> Maybe Theme
 style : Theme -> Mode -> Html msg
+
+-- Light and dark
+modes : List Mode
+modeName : Locale.Locale -> Mode -> String
+modeKey : Mode -> String
+modeFromKey : String -> Maybe Mode
 
 -- Tones, sizes and density
 type Tone = Neutral | Primary | Info | Success | Warning | Danger
@@ -64,7 +70,7 @@ grays) and `contrast` (high contrast, for people who need it). None of them is
 green, amber or red, so an accent is never mistaken for success, a warning or an
 error. Each has a light and a dark mode; the mode is `Light`, `Dark` or `System`
 (follow the operating system). The choice lives in `Klar.Settings` and is drawn by
-`Klar.stylesheetFor`:
+`Klar.stylesheetFor` (the plain `Klar.stylesheet` draws only `klar` in `Light`):
 
     import Klar
     import Klar.Settings as Settings
@@ -77,6 +83,11 @@ error. Each has a light and a dark mode; the mode is `Light`, `Dark` or `System`
 
     view model =
         Html.div [] [ Klar.stylesheetFor model.settings, page ]
+
+A choice the person makes is stored with `key` and `modeKey` and read back with
+`fromKey` and `modeFromKey`; `name` and `modeName` are the texts of a picker:
+
+    Radio.options (List.map (\theme -> Radio.option (Theme.key theme) (Theme.name model.locale theme)) Theme.all)
 
 A page that draws `Klar.css` itself instead of using `Klar.stylesheet` puts `Theme.style`
 after it. The colors of a theme are computed in Elm
@@ -98,7 +109,9 @@ type Mode = Light | Dark | System
 
 Whether the page is light, dark, or follows the operating system.
 `System` is dark when the person has asked the system for a dark mode, and light
-otherwise. A page without a choice is `Light`.
+otherwise; when the person has also asked the system for more contrast
+(`prefers-contrast: more`), the page takes the colors of the `contrast` theme, light
+or dark. A page without a choice is `Light`.
 
 ### `klar`
 
@@ -189,15 +202,18 @@ all : List Theme
 
 All ten, in the order to offer them in a list.
 
-    List.map Theme.name Theme.all -- [ "Klar", "Ocean", "Teal", ... ]
+    List.map (Theme.name Locale.en) Theme.all -- [ "Klar", "Ocean", "Teal", ... ]
 
 ### `name`
 
 ```elm
-name : Theme -> String
+name : Locale.Locale -> Theme -> String
 ```
 
-The name to show a person: "Ocean".
+The name to show a person, in the language of the locale: "Ocean" in
+English, "Hav" in Norwegian. To store a choice, use `key`.
+
+    Theme.name Locale.nb Theme.graphite -- "Grafitt"
 
 ### `key`
 
@@ -227,6 +243,48 @@ The `style` element that sets the colors of a theme in a mode. It is empty for
 `klar` in `Light`, because the stylesheet is that already. Put it after the
 stylesheet; `Klar.stylesheetFor` does both.
 
+## Light and dark
+
+### `modes`
+
+```elm
+modes : List Mode
+```
+
+The three modes, in the order to offer them: `Light`, `Dark`, `System`.
+
+### `modeName`
+
+```elm
+modeName : Locale.Locale -> Mode -> String
+```
+
+The name of a mode to show a person: "Light", "Dark" or "System" in English,
+"Lys", "Mørk" or "System" in Norwegian.
+
+    SegmentedControl.options
+        (List.map (\m -> SegmentedControl.option (Theme.modeKey m) (Theme.modeName model.locale m)) Theme.modes)
+
+### `modeKey`
+
+```elm
+modeKey : Mode -> String
+```
+
+A short stable text for a mode (`"light"`, `"dark"`, `"system"`), to store the
+person's choice with; `modeFromKey` reads it back. The keys never change.
+
+### `modeFromKey`
+
+```elm
+modeFromKey : String -> Maybe Mode
+```
+
+The mode with that key, if there is one. Use it on a stored choice, and fall
+back to `Light` (or `System`) on `Nothing`.
+
+    Theme.modeFromKey "dark" -- Just Dark
+
 ## The tokens
 
 The stylesheet (see [`Klar.stylesheet`](Klar.md#stylesheet)) defines its design
@@ -246,7 +304,8 @@ The tokens:
   - Space and shape: `--klar-space-1` to `--klar-space-12` (a 4px grid),
     `--klar-radius-sm`, `--klar-radius`, `--klar-radius-lg`.
   - Controls and rows: `--klar-control-sm` (26px), `--klar-control` (32px),
-    `--klar-control-lg` (40px), `--klar-row-compact` (28px), `--klar-row` (36px),
+    `--klar-control-lg` (40px) at normal density (the density of the page moves
+    them, see `Size`), `--klar-row-compact` (28px), `--klar-row` (36px),
     `--klar-row-comfortable` (46px).
   - Layout: `--klar-header-h`, `--klar-sidebar-w`, `--klar-page-max`.
   - Depth and motion: `--klar-shadow-xs` to `--klar-shadow-lg`,
@@ -286,8 +345,10 @@ The meaning of a color: what a message, badge, tag or banner is about.
 type Size = Small | Medium | Large
 ```
 
-The size of a control: `Small` (26px high), `Medium` (32px, the default) or
-`Large` (40px).
+The size of a control: `Small`, `Medium` (the default) or `Large`. At `Normal`
+density they are 26, 32 and 40 pixels high; the density of the page moves them
+(26, 28 and 36 at `Compact`, 32, 40 and 48 at `Comfortable`), so size things by the
+name, not by the pixels.
 
 ### `Density`
 

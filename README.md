@@ -202,9 +202,12 @@ Klar.stylesheetFor
 
 Klar, Ocean, Teal, Indigo, Violet, Plum, Slate, Graphite, Sand and Contrast (high
 contrast). None is green, amber or red, so an accent is never mistaken for success,
-a warning or an error. The colors are computed in Elm and a test checks WCAG AA
-contrast for the pairs of the library in every generated palette (the default light look
-is the stylesheet itself). There are no colors of your own on purpose: a color picked by hand cannot be promised to keep the contrast.
+a warning or an error. The colors are computed in Elm, and a test checks WCAG AA
+contrast for the pairs of the library with the colors that are on the page, in every
+theme and mode (the default light look, which is the stylesheet itself, included). There
+are no colors of your own on purpose: a color picked by hand cannot be promised to keep
+the contrast. `Theme.name` and `Theme.modeName` give the names for a picker in both
+languages, `Theme.key` and `Theme.modeKey` the text to store a choice with.
 
 ## Styling
 

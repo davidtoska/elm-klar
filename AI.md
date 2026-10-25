@@ -30,7 +30,7 @@ own source and its showcase, not guidance.
   A table column is a `Table.columnId "total"`, named once.
 - **Overlays go in one list**: `Modal`, `Drawer`, `ConfirmDialog`, `CommandPalette`, `ShortcutHelp`, `Toast`, `LeaveGuard` return an
   `Overlay`; give the list to `AppShell.overlays` (or `Overlay.host`). The layer makes the page inert and returns focus.
-- **Dates are `Klar.Date`, money is `Klar.Money`, built-in text follows `Locale.en` or `Locale.nb`.**
+- **Dates are `Klar.Date`, money is `Klar.Money`; the language, the zone, the time now, the density and the theme live in one `Settings`** (built-in text follows `Locale.en` or `Locale.nb`: give `X.locale (Settings.locale model.settings)`).
 
 **The frame.** There is one way to wire the application frame: `AppShell` keeps the sidebar, the drawer, the current link and
 the key. The model holds `page : Page` and `shell : AppShell.State Page`; the messages hold one `ShellMsg AppShell.Msg`; `main` passes
@@ -64,11 +64,13 @@ import Klar.Icon as Icon
 import Klar.Ids as Ids exposing (Ids)
 import Klar.PageHeader as PageHeader
 import Klar.Remote as Remote exposing (Remote(..))
+import Klar.Settings as Settings exposing (Settings)
 import Klar.SideNav as SideNav
 import Klar.Table as Table
 import Klar.Toast as Toast
 import Process
 import Task
+import Time
 import Url exposing (Url)
 
 
@@ -84,6 +86,7 @@ type alias Order =
 type alias Model =
     { page : Page
     , shell : AppShell.State Page
+    , settings : Settings
     , table : Table.State String
     , orders : Remote (List Order)
     , toasts : Toast.State Msg
@@ -94,7 +97,8 @@ type Msg
     = ShellMsg AppShell.Msg
     | TableMsg Table.Msg
     | ToastMsg Toast.Msg
-    | GotOrders (Result Remote.Problem (List Order))
+    | GotZone Time.Zone
+    | GotOrders (Result Remote.Problem (List Order)) Time.Posix
     | Reload
 
 
@@ -118,20 +122,22 @@ init _ url key =
     in
     ( { page = page
       , shell = AppShell.init { id = "app-shell", key = key } |> AppShell.setPage navigation page
+      , settings = Settings.default
       , table = Table.init "orders"
       , orders = Loading
       , toasts = Toast.init
       }
-    , fetchOrders
+    , Cmd.batch [ fetchOrders, Task.perform GotZone Time.here ]
     )
 
 
 fetchOrders : Cmd Msg
 fetchOrders =
-    -- stands for a request: Http.get, then Result.mapError toProblem
+    -- stands for a request (Http.task, then Task.mapError toProblem); the answer comes with its time
     Process.sleep 600
         |> Task.map (\_ -> Ok [ Order "1042" "Aurora Logistics" 1250.5, Order "1043" "Fjord Foods" 310 ])
-        |> Task.perform GotOrders
+        |> Task.andThen (\result -> Task.map (GotOrders result) Time.now)
+        |> Task.perform identity
 
 
 update : Msg -> Model -> ( Model, Cmd Msg )
@@ -170,24 +176,31 @@ update msg model =
             in
             ( { model | toasts = toasts }, Cmd.map ToastMsg cmd )
 
-        GotOrders result ->
-            let
-                ( toasts, cmd ) =
-                    Toast.push [ Toast.success, Toast.message "Orders loaded." ] model.toasts
-            in
-            ( { model | orders = Remote.fromResult result, toasts = toasts }, Cmd.map ToastMsg cmd )
+        GotZone zone ->
+            ( { model | settings = Settings.withZone zone model.settings }, Cmd.none )
+
+        GotOrders result at ->
+            -- a failed reload keeps the rows ("Old data from 14:05"); the table shows a failure itself
+            case ( result, Remote.isRefreshing model.orders ) of
+                ( Ok _, True ) ->
+                    Toast.push [ Toast.success, Toast.message "Orders updated." ] model.toasts
+                        |> (\( toasts, cmd ) -> ( { model | orders = Remote.refreshWith model.orders result at, toasts = toasts }, Cmd.map ToastMsg cmd ))
+
+                _ ->
+                    ( { model | orders = Remote.refreshWith model.orders result at }, Cmd.none )
 
         Reload ->
-            ( { model | orders = Loading }, fetchOrders )
+            ( { model | orders = Remote.refresh model.orders }, fetchOrders )
 
 
 view : Model -> Browser.Document Msg
 view model =
     { title = "Acme Operations"
     , body =
-        [ Klar.stylesheet
+        [ Klar.stylesheetFor model.settings
         , AppShell.view
             [ AppShell.state ShellMsg model.shell
+            , AppShell.settings model.settings
             , AppShell.brand (AppShell.brandLink { name = "Acme Operations", href = "#/", logo = Nothing })
             , AppShell.sidebar (AppShell.sideNav ShellMsg [ SideNav.entries navigation ] model.shell)
             , AppShell.overlays [ Toast.view ToastMsg [] model.toasts ]
@@ -212,6 +225,7 @@ viewPage model =
                     , Table.rows model.orders
                     , Table.rowId Ids.string .id
                     , Table.onRetry Reload
+                    , Table.settings model.settings
                     ]
                     model.table
                 ]
@@ -254,12 +268,12 @@ pageFromUrl url =
 ## The ten rules
 
 1. **Import only exposed modules** (`Klar`, `Klar.Button`, ...; the list is in `elm.json`). Never `Klar.Internal.*`, `Klar.Table.Sort` or a copy of a component.
-2. **No CSS, no class, no `style`, no `Html.node "style"`.** Put `Klar.stylesheet` once in the view. Looks come from `Theme` values, layout from `Klar.Layout`, text from `Klar.Text`.
+2. **No CSS, no class, no `style`, no `Html.node "style"`.** Put `Klar.stylesheetFor model.settings` once in the view (it draws the theme; `Klar.stylesheet` is the default theme only). Looks come from `Theme` values, layout from `Klar.Layout`, text from `Klar.Text`.
 3. **Your own id types.** A `type OrderId = OrderId Int`, with `toKey` and `fromKey` given once; DOM ids and column ids are named values.
 4. **Backend data is a `Remote`.** Do not write its cases; give it to the component. Turn your error into `Remote.problem Remote.timeout` (or `network`, `notFound`, `forbidden`, `server` ...).
 5. **Overlays go in the overlay list**, always, also while closed. Give a button that opens one an id (`Button.id`) and pass it to `open`; an overlay that a route, the palette or a key opens takes `open ""`, and the layer finds the element to give focus back to.
 6. **Never write focus, popup, scroll, date or keyboard code.** No `Browser.Dom.focus` for a dialog, no click-outside, no positioning, no `Time` arithmetic. Find the module in the table below. To put focus on an element of your page by its id (after a retry, on a stateless control), use `Klar.focus id NoOp`.
-7. **Dates are `Klar.Date`, money is `Klar.Money`, numbers and dates for people come from `Klar.Format`.** A `Time.Posix` is needed once, for today. A time of day you write yourself is `Settings.time model.settings posix` (it knows the zone, and says "UTC" until it does).
+7. **Dates are `Klar.Date`, money is `Klar.Money`, numbers and dates for people come from `Klar.Format`.** Read `Time.here` and `Time.now` once into the settings (`Settings.withZone`, `Settings.withNow`); the day today is `Settings.today model.settings`, for `DatePicker.today` and the like. `Remote.refreshWith` takes the time of each answer (the request chains `Time.now`, as in the standard application). A time of day you write yourself is `Settings.time model.settings posix` (it knows the zone, and says "UTC" until it does).
 8. **Forms use `Klar.Form`** (declared with `Klar.Form.Spec`, framed with `Klar.Form.Layout`). Server problems go in with `Form.rejected`, steps with `Form.advance`; do not keep a second copy of field values or of the problems.
 9. **A list on a server is `ServerList`** (`Examples/Inbox.elm`): one `State` and one `Msg` for the table, the filter bar and the saved views; `ServerList.update` returns the `request` to send and drops old answers, so you write no comparison, page reset or ticket. Only a server-mode `Table` on its own (no filter bar, no saved views) takes the four steps in the `Klar.Table` doc: compare `Table.query` before and after `update`, `Table.setPage 1` when an outside filter changed, ask with a new ticket, drop an answer whose ticket is not the latest. **Do not debounce** what Klar already waits for: the table waits 350 ms after typing in its search box and filter fields in server mode (`Table.searchDebounce`), the filter bar changes its rule only when the user applies a filter, and a sort click or a page change must ask at once. The server searches of `Select.serverSearch`, `MultiSelect.serverSearch`, `Autocomplete.query` and a lazy `Tree.query` wait 300 ms too: fetch when the query changes and drop an answer whose query is no longer the current one. Debounce only what Klar does not: the query of a `CommandPalette.remote` section (a counter, see its doc) and text you read from a field of your own (use `SearchInput`, which waits 300 ms).
 10. **When Klar lacks something, say so.** Write the best honest version, put a comment `-- KLAR GAP: what is missing` above it, and carry on. Do not copy a component, wrap it in your own CSS or import an internal module.
@@ -293,7 +307,6 @@ Each is checked against the current source; the ones the library has fixed are g
 - **The page needs an `h1` in every state.** A `RemoteView` or `ErrorState` draws none while it loads or has failed, so keep the `PageHeader` outside it. For the focus after their "Try again" see "Try again of any region" above (a page that is only an `ErrorState` has no body to focus: `AppShell.goToContent model.shell |> Cmd.map ShellMsg`).
 - **`Timeline` day headings are `h3`** (right in a card with an `h2` title): directly under a page `h1` say `Timeline.headingLevel 2`. With `hasMore False` the "Load more" button is gone and focus on it falls to the page: move it with `Timeline.id` and `Klar.focus`.
 - **A lazy `Tree` searches only the nodes it has**: for the rest watch `Tree.query` and ask the backend (see its doc).
-- **`Time.Posix` is needed once**, for today (`Date.fromPosix`); `Remote.refreshWith` also takes the time of the answer.
 
 ## I need X, use module Y
 
@@ -301,7 +314,7 @@ Each module is `Klar.<Name>`; details in `ai/modules/Klar.<Name>.md`.
 
 **Foundations and structure**
 - Whole-application frame, top bar, sidebar, scrolling content, overlay list: `AppShell`. Side menu typed by your pages: `SideNav`. Title, actions, tabs of a page: `PageHeader`. Path to the page: `Breadcrumbs`.
-- Density and time zone of the whole application, stated once: `Settings` (`AppShell.settings model.settings` for the density; `X.settings model.settings` on a component that writes a time, with `Time.here` at the start; without a zone a time ends in "UTC"). Tone, size, density types shared by all components, and the ten themes with light and dark mode (`Settings.withTheme Theme.ocean`, `Settings.withMode Theme.System`, `Klar.stylesheetFor settings`; no colors of your own): `Theme`. A color that is a value of your data (a color code on a database row) on an option or a tag: `Color` (`Color.hex` is checked and gives a `Maybe`) and `Select.withColor`, `Tag.color`; a status color that follows the theme: `Select.withTone`. Language (`Locale.en`, `Locale.nb`): `Locale`. Stack, row, grid, spacing, fill the rest: `Layout`. A bordered group: `Card`. Titles and paragraphs: `Text`. An icon: `Icon` (everyday set) and `Icon.Library` (all of them) and by category `Icon.Arrows`, `Icon.Business`, `Icon.Calendar`, `Icon.Communication`, `Icon.Data`, `Icon.Developer`, `Icon.Devices`, `Icon.Documents`, `Icon.Editor`, `Icon.Interface`, `Icon.Logistics`, `Icon.Media`, `Icon.Nature`, `Icon.People`, `Icon.Science`.
+- Language, time zone, time now and density of the whole application, stated once: `Settings` (`AppShell.settings model.settings` for the density; `X.settings model.settings` on a component that writes a time, with `Time.here` at the start, and without a zone a time ends in "UTC"; `X.locale (Settings.locale model.settings)` for the language). Tone, size, density types shared by all components, and the ten themes with light and dark mode (`Settings.withTheme Theme.ocean`, `Settings.withMode Theme.System`, `Klar.stylesheetFor settings`; no colors of your own): `Theme`. A color that is a value of your data (a color code on a database row) on an option or a tag: `Color` (`Color.hex` is checked and gives a `Maybe`) and `Select.withColor`, `Tag.color`; a status color that follows the theme: `Select.withTone`. Language (`Locale.en`, `Locale.nb`): `Locale`. Stack, row, grid, spacing, fill the rest: `Layout`. A bordered group: `Card`. Titles and paragraphs: `Text`. An icon: `Icon` (everyday set) and `Icon.Library` (all of them) and by category `Icon.Arrows`, `Icon.Business`, `Icon.Calendar`, `Icon.Communication`, `Icon.Data`, `Icon.Developer`, `Icon.Devices`, `Icon.Documents`, `Icon.Editor`, `Icon.Interface`, `Icon.Logistics`, `Icon.Media`, `Icon.Nature`, `Icon.People`, `Icon.Science`.
 - Sections that open and close: `Accordion`. A row of grouped actions: `Toolbar`. Label and value pairs: `DescriptionList`. Switch views of one thing: `Tabs`. Wizard steps (draws only): `Stepper`.
 - Resize panes: `Splitter`. Reorder a list: `Sortable`. `Klar` itself is `Klar.stylesheet` (put it in the view once).
 

@@ -13,6 +13,7 @@ type Color  -- opaque: no constructors are exposed
 rgb : Int -> Int -> Int -> Color
 hex : String -> Maybe Color
 toHex : Color -> String
+toRgb : Color -> { red : Int, green : Int, blue : Int }
 ```
 
 ## Documentation
@@ -71,7 +72,9 @@ hex : String -> Maybe Color
 
 A color from a color code: `"#2a9461"` or the short `"#2a9"`, with or without
 the `#`, in any case. `Nothing` for anything else, so a missing or bad code is
-visible in your code and not on the page.
+visible in your code and not on the page. A code with an alpha channel (`"#2a946180"`,
+`"#2a98"`) is `Nothing` too: a color of Klar is opaque, and a half transparent color
+drawn opaque would be another color.
 
     Color.hex "#D6453A" |> Maybe.map Color.toHex -- Just "#d6453a"
 
@@ -85,3 +88,14 @@ toHex : Color -> String
 
 The color as a code in the long form, lowercase: `"#2a9461"`. Use it to
 store a color or send it back to a backend.
+
+### `toRgb`
+
+```elm
+toRgb : Color -> { red : Int, green : Int, blue : Int }
+```
+
+The red, green and blue of the color, each from 0 to 255: for a backend that
+stores the channels, or a computation of your own.
+
+    Color.hex "#2a9461" |> Maybe.map Color.toRgb -- Just { red = 42, green = 148, blue = 97 }

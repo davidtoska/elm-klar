@@ -15,6 +15,7 @@
       "stateful": false,
       "quickPath": [
         "stylesheet",
+        "stylesheetFor",
         "focus"
       ],
       "mainFunctions": [
@@ -25,13 +26,13 @@
       ],
       "related": [
         "Klar.Form",
+        "Klar.Settings",
         "Klar.Table",
         "Klar.AppShell",
         "Klar.Drawer",
         "Klar.Field",
         "Klar.Form.Layout",
-        "Klar.Form.Spec",
-        "Klar.Locale"
+        "Klar.Form.Spec"
       ],
       "keywords": [
         "klar",
@@ -108,7 +109,8 @@
       "mainFunctions": [
         "rgb",
         "hex",
-        "toHex"
+        "toHex",
+        "toRgb"
       ],
       "related": [],
       "keywords": [
@@ -124,8 +126,8 @@
       "name": "Klar.Settings",
       "import": "import Klar.Settings as Settings",
       "group": "Foundations",
-      "purpose": "What the application says once and every component follows: how tightly things are packed (the density), the time zone of the times people read, and the theme and mode (light or dark) of the look.",
-      "whenToUse": "the application chooses a density or knows the time zone of its users, which is every application with a clock in it.",
+      "purpose": "What the application says once and every component follows.",
+      "whenToUse": "the application has a language, a clock or a density of its own, which is every application: keep one `Settings` in the model and draw the page from it.",
       "whenNot": "you want colors of your own; the application picks one of the ten themes of `Klar.Theme`, and nothing else.",
       "state": [],
       "msg": [],
@@ -133,7 +135,9 @@
       "stateful": false,
       "quickPath": [
         "default",
+        "withLocale",
         "withZone",
+        "withNow",
         "withDensity",
         "withTheme",
         "withMode",
@@ -142,13 +146,13 @@
       ],
       "mainFunctions": [
         "default",
-        "withDensity",
+        "withLocale",
         "withZone",
+        "withNow",
+        "withDensity",
         "withTheme",
         "withMode",
-        "density",
-        "zone",
-        "theme"
+        "locale"
       ],
       "related": [
         "Klar.Theme"
@@ -165,8 +169,7 @@
         "application",
         "every",
         "component",
-        "follows",
-        "tightly"
+        "follows"
       ],
       "reference": "ai/modules/Klar.Settings.md"
     },
@@ -181,7 +184,12 @@
       "msg": [],
       "ids": [],
       "stateful": false,
-      "quickPath": [],
+      "quickPath": [
+        "Settings.withLocale",
+        "Settings.locale",
+        "fromCode",
+        "pick"
+      ],
       "mainFunctions": [
         "en",
         "nb",
@@ -192,7 +200,9 @@
         "toCode",
         "fromCode"
       ],
-      "related": [],
+      "related": [
+        "Klar.Settings"
+      ],
       "keywords": [
         "locale",
         "foundations",
@@ -219,7 +229,15 @@
       "msg": [],
       "ids": [],
       "stateful": false,
-      "quickPath": [],
+      "quickPath": [
+        "stack",
+        "row",
+        "grid",
+        "gap",
+        "grow",
+        "fillRest",
+        "spacer"
+      ],
       "mainFunctions": [
         "stack",
         "row",
@@ -227,7 +245,8 @@
         "container",
         "spacer",
         "divider",
-        "dividerLabelled"
+        "dividerLabelled",
+        "dividerVertical"
       ],
       "related": [],
       "keywords": [
@@ -256,7 +275,13 @@
       "msg": [],
       "ids": [],
       "stateful": false,
-      "quickPath": [],
+      "quickPath": [
+        "view",
+        "title",
+        "actions",
+        "footer",
+        "RemoteView.view"
+      ],
       "mainFunctions": [
         "view"
       ],
@@ -282,24 +307,32 @@
       "group": "Foundations",
       "purpose": "Typography: titles, paragraphs, small print and code.",
       "whenToUse": "the page needs titles, paragraphs, small print or code that look the same everywhere.",
-      "whenNot": "the text is a link (use `Klar.Link`), an action (use `Klar.Button`) or key caps (use `Klar.Kbd`).",
+      "whenNot": "the text is a link (use `Klar.Link`, which is inline by default and goes into `paragraphWith`), an action (use `Klar.Button`) or key caps (use `Klar.Kbd`).",
       "state": [],
       "msg": [],
       "ids": [],
       "stateful": false,
-      "quickPath": [],
+      "quickPath": [
+        "heading",
+        "paragraph",
+        "paragraphWith",
+        "muted",
+        "truncated"
+      ],
       "mainFunctions": [
         "title",
         "heading",
         "subheading",
+        "headingLevel",
         "overline",
         "figure",
         "paragraph",
-        "paragraphWith",
-        "lead"
+        "paragraphWith"
       ],
       "related": [
-        "Klar.Kbd"
+        "Klar.PageHeader",
+        "Klar.Kbd",
+        "Klar.Link"
       ],
       "keywords": [
         "text",
@@ -323,7 +356,12 @@
       "msg": [],
       "ids": [],
       "stateful": false,
-      "quickPath": [],
+      "quickPath": [
+        "view",
+        "labelled",
+        "sized",
+        "fromSvg"
+      ],
       "mainFunctions": [
         "view",
         "sized",

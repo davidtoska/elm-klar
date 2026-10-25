@@ -30,6 +30,15 @@ locale =
             \_ ->
                 Expect.equal [ Just Locale.nb, Just Locale.nb, Just Locale.en, Just Locale.en, Nothing, Nothing ]
                     (List.map Locale.fromCode [ "nb", "NO", "en", "EN", "sv", "" ])
+        , test "reading codes as a browser gives them: the region does not count" <|
+            \_ ->
+                Expect.equal
+                    [ Just Locale.en, Just Locale.en, Just Locale.nb, Just Locale.nb, Just Locale.nb, Just Locale.nb, Just Locale.en, Nothing, Nothing ]
+                    (List.map Locale.fromCode [ "en-US", "en_GB", "nb-NO", "no-NO", "no_NO", "nn-NO", " en ", "sv-SE", "-en" ])
+        , test "Nynorsk is read as Bokmål" <|
+            \_ -> Expect.equal (Just Locale.nb) (Locale.fromCode "nn")
+        , test "a code reads back the locale it came from" <|
+            \_ -> Expect.equal (List.map Just Locale.all) (List.map (Locale.toCode >> Locale.fromCode) Locale.all)
         , test "separators" <|
             \_ ->
                 Expect.equal [ ",", "\u{00A0}", ".", "," ]
@@ -37,11 +46,11 @@ locale =
         , test "months" <|
             \_ ->
                 Expect.equal [ "January", "desember", "mars" ]
-                    [ Locale.monthName Locale.en 1, Locale.monthName Locale.nb 12, Locale.monthName Locale.nb 3 ]
+                    [ Locale.monthLong Locale.en 1, Locale.monthLong Locale.nb 12, Locale.monthLong Locale.nb 3 ]
         , test "months outside 1 to 12 have no name" <|
             \_ ->
                 Expect.equal [ "", "", "", "" ]
-                    [ Locale.monthName Locale.en 0, Locale.monthName Locale.en 13, Locale.monthName Locale.nb -1, Locale.monthShort Locale.en 0 ]
+                    [ Locale.monthLong Locale.en 0, Locale.monthLong Locale.en 13, Locale.monthLong Locale.nb -1, Locale.monthShort Locale.en 0 ]
         , test "short months" <|
             \_ -> Expect.equal [ "Oct", "okt" ] [ Locale.monthShort Locale.en 10, Locale.monthShort Locale.nb 10 ]
         , test "weekdays" <|
@@ -54,7 +63,7 @@ locale =
             \_ ->
                 let
                     names l =
-                        List.map (Locale.monthName l) (List.range 1 12) ++ List.map (Locale.weekdayLong l) (List.range 1 7)
+                        List.map (Locale.monthLong l) (List.range 1 12) ++ List.map (Locale.weekdayLong l) (List.range 1 7)
                 in
                 Expect.equal True (List.all (\l -> List.all (\n -> n /= "") (names l)) Locale.all)
         , test "the weeks start on Monday" <|

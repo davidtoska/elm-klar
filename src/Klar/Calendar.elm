@@ -1281,7 +1281,7 @@ capitalize text =
 
 heading : Locale -> Int -> Int -> String
 heading lang year month =
-    capitalize (Locale.monthName lang month) ++ "\u{00A0}" ++ String.fromInt year
+    capitalize (Locale.monthLong lang month) ++ "\u{00A0}" ++ String.fromInt year
 
 
 
@@ -1862,7 +1862,7 @@ viewMonths ctx year =
                   else
                     Events.onClick (ctx.toMsg (ChooseMonth ctx.bounds year m))
                 ]
-                [ Html.text (capitalize (Locale.monthName config.locale m)) ]
+                [ Html.text (capitalize (Locale.monthLong config.locale m)) ]
     in
     Html.div [ Internal.cls [ "klar-calendar__panel" ] ]
         [ Html.div [ Internal.cls [ "klar-calendar__header" ] ]
