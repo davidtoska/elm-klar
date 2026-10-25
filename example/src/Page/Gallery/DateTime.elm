@@ -1635,4 +1635,4 @@ DateTimePicker.value model.slot   -- Maybe { date : Date, time : TimePicker.Time
 DateTimePicker.date model.slot    -- Maybe Date, also before a time is chosen
 
 -- store or send: local text, without a zone
-Maybe.map DateTimePicker.toIso (DateTimePicker.value model.slot)   -- Just "2026-10-20T14:30""""
+Maybe.map DateTimePicker.toIso (DateTimePicker.value model.slot)   -- Just "2026-10-20T14:30", no zone"""
