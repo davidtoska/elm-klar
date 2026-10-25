@@ -671,6 +671,16 @@ selectAllTests =
 
                     Err why ->
                         Expect.fail why
+        , test "as many new matches after Select all make the button available again" <|
+            \_ ->
+                clickSelectAll [ MultiSelect.options few ] openMulti
+                    |> Result.map
+                        (\s ->
+                            multiView [ MultiSelect.options (List.take 4 (List.drop 4 countries)) ] s
+                                |> selectAllButton
+                                |> Query.hasNot [ Selector.attribute (Attr.disabled True) ]
+                        )
+                    |> Result.withDefault (Expect.fail "the button sent nothing")
         , test "removing a value after Select all makes the button available again" <|
             \_ ->
                 clickSelectAll [ MultiSelect.options few ] openMulti

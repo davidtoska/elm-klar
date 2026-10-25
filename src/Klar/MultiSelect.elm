@@ -162,18 +162,18 @@ type State id
         , said : Maybe Said
         , saidTicket : Int
         , fromCode : Bool
-        , allChosen : Maybe AllChosen
+        , allChosen : Maybe (AllChosen id)
         }
 
 
 {-| What the last "Select all" left: every selectable match of this search text
-was chosen, out of this many. The button stays unavailable while the search text
-and the number of matches are the same and no value was removed, without
-comparing values on every render.
+was chosen, and these were their values. The button stays unavailable while the
+search text and the matches are the same and no value was removed, which one pass
+over the matches finds out, without comparing every match with every chosen value.
 -}
-type alias AllChosen =
+type alias AllChosen id =
     { query : String
-    , matches : Int
+    , matches : List id
     }
 
 
@@ -419,7 +419,7 @@ anyLeftToChoose (State state) matched =
     else if chosenCount < selectableCount then
         True
 
-    else if state.allChosen == Just { query = state.query, matches = selectableCount } then
+    else if state.allChosen == Just { query = state.query, matches = List.map .value selectable } then
         False
 
     else if inOrderAmong selectable state.selected then
@@ -722,7 +722,7 @@ update msg ((State state) as current) =
 
                 done =
                     if List.length fresh == List.length left then
-                        Just { query = state.query, matches = List.length (List.filter (\opt -> not opt.disabled) rows.matched) }
+                        Just { query = state.query, matches = List.map .value (List.filter (\opt -> not opt.disabled) rows.matched) }
 
                     else
                         Nothing
