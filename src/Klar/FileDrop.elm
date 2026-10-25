@@ -334,9 +334,10 @@ values (State state) =
 
 
 {-| The browser's `File` values of the accepted files, in the order they were
-added, for reading them or sending them in a request. A file put in with
-`setValues` has none, so this list is the files the user chose here and can be
-shorter than `values`. Nothing is read or sent by this library.
+added, for one request with all of them. It is a shorthand for
+`List.map .file (FileDrop.chosen state)`; take `chosen` for one request per file. A
+file put in with `setValues` has none, so this list is the files the user chose here
+and can be shorter than `values`. Nothing is read or sent by this library.
 
     FileDrop.rawFiles model.attachments
         |> List.map (Http.filePart "attachment")
@@ -864,7 +865,7 @@ errorMaybe maybe =
 
 {-| Marks the field as required: an asterisk after the label and
 `aria-required` on the file input. This does not validate anything; check
-`files` for an empty list yourself and show an `error`.
+`values` for an empty list yourself and show an `error`.
 -}
 required : Attribute msg
 required =
@@ -933,7 +934,9 @@ compact =
 
 
 {-| While `True` the field is dimmed and the button and the drop zone do nothing.
-Default `False`.
+Default `False`. The file input stays focusable (`aria-disabled`, not the
+`disabled` attribute), so a zone that is disabled while the user is on it, such as
+during an upload that starts right after a choice, keeps the focus.
 -}
 disabled : Bool -> Attribute msg
 disabled value =
@@ -1101,13 +1104,25 @@ viewZone toMsg config rules field inputId =
                    , Attr.type_ "file"
                    , Attr.multiple (isMultiple config)
                    , Internal.attrIf (not (List.isEmpty config.accept)) (Attr.accept (String.join "," (List.map acceptValue config.accept)))
-                   , Attr.disabled config.disabled
                    , Attr.value ""
-                   , Events.on "change"
-                        (Decode.at [ "target", "files" ] (Decode.list fileDecoder)
-                            |> Decode.map (\picked -> toMsg (Picked rules picked))
-                        )
                    ]
+                ++ (if config.disabled then
+                        -- Not the disabled attribute: it would throw the focus to the
+                        -- page when the zone is disabled while the user is on it. The
+                        -- click (also the one of the label, and of Enter and Space)
+                        -- that would open the file dialog is cancelled instead.
+                        [ Attr.attribute "aria-disabled" "true"
+                        , Events.preventDefaultOn "click" (Decode.succeed ( toMsg Noop, True ))
+                        , Events.preventDefaultOn "keydown" (activationKeyDecoder (toMsg Noop))
+                        ]
+
+                    else
+                        [ Events.on "change"
+                            (Decode.at [ "target", "files" ] (Decode.list fileDecoder)
+                                |> Decode.map (\picked -> toMsg (Picked rules picked))
+                            )
+                        ]
+                   )
             )
             []
         , Html.span [ Internal.cls [ "klar-filedrop__icon" ] ] [ Icon.sized Icon.Large Icon.upload ]
@@ -1157,6 +1172,22 @@ dragDecoder msg toMsg =
 
                     Nothing ->
                         Decode.succeed ( toMsg msg, True )
+            )
+
+
+{-| Enter and Space, the keys that open the file dialog of a focused file input;
+every other key (Tab above all) is left alone.
+-}
+activationKeyDecoder : msg -> Decoder ( msg, Bool )
+activationKeyDecoder msg =
+    Decode.field "key" Decode.string
+        |> Decode.andThen
+            (\key ->
+                if key == "Enter" || key == " " then
+                    Decode.succeed ( msg, True )
+
+                else
+                    Decode.fail "not a key that opens the dialog"
             )
 
 

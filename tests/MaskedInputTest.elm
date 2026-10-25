@@ -58,6 +58,11 @@ sharedRuleTests =
                 after [ focusIn plain, typeIn plain "974 76", leave plain ] orgnr
                     |> Result.map (MaskedInput.setValue (Just "974760673"))
                     |> expectValue (Just "974760673")
+        , test "clear and then setValue replace the text while the user is still typing" <|
+            \_ ->
+                after [ focusIn plain, typeIn plain "974 76" ] orgnr
+                    |> Result.map (MaskedInput.clear >> MaskedInput.setValue (Just "974760673"))
+                    |> Expect.all [ expectValue (Just "974760673"), expectText "974 760 673" ]
         , test "setValue after Enter shows the new value" <|
             \_ ->
                 after [ focusIn plain, typeIn plain "974 76", pressKey plain "Enter" ] orgnr
@@ -82,7 +87,7 @@ sharedRuleTests =
             \_ ->
                 after [ focusIn plain, typeIn plain "974 760 673 1" ] orgnr
                     |> Result.andThen (\first -> typeIn plain "974 760 673 12" first |> Result.map (\second -> ( MaskedInput.problem plain first, MaskedInput.problem plain second )))
-                    |> Expect.equal (Ok ( Just "Too long: it has 9 digits", Just "Too long: it has 9 digits" ))
+                    |> Expect.equal (Ok ( Just "Too long: it should have 9 digits", Just "Too long: it should have 9 digits" ))
         , test "clear empties the field and forgets the visit" <|
             \_ ->
                 after [ focusIn plain, typeIn plain "974 76", leave plain ] orgnr
@@ -158,7 +163,36 @@ sharedRuleTests =
             \_ ->
                 after [ focusIn plain, typeIn plain "９７４７６０６７３", leave plain ] orgnr
                     |> expectText "974 760 673"
+        , test "while an input method composes, the text is kept exactly as typed" <|
+            \_ ->
+                after [ focusIn plain, event plain (composing "９７４７") ] orgnr
+                    |> expectText "９７４７"
+        , test "the end of the composition writes the text in its groups" <|
+            \_ ->
+                after
+                    [ focusIn plain
+                    , event plain (composing "９７４７")
+                    , event plain (Event.custom "compositionend" (Encode.object [ ( "target", Encode.object [ ( "value", Encode.string "９７４７" ) ] ) ]))
+                    ]
+                    orgnr
+                    |> expectText "974 7"
+        , test "the value can be read while the composition is open" <|
+            \_ ->
+                after [ focusIn plain, event plain (composing "９７４７６０６７３") ] orgnr
+                    |> expectValue (Just "974760673")
         ]
+
+
+{-| An input event while an input method composes the characters.
+-}
+composing : String -> ( String, Value )
+composing typed =
+    Event.custom "input"
+        (Encode.object
+            [ ( "isComposing", Encode.bool True )
+            , ( "target", Encode.object [ ( "value", Encode.string typed ), ( "selectionStart", Encode.int (String.length typed) ) ] )
+            ]
+        )
 
 
 
@@ -591,7 +625,7 @@ errorTests =
         , test "a number that is too long is shown at once" <|
             \_ ->
                 after [ focusIn plain, typeIn plain "974 760 673 1" ] orgnr
-                    |> expectError plain (Just "Too long: it has 9 digits")
+                    |> expectError plain (Just "Too long: it should have 9 digits")
         , test "the right number has no error" <|
             \_ ->
                 after [ focusIn plain, typeIn plain "974 760 673", leave plain ] orgnr

@@ -274,7 +274,8 @@ the attributes, or `Nothing`: "NOK has 2 decimals", "Must be between 10.00 and
 5,000.00 NOK". It is judged by the limits in the attributes you pass, which are the
 ones you give to `view`, and it follows the same timing as the field: the start of an
 amount (`-`, `1,`) has no message while the user is typing it. Your own `error` is not
-part of it. For an error summary of your own:
+part of it. It is for showing, not for deciding: `Nothing` also means a half-typed
+amount, so check `isValid` before you save. For an error summary of your own:
 
     MoneyInput.problem priceAttributes model.price
 
@@ -292,7 +293,13 @@ miss); `Nothing` keeps the currency. The amount is not moved into `min` and `max
 While the user is typing in the field (it has the focus and text they typed), it
 changes nothing: what they type wins over an amount loaded again from the server, and
 the application learns the result by comparing `value` before and after `update`. To
-replace their text on purpose, such as for a "Reset" shortcut, `clear` the field first.
+replace their text on purpose, `clear` the field first: for the amount the server
+wrote back after a save, or a "Reset" shortcut. Do that also after a save that started
+while the user was typing (Ctrl+S): a field that was disabled or removed before they
+left it never heard that they left, and still counts as being typed in.
+
+    MoneyInput.clear model.price
+        |> MoneyInput.setValue (Just saved.price)
 
 ### `currencyOf`
 

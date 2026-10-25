@@ -102,6 +102,10 @@ gluesTests =
                     Expect.equal (Ok 2890) (minorOf (Money.convert { numerator = 289, denominator = 10000 } kwd (amount Money.nok 10000)))
             , test "a negative amount stays negative" <|
                 \_ -> Expect.equal (Ok -117425) (minorOf (Money.convert { numerator = 117425, denominator = 10000 } Money.nok (amount Money.eur -10000)))
+            , test "a negative rate is refused: it would turn the amount around" <|
+                \_ -> Expect.equal (Err "The exchange rate must be above 0") (minorOf (Money.convert { numerator = -117425, denominator = 10000 } Money.nok (amount Money.eur 10000)))
+            , test "a rate of 0 is refused" <|
+                \_ -> Expect.equal (Err "The exchange rate must be above 0") (minorOf (Money.convert { numerator = 0, denominator = 1 } Money.nok (amount Money.eur 10000)))
             , test "a denominator of 0 is refused" <|
                 \_ -> Expect.equal (Err "The denominator must be above 0") (minorOf (Money.convert { numerator = 1, denominator = 0 } Money.nok (amount Money.eur 100)))
             ]

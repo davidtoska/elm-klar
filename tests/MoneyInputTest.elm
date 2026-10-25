@@ -56,6 +56,12 @@ sharedRuleTests =
                     |> Result.map (MoneyInput.setValue (Just (nok 99900)))
                     |> Result.map (\state -> ( MoneyInput.text Locale.en state, MoneyInput.value state |> Maybe.map Money.toMinor ))
                     |> Expect.equal (Ok ( "12", Just 1200 ))
+        , test "clear and then setValue replace the text while the user is still typing" <|
+            \_ ->
+                after (typing price "12") fresh
+                    |> Result.map (MoneyInput.clear >> MoneyInput.setValue (Just (nok 99900)))
+                    |> Result.map (\state -> ( MoneyInput.text Locale.en state, MoneyInput.value state |> Maybe.map Money.toMinor ))
+                    |> Expect.equal (Ok ( "999.00", Just 99900 ))
         , test "setValue after the user has left the field shows the new amount" <|
             \_ ->
                 after (typedAndLeft price "12") fresh

@@ -67,7 +67,9 @@ The first `String` given to `init` is the DOM id of the input that is shown whil
 editing, so there is no `id` attribute; the second is the text to show.
 
 **Keyboard.** Enter saves, Escape cancels, leaving the field saves, and the text
-is a button: Tab reaches it and Space or Enter starts editing. A `multiline` text
+is a button: Tab reaches it and Space or Enter starts editing. After Enter or
+Escape the focus is back on the text; after leaving the field with Tab or a click
+it stays where the user put it. A `multiline` text
 is edited in a text area, where Enter starts a new line and Ctrl+Enter (Cmd+Enter on
 a Mac) saves. The Enter or
 Escape that ends an IME composition (Japanese, Chinese, Korean input) only picks
@@ -85,8 +87,9 @@ then shown with the problem, a "Try again" button (which makes `isSaving` `True`
 again; left out when `Remote.isRetryable` says the problem would fail the same
 way, such as a conflict or a validation problem) and a "Cancel" button (which
 goes back to the old value). A click on the text opens the editor again with the
-refused text and the problem under it, so the user can correct it. Confirming
-the text unchanged saves nothing. An answer that comes when no save is on its
+refused text and the problem under it, so the user can correct it. Leaving it
+unchanged brings the failure back and sends nothing; Enter on it sends it again
+only when "Try again" would. Confirming the saved text unchanged saves nothing. An answer that comes when no save is on its
 way (a late one, after a `setValue` or a "Cancel") changes nothing.
 
 **Validation.** `validate` is checked when the user confirms; a message keeps
@@ -179,6 +182,9 @@ type alias Fields =
     , pending : Maybe String
     , problem : Maybe Problem
 
+    -- opened from a failure: the refused text, until the user types
+    , refused : Maybe String
+
     -- the last save went well: "Saved" for screen readers, until editing starts again
     , justSaved : Bool
     }
@@ -208,6 +214,7 @@ init id initial =
         , error = Nothing
         , pending = Nothing
         , problem = Nothing
+        , refused = Nothing
         , justSaved = False
         }
 
@@ -378,6 +385,7 @@ type Msg
     = StartEdit
     | Typed String
     | Confirm Confirmation
+    | Leave Confirmation
     | Cancel
     | Retry
     | Discard
@@ -406,6 +414,7 @@ update msg (State state) =
                             | mode = Editing
                             , draft = Maybe.withDefault state.value state.pending
                             , pending = Nothing
+                            , refused = state.pending
                             , error = Nothing
                             , justSaved = False
                         }
@@ -417,45 +426,28 @@ update msg (State state) =
 
         Typed text ->
             if state.mode == Editing then
-                ( State { state | draft = text, error = Nothing, problem = Nothing }, Cmd.none )
+                ( State { state | draft = text, error = Nothing, problem = Nothing, refused = Nothing }, Cmd.none )
 
             else
                 ( State state, Cmd.none )
 
         Confirm confirmed ->
-            if state.mode == Editing then
-                let
-                    candidate =
-                        String.trim confirmed.text
-                in
-                case confirmed.problem of
-                    Just problem ->
-                        ( State { state | draft = confirmed.text, error = Just problem }, Cmd.none )
+            confirm True confirmed state
 
-                    Nothing ->
-                        if candidate == state.value then
-                            ( State { state | mode = Reading, draft = state.value, error = Nothing, problem = Nothing }
-                            , Internal.focus (displayId state.id) Noop
-                            )
-
-                        else
-                            ( State
-                                { state
-                                    | mode = Saving
-                                    , draft = candidate
-                                    , pending = Just candidate
-                                    , error = Nothing
-                                    , problem = Nothing
-                                }
-                            , Internal.focus (displayId state.id) Noop
-                            )
-
-            else
-                ( State state, Cmd.none )
+        Leave confirmed ->
+            confirm False confirmed state
 
         Cancel ->
             if state.mode == Editing then
-                ( State { state | mode = Reading, draft = state.value, error = Nothing, pending = Nothing, problem = Nothing }
+                ( State
+                    { state
+                        | mode = Reading
+                        , draft = state.value
+                        , error = Nothing
+                        , pending = Nothing
+                        , problem = Nothing
+                        , refused = Nothing
+                    }
                 , Internal.focus (displayId state.id) Noop
                 )
 
@@ -490,6 +482,84 @@ update msg (State state) =
 
         Noop ->
             ( State state, Cmd.none )
+
+
+{-| Confirms the text of the editor. Enter and the save button (`refocus`) give the
+focus back to the text, as the editor goes away under it; leaving the field (Tab, a
+click elsewhere) does not, so the focus stays where the user put it. A refused text
+that was opened only to read the problem, and not changed, is not sent again: the
+failure comes back as it was. An Enter on it sends it again only when the problem
+can go away by itself (`Remote.isRetryable`), as "Try again" does.
+-}
+confirm : Bool -> Confirmation -> Fields -> ( State, Cmd Msg )
+confirm refocus confirmed state =
+    let
+        candidate =
+            String.trim confirmed.text
+
+        focusBack =
+            if refocus then
+                Internal.focus (displayId state.id) Noop
+
+            else
+                Cmd.none
+
+        unchangedFailure =
+            case ( state.problem, state.refused ) of
+                ( Just problem, Just text ) ->
+                    if text == candidate then
+                        Just problem
+
+                    else
+                        Nothing
+
+                _ ->
+                    Nothing
+
+        sending =
+            State
+                { state
+                    | mode = Saving
+                    , draft = candidate
+                    , pending = Just candidate
+                    , error = Nothing
+                    , problem = Nothing
+                    , refused = Nothing
+                }
+    in
+    if state.mode /= Editing then
+        ( State state, Cmd.none )
+
+    else
+        case ( confirmed.problem, unchangedFailure ) of
+            ( Just problem, _ ) ->
+                ( State { state | draft = confirmed.text, error = Just problem }, Cmd.none )
+
+            ( Nothing, Just problem ) ->
+                if refocus && Remote.isRetryable problem then
+                    ( sending, focusBack )
+
+                else
+                    ( State { state | mode = Failed, pending = state.refused, refused = Nothing, error = Nothing }
+                    , focusBack
+                    )
+
+            ( Nothing, Nothing ) ->
+                if candidate == state.value then
+                    ( State
+                        { state
+                            | mode = Reading
+                            , draft = state.value
+                            , error = Nothing
+                            , pending = Nothing
+                            , problem = Nothing
+                            , refused = Nothing
+                        }
+                    , focusBack
+                    )
+
+                else
+                    ( sending, focusBack )
 
 
 displayId : String -> String
@@ -1042,9 +1112,10 @@ keyDecoder toMsg config state =
         )
 
 
-{-| Leaving the field confirms it. When the whole window loses the focus (the
-user switches to another one), the input is still the focused element of its
-page, and nothing happens: the user comes back to the open editor.
+{-| Leaving the field confirms it, and the focus stays where the user put it (the
+next control after a Tab, the input they clicked). When the whole window loses the
+focus (the user switches to another one), the input is still the focused element of
+its page, and nothing happens: the user comes back to the open editor.
 -}
 blurDecoder : (Msg -> msg) -> Config -> Fields -> Decode.Decoder msg
 blurDecoder toMsg config state =
@@ -1061,7 +1132,7 @@ blurDecoder toMsg config state =
                     Decode.fail "the window was left"
 
                 else
-                    Decode.succeed (toMsg (Confirm (confirmation config text)))
+                    Decode.succeed (toMsg (Leave (confirmation config text)))
             )
 
 
