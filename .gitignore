@@ -15,3 +15,8 @@ node_modules/
 .vscode/
 .DS_Store
 Thumbs.db
+
+# Calendar application build output and data
+/calendar/main.js
+/calendar/server/data.json
+/calendar/server/data.json.tmp
