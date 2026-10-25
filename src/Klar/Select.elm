@@ -166,7 +166,8 @@ or a simulated backend that has no select of its own. Read the fields as you lik
   - `tone` and `color` mark the option with a small dot before the label, a status color that
     follows the theme or a color from your data (never both; the last one set wins)
   - `keywords` are extra words that also match but are never shown (synonyms, codes, old names)
-  - `meta` is a short value at the end of the row, in tabular figures (a stock count, a code)
+  - `meta` is a short value at the end of the row, in tabular figures (a stock count, a price);
+    it is not searched
 
 -}
 type alias Option id =
@@ -207,8 +208,9 @@ withDescription =
 
 
 {-| A short value at the end of the row, in tabular figures, for the numbers of
-a data-dense list: a stock count, a code, a price. It is searched like the
-description.
+a data-dense list: a stock count, a price, a date. It is not searched, so that a
+word in it ("in stock") does not match every row; a code the user should find
+goes in `withKeywords` as well.
 
     Select.option sku.id sku.name |> Select.withMeta (String.fromInt sku.stock ++ " in stock")
 
@@ -414,7 +416,9 @@ setOption opt (State state) =
     State { state | value = Just opt.value, picked = Just opt }
 
 
-{-| Removes the chosen value, so `value` is `Nothing` again.
+{-| Removes the chosen value, so `value` is `Nothing` again. This is the way to
+empty the field from code; `setValue Nothing` is the same thing, for a `Maybe`
+that comes from your model.
 -}
 clear : State id -> State id
 clear (State state) =

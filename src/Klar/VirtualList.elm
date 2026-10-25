@@ -378,11 +378,13 @@ viewportHeight geometry =
     min geometry.height (geometry.count * max 1 geometry.rowHeight)
 
 
-{-| Whether row `index` (counting from 0) is on the page now, for any `overscan`:
-`view` and `viewGrouped` draw the rows in view and a few around them, so after the
-user scrolled away with the wheel a row the keyboard was on may be gone. Point
-`aria-activedescendant` at a row only while it is drawn, since an id that is not
-on the page names nothing. Give it the same numbers as `view`.
+{-| Whether row `index` (counting from 0) is in view now, and so on the page
+whatever the `overscan`: `view` and `viewGrouped` draw the rows in view and a few
+around them, so after the user scrolled away with the wheel a row the keyboard was
+on may be gone. The answer is safe rather than exact: a row drawn only as part of
+the overscan counts as not drawn. Point `aria-activedescendant` at a row only
+while this is `True`, since an id that is not on the page names nothing. Give it
+the same numbers as `view`.
 
     VirtualList.isDrawn { rowHeight = 32, height = 320, count = 500, inset = 0 } 42 model.list
 

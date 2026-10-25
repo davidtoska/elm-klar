@@ -228,6 +228,21 @@ typedInto text attributes =
             )
 
 
+{-| The list shows `count` suggestions after the user typed `text`.
+-}
+expectSuggestions : Int -> String -> List (Autocomplete.Attribute String Msg) -> Expectation
+expectSuggestions count text attributes =
+    case typedInto text attributes of
+        Ok state ->
+            Autocomplete.view AutoMsg attributes state
+                |> Query.fromHtml
+                |> Query.findAll [ Selector.attribute (Attr.attribute "role" "option") ]
+                |> Query.count (Expect.equal count)
+
+        Err why ->
+            Expect.fail why
+
+
 cities : List (Select.Option String)
 cities =
     [ Select.option "ams" "Amsterdam", Select.option "ber" "Berlin", Select.option "bern" "Bern" ]
@@ -290,6 +305,16 @@ compositionTests =
 
                     Err why ->
                         Expect.fail why
+        , test "Autocomplete: the Enter that confirms a composition does not send onEnter either" <|
+            \_ ->
+                Autocomplete.view AutoMsg [ Autocomplete.options cities, Autocomplete.onEnter Retry ] (Autocomplete.init "city")
+                    |> pressOn [ Selector.class "klar-autocomplete" ] composingEnter
+                    |> expectIgnored
+        , test "Autocomplete: a plain Enter sends onEnter" <|
+            \_ ->
+                Autocomplete.view AutoMsg [ Autocomplete.options cities, Autocomplete.onEnter Retry ] (Autocomplete.init "city")
+                    |> pressOn [ Selector.class "klar-autocomplete" ] (plain "Enter")
+                    |> Event.expect Retry
         ]
 
 
@@ -601,19 +626,68 @@ selectAllTests =
                                 |> Query.has [ Selector.text "Country 1 removed" ]
                         )
                     |> Result.withDefault (Expect.fail "the remove button sent nothing")
-        , test "a long list with everything chosen: the click adds nothing twice" <|
+        , test "a long list with everything chosen in the order of the options: unavailable without a click" <|
             \_ ->
                 let
                     many =
-                        List.map (\n -> Select.option ("v" ++ String.fromInt n) ("Value " ++ String.fromInt n)) (List.range 1 1000)
+                        numbered 1000
+                in
+                multiView [ MultiSelect.options many ] (openMulti |> MultiSelect.setValues (List.map .value many))
+                    |> selectAllButton
+                    |> Query.has [ Selector.attribute (Attr.disabled True) ]
+        , test "1000 options all chosen by Select all: the button is unavailable" <|
+            \_ ->
+                let
+                    many =
+                        numbered 1000
+                in
+                case clickSelectAll [ MultiSelect.options many ] openMulti of
+                    Ok state ->
+                        multiView [ MultiSelect.options many ] state
+                            |> selectAllButton
+                            |> Query.has [ Selector.attribute (Attr.disabled True) ]
+
+                    Err why ->
+                        Expect.fail why
+        , test "a long list chosen out of order: after one click that adds nothing, the button is unavailable" <|
+            \_ ->
+                let
+                    many =
+                        numbered 600
 
                     state =
-                        openMulti |> MultiSelect.setValues (List.map .value many)
+                        openMulti |> MultiSelect.setValues (List.reverse (List.map .value many))
                 in
-                clickSelectAll [ MultiSelect.options many ] state
-                    |> Result.map (MultiSelect.values >> List.length)
-                    |> Expect.equal (Ok 1000)
+                case clickSelectAll [ MultiSelect.options many ] state of
+                    Ok clicked ->
+                        Expect.all
+                            [ \s -> Expect.equal (MultiSelect.values state) (MultiSelect.values s)
+                            , \s ->
+                                multiView [ MultiSelect.options many ] s
+                                    |> selectAllButton
+                                    |> Query.has [ Selector.attribute (Attr.disabled True) ]
+                            ]
+                            clicked
+
+                    Err why ->
+                        Expect.fail why
+        , test "removing a value after Select all makes the button available again" <|
+            \_ ->
+                clickSelectAll [ MultiSelect.options few ] openMulti
+                    |> Result.map (\s -> MultiSelect.setValues (List.drop 1 (MultiSelect.values s) ++ [ "elsewhere" ]) s)
+                    |> Result.map
+                        (\s ->
+                            multiView [ MultiSelect.options few ] s
+                                |> selectAllButton
+                                |> Query.hasNot [ Selector.attribute (Attr.disabled True) ]
+                        )
+                    |> Result.withDefault (Expect.fail "the button sent nothing")
         ]
+
+
+numbered : Int -> List (Select.Option String)
+numbered count =
+    List.map (\n -> Select.option ("v" ++ String.fromInt n) ("Value " ++ String.fromInt n)) (List.range 1 count)
 
 
 
@@ -637,9 +711,15 @@ groupTests =
                     |> Query.find [ Selector.id "country-opt-0" ]
                     |> Query.find [ Selector.class "klar-select__option-meta" ]
                     |> Query.has [ Selector.text "12 in stock" ]
-        , test "and it is searched" <|
+        , test "but it is not searched: a word in it does not match every row" <|
             \_ ->
-                [ Select.option "sku-1" "Pallet jack" |> Select.withMeta "PJ-2000", Select.option "sku-2" "Forklift" ]
+                [ Select.option "sku-1" "Pallet jack" |> Select.withMeta "12 in stock", Select.option "sku-2" "Forklift" |> Select.withMeta "3 in stock" ]
+                    |> Select.filter "stock"
+                    |> List.map .value
+                    |> Expect.equal []
+        , test "a code that should match goes in the keywords" <|
+            \_ ->
+                [ Select.option "sku-1" "Pallet jack" |> Select.withMeta "PJ-2000" |> Select.withKeywords [ "PJ-2000" ], Select.option "sku-2" "Forklift" ]
                     |> Select.filter "pj-2000"
                     |> List.map .value
                     |> Expect.equal [ "sku-1" ]
@@ -806,9 +886,9 @@ autocompleteTests =
                         ]
         , test "while \"No suggestions\" shows, aria-controls names the popup that says so" <|
             \_ ->
-                case typedInto "zz" [ Autocomplete.remote (Loaded []) ] of
+                case typedInto "zz" [ Autocomplete.serverSearch, Autocomplete.remote (Loaded []) ] of
                     Ok state ->
-                        Autocomplete.view AutoMsg [ Autocomplete.remote (Loaded []) ] state
+                        Autocomplete.view AutoMsg [ Autocomplete.serverSearch, Autocomplete.remote (Loaded []) ] state
                             |> Query.fromHtml
                             |> Expect.all
                                 [ Query.find autoInput >> Query.has [ Selector.attribute (Attr.attribute "aria-controls" "city-popup") ]
@@ -817,6 +897,25 @@ autocompleteTests =
 
                     Err why ->
                         Expect.fail why
+        , test "remote suggestions are filtered as the user types, like options and Select.remote" <|
+            \_ -> expectSuggestions 2 "Ber" [ Autocomplete.remote (Loaded cities) ]
+        , test "with serverSearch the remote suggestions are shown as they come" <|
+            \_ -> expectSuggestions 3 "Ber" [ Autocomplete.serverSearch, Autocomplete.remote (Loaded cities) ]
+        , test "a remote list that nothing matches is hidden, as with options" <|
+            \_ ->
+                case typedInto "zz" [ Autocomplete.remote (Loaded cities) ] of
+                    Ok state ->
+                        Autocomplete.view AutoMsg [ Autocomplete.remote (Loaded cities) ] state
+                            |> Query.fromHtml
+                            |> Query.hasNot [ Selector.id "city-popup" ]
+
+                    Err why ->
+                        Expect.fail why
+        , test "a typed label of a remote suggestion is picked" <|
+            \_ ->
+                typedThen "berlin" [ Autocomplete.remote (Loaded cities) ] (keydown (plain "Enter"))
+                    |> Result.map Autocomplete.picked
+                    |> Expect.equal (Ok (Just "ber"))
         , test "open and close, like Select" <|
             \_ ->
                 let

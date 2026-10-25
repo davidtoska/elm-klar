@@ -31,6 +31,7 @@ close : State id -> ( State id, Cmd (Msg id) )
 type Attribute id msg  -- opaque: no constructors are exposed
 options : List (Select.Option id) -> Attribute id msg
 remote : Remote.Remote (List (Select.Option id)) -> Attribute id msg
+serverSearch : Attribute id msg
 onRetry : msg -> Attribute id msg
 onEnter : msg -> Attribute id msg
 
@@ -98,11 +99,13 @@ Quick path: `init`, `update`, `view`, `text`, `picked`
 
 Suggestions are options (`Select.Option`, made with `Select.option` and its
 `with*` helpers): the label is what the field shows when one is picked, and the
-value, of your own type, is what `picked` returns. They are filtered locally
-(`options`) or come from the application (`remote`, a `Remote`): then fetch when
-`Autocomplete.query` changes (it waits for a pause in the typing). The list shows
-loading rows, a failure with a retry button, or "No suggestions". To show a saved
-record, `setOption` puts its text and its value back.
+value, of your own type, is what `picked` returns. Give them as a list
+(`options`) or as a `Remote` loaded from the backend (`remote`): either way the
+field filters and ranks them as the user types, as `Select` does. When the server
+does the searching, add `serverSearch`: fetch when `Autocomplete.query` changes
+(it waits for a pause in the typing) and the field shows the hits as they come,
+or "No suggestions". A `remote` list shows loading rows and a failure with a retry
+button. To show a saved record, `setOption` puts its text and its value back.
 
 Keyboard: typing shows the suggestions with none highlighted, so Enter keeps the
 typed text. ArrowDown and ArrowUp move through the suggestions (ArrowUp on the
@@ -174,8 +177,8 @@ message type with `Cmd.map`.
         in
         ( { model | city = city }, Cmd.map CityMsg cmd )
 
-With `remote` suggestions, compare `Autocomplete.query` before and after to see
-when to fetch.
+With `serverSearch`, compare `Autocomplete.query` before and after to see when to
+fetch.
 
 ### `view`
 
@@ -206,7 +209,7 @@ text : State id -> String
 ```
 
 What is in the field: what the user typed, or the label of the suggestion
-they picked. With `remote` suggestions, fetch when `query` changes.
+they picked. With `serverSearch`, fetch when `query` changes.
 
 ### `setText`
 
@@ -215,7 +218,8 @@ setText : String -> State id -> State id
 ```
 
 Replaces the text, for example to show a saved free text. It clears `picked`
-and closes the list; use `setOption` when the text is a suggestion.
+and closes the list; use `setOption` when the text is a suggestion, and `clear` to
+empty the field (`setText ""` is the same thing).
 
     Autocomplete.setText "Rotterdam" model.city
 
@@ -249,7 +253,8 @@ value you keep, for example the customer of an order being edited.
 clear : State id -> State id
 ```
 
-Empties the field: no text, nothing `picked`, and the list closed.
+Empties the field: no text, nothing `picked`, and the list closed. This is
+the way to empty the field from code; `setText ""` is the same thing.
 
 ### `query`
 
@@ -257,7 +262,7 @@ Empties the field: no text, nothing `picked`, and the list closed.
 query : State id -> String
 ```
 
-The text to fetch `remote` suggestions for: it follows `text` after a pause of
+The text to fetch `serverSearch` suggestions for: it follows `text` after a pause of
 300 ms in the typing (at once when a suggestion is picked, the field is cleared or
 `setText` or `setOption` is called), so **write no debounce of your own**. Fetch
 when it changes, and drop an answer whose text is no longer the current `query`.
@@ -324,7 +329,9 @@ Suggestions that the component filters itself as the user types: best match
 first, ignoring case and diacritics, with several words that must all match, in
 labels, descriptions and keywords (the scoring of [Klar.Search](Klar.Search.md)).
 The list is hidden while nothing matches. The default is no suggestions. Use
-`options` or `remote`, not both: the later one wins.
+`options` or `remote`, not both: the later one wins. For a list that comes from
+the backend, give its `Remote` to `remote` rather than flattening it with
+`Remote.withDefault`, so the field shows its loading and failed states.
 
     Autocomplete.options (List.map (\name -> Select.option name name) cities)
 
@@ -334,18 +341,50 @@ The list is hidden while nothing matches. The default is no suggestions. Use
 remote : Remote.Remote (List (Select.Option id)) -> Attribute id msg
 ```
 
-Suggestions from the application, usually the backend, as a `Remote` (see
-[Klar.Remote](Klar.Remote.md)). They are shown exactly as they come and the
-component does not filter them; the typed text is highlighted in them. Fetch
-when `Autocomplete.query` changes. The list is hidden while the data is
-`NotAsked`, shows loading rows (and a spinner in the field) while `Loading`, an
-error on `Failed` (see `onRetry`), and "No suggestions" on `Loaded []`.
-Suggestions that are `Kept` stay in the list: dimmed and busy while they are
-refreshed, and with "Old data from 14:05" at the top of the list when the last
-refresh failed (the list is not a place for a button: the focus stays in the
-field, so use the notice of the page for the retry).
+Suggestions from the backend, as a `Remote` (see [Klar.Remote](Klar.Remote.md)).
+Like `Select.remote`, the field filters and ranks them as the user types, the
+same as `options`, so a list loaded once needs nothing else; add `serverSearch`
+when the server does the searching. The list is hidden while the data is
+`NotAsked`, shows loading rows (and a spinner in the field) while `Loading`, and
+an error on `Failed` (see `onRetry`). Suggestions that are `Kept` stay in the
+list: dimmed and busy while they are refreshed, and with "Old data from 14:05" at
+the top of the list when the last refresh failed (the list is not a place for a
+button: the focus stays in the field, so use the notice of the page for the
+retry).
 
-    Autocomplete.remote model.citySuggestions
+    Autocomplete.remote model.cities
+
+### `serverSearch`
+
+```elm
+serverSearch : Attribute id msg
+```
+
+The server does the searching: the field shows the `remote` suggestions exactly
+as they come and does not filter them (the typed text is still highlighted in
+them), and says "No suggestions" on `Loaded []`. Fetch when `Autocomplete.query`
+changes: it waits for a pause of 300 ms in the typing, so **write no debounce of
+your own**, and drop an answer whose query is no longer the current one.
+
+    -- in update
+    CustomerMsg inner ->
+        let
+            ( customer, cmd ) =
+                Autocomplete.update inner model.customer
+        in
+        if Autocomplete.query customer /= Autocomplete.query model.customer then
+            ( { model | customer = customer, found = Remote.refresh model.found }
+            , Cmd.batch [ Cmd.map CustomerMsg cmd, fetchCustomers (Autocomplete.query customer) ]
+            )
+
+        else
+            ( { model | customer = customer }, Cmd.map CustomerMsg cmd )
+
+    -- in view
+    Autocomplete.view CustomerMsg [ Autocomplete.serverSearch, Autocomplete.remote model.found ] model.customer
+
+`Remote.refresh` keeps the hits of the last search on screen, dimmed and busy,
+until the new ones arrive. Without `remote` it changes nothing.
 
 ### `onRetry`
 

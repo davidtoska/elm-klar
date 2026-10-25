@@ -1,7 +1,7 @@
 module Klar.Autocomplete exposing
     ( State, init, Msg, update, view
     , text, setText, picked, setOption, clear, query, isOpen, open, close
-    , Attribute, options, remote, onRetry, onEnter
+    , Attribute, options, remote, serverSearch, onRetry, onEnter
     , label, labelHidden, hint, error, errorMaybe, required, optionalText
     , placeholder, minChars, clearable, disabled, readOnly, size, visibleRows, prefixIcon, locale, settings
     )
@@ -46,11 +46,13 @@ Quick path: `init`, `update`, `view`, `text`, `picked`
 
 Suggestions are options (`Select.Option`, made with `Select.option` and its
 `with*` helpers): the label is what the field shows when one is picked, and the
-value, of your own type, is what `picked` returns. They are filtered locally
-(`options`) or come from the application (`remote`, a `Remote`): then fetch when
-`Autocomplete.query` changes (it waits for a pause in the typing). The list shows
-loading rows, a failure with a retry button, or "No suggestions". To show a saved
-record, `setOption` puts its text and its value back.
+value, of your own type, is what `picked` returns. Give them as a list
+(`options`) or as a `Remote` loaded from the backend (`remote`): either way the
+field filters and ranks them as the user types, as `Select` does. When the server
+does the searching, add `serverSearch`: fetch when `Autocomplete.query` changes
+(it waits for a pause in the typing) and the field shows the hits as they come,
+or "No suggestions". A `remote` list shows loading rows and a failure with a retry
+button. To show a saved record, `setOption` puts its text and its value back.
 
 Keyboard: typing shows the suggestions with none highlighted, so Enter keeps the
 typed text. ArrowDown and ArrowUp move through the suggestions (ArrowUp on the
@@ -85,7 +87,7 @@ follow `locale` and are English by default (see [Klar.Locale](Klar-Locale)).
 
 Pass attributes to `view` in a list; later ones win over earlier ones.
 
-@docs Attribute, options, remote, onRetry, onEnter
+@docs Attribute, options, remote, serverSearch, onRetry, onEnter
 
 
 # Field
@@ -168,14 +170,14 @@ init id =
 
 
 {-| What is in the field: what the user typed, or the label of the suggestion
-they picked. With `remote` suggestions, fetch when `query` changes.
+they picked. With `serverSearch`, fetch when `query` changes.
 -}
 text : State id -> String
 text (State state) =
     state.text
 
 
-{-| The text to fetch `remote` suggestions for: it follows `text` after a pause of
+{-| The text to fetch `serverSearch` suggestions for: it follows `text` after a pause of
 300 ms in the typing (at once when a suggestion is picked, the field is cleared or
 `setText` or `setOption` is called), so **write no debounce of your own**. Fetch
 when it changes, and drop an answer whose text is no longer the current `query`.
@@ -190,7 +192,8 @@ query (State state) =
 
 
 {-| Replaces the text, for example to show a saved free text. It clears `picked`
-and closes the list; use `setOption` when the text is a suggestion.
+and closes the list; use `setOption` when the text is a suggestion, and `clear` to
+empty the field (`setText ""` is the same thing).
 
     Autocomplete.setText "Rotterdam" model.city
 
@@ -223,7 +226,8 @@ setOption opt (State state) =
     State { state | text = opt.label, searched = opt.label, picked = Just opt.value, open = False, highlighted = Nothing }
 
 
-{-| Empties the field: no text, nothing `picked`, and the list closed.
+{-| Empties the field: no text, nothing `picked`, and the list closed. This is
+the way to empty the field from code; `setText ""` is the same thing.
 -}
 clear : State id -> State id
 clear (State state) =
@@ -309,8 +313,8 @@ message type with `Cmd.map`.
         in
         ( { model | city = city }, Cmd.map CityMsg cmd )
 
-With `remote` suggestions, compare `Autocomplete.query` before and after to see
-when to fetch.
+With `serverSearch`, compare `Autocomplete.query` before and after to see when to
+fetch.
 
 -}
 update : Msg id -> State id -> ( State id, Cmd (Msg id) )
@@ -456,6 +460,7 @@ type Source id
 type alias Config id msg =
     { field : Field.Config
     , source : Source id
+    , serverSearch : Bool
     , freshness : Freshness
     , placeholder : String
     , minChars : Int
@@ -477,6 +482,7 @@ configure attributes =
     List.foldl (\(Attribute change) config -> change config)
         { field = Field.empty
         , source = Local []
+        , serverSearch = False
         , freshness = Freshness.Fresh
         , placeholder = ""
         , minChars = 1
@@ -503,7 +509,9 @@ updateField change =
 first, ignoring case and diacritics, with several words that must all match, in
 labels, descriptions and keywords (the scoring of [Klar.Search](Klar-Search)).
 The list is hidden while nothing matches. The default is no suggestions. Use
-`options` or `remote`, not both: the later one wins.
+`options` or `remote`, not both: the later one wins. For a list that comes from
+the backend, give its `Remote` to `remote` rather than flattening it with
+`Remote.withDefault`, so the field shows its loading and failed states.
 
     Autocomplete.options (List.map (\name -> Select.option name name) cities)
 
@@ -513,18 +521,18 @@ options list =
     Attribute (\config -> { config | source = Local list, freshness = Freshness.Fresh })
 
 
-{-| Suggestions from the application, usually the backend, as a `Remote` (see
-[Klar.Remote](Klar-Remote)). They are shown exactly as they come and the
-component does not filter them; the typed text is highlighted in them. Fetch
-when `Autocomplete.query` changes. The list is hidden while the data is
-`NotAsked`, shows loading rows (and a spinner in the field) while `Loading`, an
-error on `Failed` (see `onRetry`), and "No suggestions" on `Loaded []`.
-Suggestions that are `Kept` stay in the list: dimmed and busy while they are
-refreshed, and with "Old data from 14:05" at the top of the list when the last
-refresh failed (the list is not a place for a button: the focus stays in the
-field, so use the notice of the page for the retry).
+{-| Suggestions from the backend, as a `Remote` (see [Klar.Remote](Klar-Remote)).
+Like `Select.remote`, the field filters and ranks them as the user types, the
+same as `options`, so a list loaded once needs nothing else; add `serverSearch`
+when the server does the searching. The list is hidden while the data is
+`NotAsked`, shows loading rows (and a spinner in the field) while `Loading`, and
+an error on `Failed` (see `onRetry`). Suggestions that are `Kept` stay in the
+list: dimmed and busy while they are refreshed, and with "Old data from 14:05" at
+the top of the list when the last refresh failed (the list is not a place for a
+button: the focus stays in the field, so use the notice of the page for the
+retry).
 
-    Autocomplete.remote model.citySuggestions
+    Autocomplete.remote model.cities
 
 -}
 remote : Remote (List (Option id)) -> Attribute id msg
@@ -534,6 +542,38 @@ remote data =
             Freshness.settle data
     in
     Attribute (\config -> { config | source = FromApp current, freshness = freshness })
+
+
+{-| The server does the searching: the field shows the `remote` suggestions exactly
+as they come and does not filter them (the typed text is still highlighted in
+them), and says "No suggestions" on `Loaded []`. Fetch when `Autocomplete.query`
+changes: it waits for a pause of 300 ms in the typing, so **write no debounce of
+your own**, and drop an answer whose query is no longer the current one.
+
+    -- in update
+    CustomerMsg inner ->
+        let
+            ( customer, cmd ) =
+                Autocomplete.update inner model.customer
+        in
+        if Autocomplete.query customer /= Autocomplete.query model.customer then
+            ( { model | customer = customer, found = Remote.refresh model.found }
+            , Cmd.batch [ Cmd.map CustomerMsg cmd, fetchCustomers (Autocomplete.query customer) ]
+            )
+
+        else
+            ( { model | customer = customer }, Cmd.map CustomerMsg cmd )
+
+    -- in view
+    Autocomplete.view CustomerMsg [ Autocomplete.serverSearch, Autocomplete.remote model.found ] model.customer
+
+`Remote.refresh` keeps the hits of the last search on screen, dimmed and busy,
+until the new ones arrive. Without `remote` it changes nothing.
+
+-}
+serverSearch : Attribute id msg
+serverSearch =
+    Attribute (\config -> { config | serverSearch = True })
 
 
 {-| The message to send when the user presses the "Try again" button of the error
@@ -771,21 +811,26 @@ view toMsg attributes (State state) =
                     { options = list, filterLocally = True, creatable = False }
 
                 FromApp data ->
-                    { options = Remote.withDefault [] data, filterLocally = False, creatable = False }
+                    { options = Remote.withDefault [] data, filterLocally = not config.serverSearch, creatable = False }
 
         rows () =
             Popup.cachedRows state.cache env state.text
 
+        -- A list the field filters itself is hidden while nothing matches, as
+        -- with `options`; the hits of a server search say "No suggestions".
         loadedContent () =
             let
                 built =
                     rows ()
             in
-            if built.optionRows == 0 then
+            if built.optionRows > 0 then
+                Rows built
+
+            else if config.serverSearch then
                 NoSuggestions
 
             else
-                Rows built
+                Hidden
 
         content =
             if not (state.open && interactive) then
@@ -814,9 +859,6 @@ view toMsg attributes (State state) =
 
                             Remote.Failed problem ->
                                 Failed problem
-
-                            Remote.Loaded [] ->
-                                NoSuggestions
 
                             Remote.Loaded _ ->
                                 loadedContent ()
@@ -988,7 +1030,8 @@ view toMsg attributes (State state) =
                     ""
                 ]
             , if interactive then
-                Internal.attrMaybe (\msg -> Internal.onKeysPassive [ ( "Enter", msg ) ]) config.onEnter
+                -- the same IME-safe decoder as the input's own keys
+                Internal.attrMaybe (\msg -> Popup.onKeydown { handled = [], passive = [ ( "Enter", msg ) ] }) config.onEnter
 
               else
                 Internal.noAttr

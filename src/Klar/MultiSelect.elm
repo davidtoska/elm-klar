@@ -160,7 +160,19 @@ type State id
         , cache : Maybe (Popup.Cache id)
         , said : Maybe Said
         , fromCode : Bool
+        , allChosen : Maybe AllChosen
         }
+
+
+{-| What the last "Select all" left: every selectable match of this search text
+was chosen, out of this many. The button stays unavailable while the search text
+and the number of matches are the same and no value was removed, without
+comparing values on every render.
+-}
+type alias AllChosen =
+    { query : String
+    , matches : Int
+    }
 
 
 {-| What the field last told a screen reader about a change made from the closed
@@ -202,6 +214,7 @@ init id =
         , cache = Nothing
         , said = Nothing
         , fromCode = False
+        , allChosen = Nothing
         }
 
 
@@ -237,6 +250,7 @@ setValues newValues (State state) =
     State
         { state
             | selected = List.map (\v -> known v |> Maybe.withDefault { value = v, option = Nothing }) unique
+            , allChosen = Nothing
         }
 
 
@@ -256,6 +270,7 @@ setOptions opts (State state) =
     State
         { state
             | selected = List.map (\opt -> { value = opt.value, option = Just opt }) unique
+            , allChosen = Nothing
         }
 
 
@@ -263,7 +278,7 @@ setOptions opts (State state) =
 -}
 clear : State id -> State id
 clear (State state) =
-    State { state | selected = [] }
+    State { state | selected = [], allChosen = Nothing }
 
 
 {-| The text in the search box while the list is open, and `""` when it is
@@ -377,11 +392,14 @@ chosen and is not chosen yet. Values are compared with `==`, so the exact answer
 compares every match with every chosen value, and this runs on every render
 (every hover and scroll). So it compares only when it must and when that is
 cheap: while fewer values are chosen than there are matches to choose, some match
-is not chosen; and when the comparison would be large the button stays available
-(the click works the rest out once, in `update`).
+is not chosen; after a "Select all" of this search text nothing is left
+(`allChosen`); matches that come in their order among the chosen values (as
+"Select all" adds them) are all chosen, which one pass finds out; and when the
+full comparison would be large the button stays available (the click works the
+rest out once, in `update`, and then remembers it).
 -}
-anyLeftToChoose : List (Option id) -> List (Selected id) -> Bool
-anyLeftToChoose matched selected =
+anyLeftToChoose : State id -> List (Option id) -> Bool
+anyLeftToChoose (State state) matched =
     let
         selectable =
             List.filter (\opt -> not opt.disabled) matched
@@ -390,16 +408,98 @@ anyLeftToChoose matched selected =
             List.length selectable
 
         chosenCount =
-            List.length selected
+            List.length state.selected
     in
     if selectableCount == 0 then
         False
 
-    else if chosenCount < selectableCount || selectableCount * chosenCount > comparisonBudget then
+    else if chosenCount < selectableCount then
+        True
+
+    else if state.allChosen == Just { query = state.query, matches = selectableCount } then
+        False
+
+    else if inOrderAmong selectable state.selected then
+        False
+
+    else if selectableCount * chosenCount > comparisonBudget then
         True
 
     else
-        List.any (\opt -> not (isChosen opt.value selected)) selectable
+        List.any (\opt -> not (isChosen opt.value state.selected)) selectable
+
+
+{-| Whether the options come, in their order, among the chosen values (with
+other values between them): then every one of them is chosen. One pass over both
+lists.
+-}
+inOrderAmong : List (Option id) -> List (Selected id) -> Bool
+inOrderAmong opts selected =
+    case opts of
+        [] ->
+            True
+
+        opt :: rest ->
+            case chosenAfter opt.value selected of
+                Just later ->
+                    inOrderAmong rest later
+
+                Nothing ->
+                    False
+
+
+{-| The chosen values after the first one that is `v`, or `Nothing` when none is.
+-}
+chosenAfter : id -> List (Selected id) -> Maybe (List (Selected id))
+chosenAfter v selected =
+    case selected of
+        [] ->
+            Nothing
+
+        sel :: rest ->
+            if sel.value == v then
+                Just rest
+
+            else
+                chosenAfter v rest
+
+
+{-| The selectable matches that are not chosen yet, in their order. Each match is
+first compared with the chosen value after the last one found and only then with
+all of them, so when the chosen values follow the order of the options (as
+"Select all" adds them) the work grows with the length of the lists, not with its
+square.
+-}
+unchosen : List (Option id) -> List (Selected id) -> List (Option id)
+unchosen matched selected =
+    List.foldl
+        (\opt ( next, left ) ->
+            if opt.disabled then
+                ( next, left )
+
+            else
+                case next of
+                    sel :: rest ->
+                        if sel.value == opt.value then
+                            ( rest, left )
+
+                        else if isChosen opt.value selected then
+                            ( next, left )
+
+                        else
+                            ( next, opt :: left )
+
+                    [] ->
+                        if isChosen opt.value selected then
+                            ( next, left )
+
+                        else
+                            ( next, opt :: left )
+        )
+        ( selected, [] )
+        matched
+        |> Tuple.second
+        |> List.reverse
 
 
 {-| The most `==` comparisons a render may spend on the state of "Select all".
@@ -597,23 +697,33 @@ update msg ((State state) as current) =
 
         SelectAllMatched env limit ->
             -- worked out here, once per click, not on every render: it compares
-            -- every matching option with every chosen value
+            -- the matching options with the chosen values
             let
                 rows =
                     Popup.cachedRows state.cache env state.query
 
-                fresh =
-                    rows.matched
-                        |> List.filter (\opt -> not opt.disabled && not (isChosen opt.value state.selected))
-                        |> (case limit of
-                                Just n ->
-                                    List.take (max 0 (n - List.length state.selected))
+                left =
+                    unchosen rows.matched state.selected
 
-                                Nothing ->
-                                    identity
-                           )
+                fresh =
+                    case limit of
+                        Just n ->
+                            List.take (max 0 (n - List.length state.selected)) left
+
+                        Nothing ->
+                            left
+
+                done =
+                    if List.length fresh == List.length left then
+                        Just { query = state.query, matches = List.length (List.filter (\opt -> not opt.disabled) rows.matched) }
+
+                    else
+                        Nothing
+
+                (State added) =
+                    append fresh current
             in
-            ( append fresh current, Internal.focus (searchId state.id) NoOp )
+            ( State { added | allChosen = done }, Internal.focus (searchId state.id) NoOp )
 
         ClearAll ->
             ( clear current |> say RemovedAll
@@ -701,6 +811,7 @@ remove v (State state) =
     State
         { state
             | selected = List.filter (\sel -> sel.value /= v) state.selected
+            , allChosen = Nothing
         }
 
 
@@ -1561,7 +1672,7 @@ viewPopup toMsg config t env (State state) =
             isLoaded && rows.optionRows > 0
 
         canSelectAll =
-            hasRows && not atMax && anyLeftToChoose rows.matched state.selected
+            hasRows && not atMax && anyLeftToChoose (State state) rows.matched
 
         canClear =
             count > 0

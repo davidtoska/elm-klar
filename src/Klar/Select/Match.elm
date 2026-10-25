@@ -149,14 +149,17 @@ separator =
     "\u{0001}"
 
 
+{-| The description and the keywords. The `meta` value is left out: counts and
+prices in it would make a search for a word such as "stock" match every row.
+-}
 extraText : Option id -> String
 extraText opt =
-    case ( opt.description, opt.meta, opt.keywords ) of
-        ( Nothing, Nothing, [] ) ->
+    case ( opt.description, opt.keywords ) of
+        ( Nothing, [] ) ->
             ""
 
-        ( description, meta, words ) ->
-            String.join " " (List.filterMap identity [ description, meta ] ++ words)
+        ( description, words ) ->
+            String.join " " (List.filterMap identity [ description ] ++ words)
 
 
 entry : Option id -> Entry id

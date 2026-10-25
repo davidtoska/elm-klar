@@ -87,7 +87,7 @@ withDescription text opt =
 
 
 {-| A short value at the end of the row, in tabular figures: a stock count, a
-code, a price. It is searched like the description.
+price. It is not searched.
 -}
 withMeta : String -> Option id -> Option id
 withMeta text opt =
