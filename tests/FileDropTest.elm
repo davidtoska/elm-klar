@@ -135,6 +135,7 @@ suite =
         , singleTests
         , acceptTests
         , chosenTests
+        , dragTests
         ]
 
 
@@ -353,4 +354,42 @@ chosenTests =
                     |> FileDrop.chosen
                     |> List.length
                     |> Expect.equal 0
+        ]
+
+
+dragTests : Test
+dragTests =
+    let
+        drag name types =
+            Event.custom name (Encode.object [ ( "dataTransfer", Encode.object [ ( "types", Encode.list Encode.string types ) ] ) ])
+
+        lit result =
+            case result of
+                Ok state ->
+                    FileDrop.view Files [] state
+                        |> Query.fromHtml
+                        |> Query.has [ Selector.class "klar-filedrop--over" ]
+
+                Err problem ->
+                    Expect.fail problem
+    in
+    describe "dragging over the zone"
+        [ test "files being dragged light it up" <|
+            \_ -> on [] zone (drag "dragenter" [ "Files" ]) empty |> lit
+        , test "text being dragged does not" <|
+            \_ -> on [] zone (drag "dragenter" [ "text/plain" ]) empty |> Expect.err
+        , test "leaving the zone puts the light out" <|
+            \_ ->
+                steps [ on [] zone (drag "dragenter" [ "Files" ]), on [] zone (drag "dragleave" []) ] empty
+                    |> Result.map (FileDrop.view Files [] >> Query.fromHtml >> Query.hasNot [ Selector.class "klar-filedrop--over" ])
+                    |> Result.withDefault (Expect.fail "the zone did not take the drag")
+        , test "leaving a child of the zone does not, while the zone itself is still entered" <|
+            \_ ->
+                steps [ on [] zone (drag "dragenter" [ "Files" ]), on [] zone (drag "dragenter" [ "Files" ]), on [] zone (drag "dragleave" []) ] empty
+                    |> lit
+        , test "a drop puts the light out" <|
+            \_ ->
+                steps [ on [] zone (drag "dragenter" [ "Files" ]), on [] zone (drop [ file "a.pdf" 10 "application/pdf" ]) ] empty
+                    |> Result.map (FileDrop.view Files [] >> Query.fromHtml >> Query.hasNot [ Selector.class "klar-filedrop--over" ])
+                    |> Result.withDefault (Expect.fail "the zone did not take the drop")
         ]
