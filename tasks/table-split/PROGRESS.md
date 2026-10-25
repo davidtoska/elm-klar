@@ -27,7 +27,7 @@ Execution notes for resuming a long run:
   unchanged internal implementation and checks the dependency graph.
 - State, Query and Columns are complete. The second pipeline (84947) stopped on
   syntax in the new ColumnLogic test; its second validation passed. Resume with
-  Rows, Config, Window, Update and Processing; inspect the active pipeline's
+  Rows, Config, Window, Update and Processing (active exec session 6175); inspect the pipeline's
   result before further edits. Completion hashes are appended below.
 - After that: Popup, Layout, Keyboard, Export, Bulk, HeaderFilters, Header,
   Toolbar, Body, Footer, then rename remaining Core composition to View and clean
@@ -83,3 +83,7 @@ Execution notes for resuming a long run:
 - ColumnLogic attempt 1: fixed syntax in the newly added test's let-pattern;
   no existing test changed. Revalidating the step before continuing.
 - ColumnLogic attempt 2 passed: 11,367 tests, identical docs and all 22 table roots.
+- Commit 834f944: ColumnLogic complete.
+- Next: Rows, Config, Window, Update, Processing.
+
+- Rows: format, full check, byte-identical docs and 22 identical table roots passed.

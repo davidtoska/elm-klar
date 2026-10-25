@@ -519,6 +519,7 @@ import Klar.Table.Csv as Csv
 import Klar.Table.Identity exposing (idsOf, isJust, keysBetween, keysOf, lookup, toggled)
 import Klar.Table.Index as Index exposing (Index)
 import Klar.Table.Query as Query
+import Klar.Table.Rows as Rows
 import Klar.Table.Selection as Selection
 import Klar.Table.Sort as Sorting
 import Klar.Table.State as State
@@ -1574,7 +1575,7 @@ a sort by one column from it and does not sort again; a sort by several columns
 -}
 prepareRows : Locale -> List (Column row msg) -> Array row -> Rows row
 prepareRows arg1 arg2 arg3 =
-    fromCoreRows (Core.prepareRows arg1 (List.map unwrapColumn arg2) arg3)
+    fromCoreRows (Rows.prepareRows arg1 (List.map unwrapColumn arg2) arg3)
 
 
 {-| The rows of prepared rows, to give to other parts of the page that want an
@@ -1582,7 +1583,7 @@ prepareRows arg1 arg2 arg3 =
 -}
 rowsArray : Rows row -> Array row
 rowsArray arg1 =
-    Core.rowsArray (unwrapRows arg1)
+    Rows.rowsArray (unwrapRows arg1)
 
 
 {-| A stable, unique id for each row, such as a database id. Selection, expanded
