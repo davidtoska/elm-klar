@@ -141,3 +141,7 @@ Execution notes for resuming a long run:
 - Next: Toolbar.
 
 - Toolbar: format, full check, byte-identical docs and 22 identical table roots passed.
+- Commit 889970f: Toolbar complete.
+- Next: Body.
+
+- Body: format, full check, byte-identical docs and 22 identical table roots passed.
