@@ -1720,7 +1720,7 @@ numberLimits limits =
         ]
 
 
-dateLimits : Limits -> List DatePicker.Attribute
+dateLimits : Limits -> List (DatePicker.Attribute msg)
 dateLimits limits =
     List.filterMap identity
         [ Maybe.map DatePicker.min limits.earliest
@@ -1794,18 +1794,18 @@ rawOf slot =
             RRows group.order
 
         SDate state ->
-            if DatePicker.isInvalid state then
+            if not (DatePicker.isValid state) then
                 RUnreadable
 
             else
-                RDate (DatePicker.date state)
+                RDate (DatePicker.value state)
 
         SPeriod state ->
-            if DateRangePicker.isInvalid state then
+            if not (DateRangePicker.isValid state) then
                 RUnreadable
 
             else
-                RPeriod (DateRangePicker.range state)
+                RPeriod (DateRangePicker.value state)
 
         SMoney state ->
             -- every sign allowed and no limits: `isValid` then only asks whether the text is an amount
@@ -1851,10 +1851,10 @@ putRaw raw slot =
             SToggle value
 
         ( RDate value, SDate state ) ->
-            SDate (DatePicker.setDate value state)
+            SDate (DatePicker.setValue value state)
 
         ( RPeriod value, SPeriod state ) ->
-            SPeriod (DateRangePicker.setRange value state)
+            SPeriod (DateRangePicker.setValue value state)
 
         ( RMoney value, SMoney state ) ->
             SMoney (MoneyInput.setValue value state)
@@ -2362,7 +2362,7 @@ update declared msg ((State data) as current) =
         Picked key value ->
             case Dict.get key data.slots of
                 Just ((SSelect before) as old) ->
-                    ( moved key old (SSelect (Select.setValue value before)) current, Cmd.none )
+                    ( moved key old (SSelect (Select.setValue (Just value) before)) current, Cmd.none )
 
                 _ ->
                     ( current, Cmd.none )
@@ -3803,7 +3803,7 @@ should see all at once. The options are the same `Select.Option` values a
 `Select.disabledOption`), so a choice can move between the two controls without
 a change to its options. The label is the legend of the group.
 -}
-radio : View msg -> Field (Maybe id) -> List (Select.Option id) -> List (Radio.Attribute msg) -> Html msg
+radio : View msg -> Field (Maybe id) -> List (Select.Option id) -> List (Radio.Attribute String msg) -> Html msg
 radio ((View view) as bound) ((Field field) as handle) options attributes =
     case fieldDef bound handle of
         Just ( def, SSelect state ) ->
@@ -3815,7 +3815,7 @@ radio ((View view) as bound) ((Field field) as handle) options attributes =
                        , Radio.errorMaybe (problemOf bound def)
                        , Radio.options (List.map (radioOption field.toRaw) options)
                        , Radio.selected (Select.value state)
-                       , Radio.onSelect (\key -> view.toMsg (Picked def.key key))
+                       , Radio.onChange (\key -> view.toMsg (Picked def.key key))
                        ]
                 )
 
@@ -3823,7 +3823,7 @@ radio ((View view) as bound) ((Field field) as handle) options attributes =
             mismatch bound handle "a choice"
 
 
-radioOption : (Maybe id -> Raw) -> Select.Option id -> Radio.Option
+radioOption : (Maybe id -> Raw) -> Select.Option id -> Radio.Option String
 radioOption toRaw choice_ =
     Radio.option (keyOf toRaw (Just choice_.value)) choice_.label
         |> (case choice_.description of
@@ -3847,7 +3847,7 @@ radioOption toRaw choice_ =
 are the application's attributes (`DatePicker.today model.today`,
 `DatePicker.min model.today`).
 -}
-datePicker : View msg -> Field (Maybe Date) -> List DatePicker.Attribute -> Html msg
+datePicker : View msg -> Field (Maybe Date) -> List (DatePicker.Attribute msg) -> Html msg
 datePicker ((View view) as bound) field attributes =
     case fieldDef bound field of
         Just ( def, SDate state ) ->
@@ -3871,7 +3871,7 @@ longest period and the presets are the application's attributes
 (`DateRangePicker.min`, `DateRangePicker.maxRangeDays`, `DateRangePicker.today`);
 a period the picker refuses is a problem of the form until it is fixed.
 -}
-dateRangePicker : View msg -> Field (Maybe ( Date, Date )) -> List DateRangePicker.Attribute -> Html msg
+dateRangePicker : View msg -> Field (Maybe ( Date, Date )) -> List (DateRangePicker.Attribute msg) -> Html msg
 dateRangePicker ((View view) as bound) field attributes =
     case fieldDef bound field of
         Just ( def, SPeriod state ) ->

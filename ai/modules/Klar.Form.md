@@ -94,15 +94,15 @@ radio :
     View msg
     -> Field (Maybe id)
     -> List (Select.Option id)
-    -> List (Radio.Attribute msg)
+    -> List (Radio.Attribute String msg)
     -> Html msg
 switch : View msg -> Field Bool -> List (Switch.Attribute msg) -> Html msg
 checkbox : View msg -> Field Bool -> List (Checkbox.Attribute msg) -> Html msg
-datePicker : View msg -> Field (Maybe Date.Date) -> List DatePicker.Attribute -> Html msg
+datePicker : View msg -> Field (Maybe Date.Date) -> List (DatePicker.Attribute msg) -> Html msg
 dateRangePicker :
     View msg
     -> Field (Maybe ( Date.Date, Date.Date ))
-    -> List DateRangePicker.Attribute
+    -> List (DateRangePicker.Attribute msg)
     -> Html msg
 moneyInput : View msg -> Field (Maybe Money.Money) -> List (MoneyInput.Attribute msg) -> Html msg
 maskedInput : View msg -> Field (Maybe String) -> List (MaskedInput.Attribute msg) -> Html msg
@@ -969,7 +969,7 @@ radio :
     View msg
     -> Field (Maybe id)
     -> List (Select.Option id)
-    -> List (Radio.Attribute msg)
+    -> List (Radio.Attribute String msg)
     -> Html msg
 ```
 
@@ -1011,7 +1011,7 @@ value are the form's. `Spec.rule identity` makes ticking it a must.
 ### `datePicker`
 
 ```elm
-datePicker : View msg -> Field (Maybe Date.Date) -> List DatePicker.Attribute -> Html msg
+datePicker : View msg -> Field (Maybe Date.Date) -> List (DatePicker.Attribute msg) -> Html msg
 ```
 
 A date picker for a `date` field. The limits of `Spec.minDate` and
@@ -1027,7 +1027,7 @@ are the application's attributes.
 dateRangePicker :
     View msg
     -> Field (Maybe ( Date.Date, Date.Date ))
-    -> List DateRangePicker.Attribute
+    -> List (DateRangePicker.Attribute msg)
     -> Html msg
 ```
 

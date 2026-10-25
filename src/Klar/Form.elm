@@ -934,7 +934,7 @@ options out in a row.
         [ Radio.horizontal ]
 
 -}
-radio : View msg -> Field (Maybe id) -> List (Select.Option id) -> List (Radio.Attribute msg) -> Html msg
+radio : View msg -> Field (Maybe id) -> List (Select.Option id) -> List (Radio.Attribute String msg) -> Html msg
 radio =
     Core.radio
 
@@ -947,7 +947,7 @@ are the application's attributes.
     Form.datePicker v fields.deliveryDate [ DatePicker.today model.today, DatePicker.min model.today ]
 
 -}
-datePicker : View msg -> Field (Maybe Date) -> List DatePicker.Attribute -> Html msg
+datePicker : View msg -> Field (Maybe Date) -> List (DatePicker.Attribute msg) -> Html msg
 datePicker =
     Core.datePicker
 
@@ -957,7 +957,7 @@ the longest period and the presets are the application's attributes
 (`DateRangePicker.min`, `DateRangePicker.maxRangeDays`, `DateRangePicker.today`);
 a period the picker refuses is a problem of the form until it is fixed.
 -}
-dateRangePicker : View msg -> Field (Maybe ( Date, Date )) -> List DateRangePicker.Attribute -> Html msg
+dateRangePicker : View msg -> Field (Maybe ( Date, Date )) -> List (DateRangePicker.Attribute msg) -> Html msg
 dateRangePicker =
     Core.dateRangePicker
 
