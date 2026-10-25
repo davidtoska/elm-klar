@@ -33,6 +33,7 @@ import Api exposing (Backend)
 import Api.Problem as Problem
 import Api.Types as Types exposing (ApiError(..), Lookups, Order, OrderId, OrderQuery, OrderStatus(..), Page)
 import Html exposing (Html)
+import Klar
 import Klar.Alert as Alert
 import Klar.Button as Button
 import Klar.ConfirmDialog as ConfirmDialog
@@ -550,7 +551,7 @@ update context msg backend model =
                     )
 
         FocusField id ->
-            ( model, backend, FormLayout.focusField id NoOp )
+            ( model, backend, Klar.focus id NoOp )
 
         ChangeStatus order status ->
             let

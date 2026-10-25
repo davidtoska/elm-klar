@@ -630,7 +630,7 @@ view attributes =
                 control
 
         Nothing ->
-            Field.viewStable field control
+            Field.view field control
 
 
 {-| Enter without a modifier, and not the Enter that confirms the word of an

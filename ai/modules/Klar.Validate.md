@@ -4,18 +4,18 @@ Pure, composable validators for text values.
 
 Import: `import Klar.Validate as Validate` | Group: Forms
 
-Types: `Validator`, `Error`
+Types: `Validator`, `Problem`
 
 ## Signatures
 
 ```elm
 -- Running validators
 type Validator  -- opaque: no constructors are exposed
-type alias Error = { field : String, message : String }
+type alias Problem = { field : String, message : String }
 run : Locale.Locale -> Validator -> String -> Maybe String
 firstError : Locale.Locale -> List Validator -> String -> Maybe String
-collect : Locale.Locale -> List ( String, List Validator, String ) -> List Error
-errorFor : String -> List Error -> Maybe String
+collect : Locale.Locale -> List ( String, List Validator, String ) -> List Problem
+errorFor : String -> List Problem -> Maybe String
 
 -- Checks
 required : Validator
@@ -73,11 +73,15 @@ in the order given:
         , ( "customer-email", [ Validate.required, Validate.email ], model.email )
         ]
 
-The `field` of an `Error` is the DOM id of the control, so
+The `field` of a `Problem` is the DOM id of the control, so
 [`FormLayout.errorSummary`](Klar.Form.Layout.md) can move focus to it.
 
-The messages are built in; use `withMessage` to say it your way. Lengths are
-counted the way Elm counts them (`String.length`), in UTF-16 units.
+The messages are built in; use `withMessage` to say it your way, and numbers in
+them are written as the locale writes them ("100 000" in Norwegian). The
+length, digit and number checks look at the text without the spaces around it,
+as a form saves it, and a length is counted in characters as people see them: an
+emoji or a letter with a mark counts as one, as a database counts it, not as the
+two UTF-16 units of `String.length`.
 
 ## Running validators
 
@@ -89,10 +93,10 @@ type Validator  -- opaque: no constructors are exposed
 
 Something that checks a text value. Build one with the functions below.
 
-### `Error`
+### `Problem`
 
 ```elm
-type alias Error = { field : String, message : String }
+type alias Problem = { field : String, message : String }
 ```
 
 A problem found in a field: the DOM id of the control (`field`) and what to
@@ -123,16 +127,16 @@ Runs a list of validators in order and returns the first problem.
 ### `collect`
 
 ```elm
-collect : Locale.Locale -> List ( String, List Validator, String ) -> List Error
+collect : Locale.Locale -> List ( String, List Validator, String ) -> List Problem
 ```
 
-Validates several fields. Returns at most one `Error` per field (the first
+Validates several fields. Returns at most one `Problem` per field (the first
 problem), in the order the fields were given.
 
 ### `errorFor`
 
 ```elm
-errorFor : String -> List Error -> Maybe String
+errorFor : String -> List Problem -> Maybe String
 ```
 
 The message for one field, if it has a problem. Use it to show the error
@@ -156,7 +160,8 @@ The value must not be empty. Spaces only count as empty.
 minLength : Int -> Validator
 ```
 
-At least this many characters.
+At least this many characters, counted as people see them (an emoji is
+one), without the spaces around the text.
 
 ### `maxLength`
 
@@ -164,7 +169,8 @@ At least this many characters.
 maxLength : Int -> Validator
 ```
 
-At most this many characters.
+At most this many characters, counted as people see them (an emoji is one,
+as a database column counts it), without the spaces around the text.
 
 ### `email`
 
@@ -225,8 +231,10 @@ digits : Int -> Validator
 ```
 
 Exactly this many digits and nothing else, like an organisation number
-(`digits 9`). Spaces and dashes are not ignored: show the user the shape you
-want, or tidy the text before it gets here.
+(`digits 9`). Spaces around the text are ignored, as a form trims what it saves;
+spaces and dashes inside are not: show the user the shape you want, or use
+[Klar.MaskedInput](Klar.MaskedInput.md) (`Spec.masked` in a form), which writes the
+groups for the user.
 
     Validate.run Locale.en (Validate.digits 9) "91234567" -- Just "Enter 9 digits"
 

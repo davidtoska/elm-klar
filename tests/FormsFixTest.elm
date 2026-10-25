@@ -714,7 +714,7 @@ formTests =
                     , count [ Selector.id "form-status" ] 1
                     ]
                     page
-        , test "an idle status and an empty summary draw nothing" <|
+        , test "an empty summary draws nothing, an idle status keeps its region and its live line" <|
             \_ ->
                 Html.div []
                     [ FormLayout.errorSummary [ FormLayout.id "billing" ] []
@@ -723,8 +723,26 @@ formTests =
                     |> Query.fromHtml
                     |> Expect.all
                         [ count [ Selector.id "billing-summary" ] 0
-                        , count [ Selector.id "billing-status" ] 0
+                        , count [ Selector.id "billing-status" ] 1
+                        , Query.find [ Selector.id "billing-status" ] >> Query.has [ Selector.attribute (Attr.tabindex -1) ]
+                        , Query.find [ Selector.attribute (Attr.attribute "role" "status") ] >> Query.hasNot [ Selector.text "Saving" ]
                         ]
+        , test "the status region and its live line are the same element in every state" <|
+            \_ ->
+                let
+                    shape current =
+                        FormLayout.status [ FormLayout.id "billing" ] current
+                            |> Query.fromHtml
+                            |> Query.children []
+                            |> Query.index 0
+                            |> Query.has [ Selector.class "klar-form-status", Selector.attribute (Attr.attribute "role" "status") ]
+                in
+                Expect.all
+                    [ \_ -> shape FormLayout.Idle
+                    , \_ -> shape FormLayout.Submitting
+                    , \_ -> shape (FormLayout.Succeeded "Saved")
+                    ]
+                    ()
         , test "the id of the form is on the form element" <|
             \_ ->
                 FormLayout.view [ FormLayout.id "billing" ] []

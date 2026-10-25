@@ -1516,7 +1516,7 @@ view toMsg attributes (State s) =
                 []
     in
     -- stable: the field makes messages of its own while the user types
-    Field.viewStable field
+    Field.view field
         (Html.div [ Internal.cls [ "klar-anchor", "klar-anchor--block", "klar-daterange" ] ]
             [ Html.div
                 [ Internal.cls

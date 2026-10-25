@@ -211,7 +211,7 @@ elements that had focus while the dialog was closed; an element without an id is
 among them, and focus then goes to the last one that was, which may be somewhere else.
 Give the links that can ask an id. After "Leave" the new page is yours: the dialog
 puts focus back on the link, and the page you enter moves it on to its content
-(`AppShell.focusContent`, or `FormLayout.focusField` for a field), which is what every navigation of the
+(`AppShell.focusContent`, or `Klar.focus` for a field), which is what every navigation of the
 application should do anyway. The example does it in `UrlChanged`.
 
 **Several forms.** Each form that can hold unsaved changes is a source of your own

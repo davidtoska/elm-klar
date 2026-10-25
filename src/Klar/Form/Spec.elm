@@ -1,7 +1,7 @@
 module Klar.Form.Spec exposing
-    ( Builder, define, with, step, check, build
-    , Spec, text, number, choice, choices, toggle, tags, files, conditions, rows
-    , required, atLeast, one, rule, rules, range, whole, hint, withMessage
+    ( Builder, define, with, step, check, checkFields, shownWhen, requiredWhen, build
+    , Spec, text, number, choice, choices, toggle, date, dateRange, money, masked, tags, files, conditions, rows
+    , required, atLeast, one, rule, rules, range, whole, minDate, maxDate, minMoney, maxMoney, hint, withMessage
     )
 
 {-| The declaration of a form: its fields in order, each with a label and its
@@ -129,7 +129,7 @@ goes to. When the thing you draw is a list of rules, prefer `rows` with
 
 # Declaring a form
 
-@docs Builder, define, with, step, check, build
+@docs Builder, define, with, step, check, checkFields, shownWhen, requiredWhen, build
 
 
 # Kinds of field
@@ -138,20 +138,23 @@ A kind says what the field holds and what the form produces. Every kind takes a
 label; it is the label of the control, the line in the summary and the base of
 the DOM id.
 
-@docs Spec, text, number, choice, choices, toggle, tags, files, conditions, rows
+@docs Spec, text, number, choice, choices, toggle, date, dateRange, money, masked, tags, files, conditions, rows
 
 
 # Rules
 
-@docs required, atLeast, one, rule, rules, range, whole, hint, withMessage
+@docs required, atLeast, one, rule, rules, range, whole, minDate, maxDate, minMoney, maxMoney, hint, withMessage
 
 -}
 
+import Klar.Date exposing (Date)
 import Klar.FileDrop as FileDrop
 import Klar.Form as Form
 import Klar.Form.Core as Core
 import Klar.Ids exposing (Ids)
 import Klar.Locale exposing (Locale)
+import Klar.MaskedInput as MaskedInput
+import Klar.Money exposing (Currency, Money)
 import Klar.Rule as Rule
 import Klar.Validate as Validate
 
@@ -251,6 +254,76 @@ check =
     Core.check
 
 
+{-| A rule over several fields that runs at once, without waiting for the rest of
+the form: "the end date is after the start date", "the confirmation matches the
+email". It gets the locale, the handles and the state, reads the fields with
+`Form.get` (so it sees `Nothing` for an empty field, and then says nothing), and
+returns the problems it finds, each tied to a field with `Form.problem`. A
+problem belongs to the step of its field: it shows there once the field was left
+or edited, and it keeps the user on that step. Use `check` instead for a rule
+that needs the whole record of values. Put it after the `with` calls.
+
+    Spec.define "booking" Fields Values
+        |> Spec.with (Spec.date "From" |> Spec.required)
+        |> Spec.with (Spec.date "To" |> Spec.required)
+        |> Spec.checkFields
+            (\locale f state ->
+                case ( Form.get f.from state, Form.get f.to state ) of
+                    ( Just from, Just to ) ->
+                        if Date.compare to from == LT then
+                            [ Form.problem f.to (Locale.pick locale { nb = "Til kan ikke være før fra", en = "To cannot be before from" }) ]
+
+                        else
+                            []
+
+                    _ ->
+                        []
+            )
+        |> Spec.build
+
+-}
+checkFields : (Locale -> fields -> Form.State step -> List (Form.Problem step)) -> Builder step fields values -> Builder step fields values
+checkFields =
+    Core.checkFields
+
+
+{-| The field is part of the form only while the condition holds: a VAT number
+for a company, a delivery address when "ship elsewhere" is on. While it does not,
+the field is not drawn (its view is empty), its problems are left out, and the
+values get its empty value (`Nothing`, `[]`, `False`), whatever was typed in
+it. What was typed is kept, so it comes back when the condition holds again.
+Declare such a field without `required`, so that its output can be empty, and add
+`requiredWhen` with the same condition to require it while it is shown. Put it
+after the `with` calls, like `check`; in the sub-form of `rows` it works row by
+row.
+
+    Spec.define "customer" Fields Values
+        |> Spec.with (Spec.choice kindIds "Customer kind" |> Spec.required)
+        |> Spec.with (Spec.masked MaskedInput.norwegianOrganisationNumber "Organisation number")
+        |> Spec.shownWhen isCompany .organisationNumber
+        |> Spec.requiredWhen isCompany .organisationNumber
+        |> Spec.build
+
+    isCompany : Fields -> Form.State () -> Bool
+    isCompany handles state =
+        Form.get handles.kind state == Just Company
+
+-}
+shownWhen : (fields -> Form.State step -> Bool) -> (fields -> Form.Field c) -> Builder step fields values -> Builder step fields values
+shownWhen =
+    Core.shownWhen
+
+
+{-| The field is required while the condition holds: it gets the `*` of a
+required field, and an empty value is the problem "Required". Its output keeps
+its type, so declare it without `required`. Put it after the `with` calls; see
+`shownWhen` for an example.
+-}
+requiredWhen : (fields -> Form.State step -> Bool) -> (fields -> Form.Field c) -> Builder step fields values -> Builder step fields values
+requiredWhen =
+    Core.requiredWhen
+
+
 {-| Finishes the declaration. The result only has the type
 `Form step Fields Values` when every `with` matched an argument of both records;
 a field missing from one of them is a compile error.
@@ -336,6 +409,64 @@ each file; the browser's own `File` values, for the request you make, are
 files : String -> Spec (List FileDrop.FileInfo) (List FileDrop.FileInfo)
 files =
     Core.files
+
+
+{-| A date, typed or picked in a calendar, drawn by `Form.datePicker`. Empty is
+`Nothing`; add `required`, `minDate` or `maxDate`. Text that is not a date is
+the problem "Invalid date" until it is fixed. The value is a
+[`Date`](Klar-Date), never a `String`.
+
+    Spec.date "Delivery date" |> Spec.required |> Spec.minDate firstDeliveryDay
+
+-}
+date : String -> Spec (Maybe Date) (Maybe Date)
+date =
+    Core.date
+
+
+{-| A period from one date to another, both included, drawn by
+`Form.dateRangePicker`. Empty is `Nothing`; add `required`. Text that is not a
+date, or a period the picker refuses (an end before the start, longer than
+`DateRangePicker.maxRangeDays`), is the problem "Invalid period" until it is
+fixed. The earliest and latest day are attributes of the picker.
+
+    Spec.dateRange "Campaign period" |> Spec.required
+
+-}
+dateRange : String -> Spec (Maybe ( Date, Date )) (Maybe ( Date, Date ))
+dateRange =
+    Core.dateRange
+
+
+{-| An amount of money in one currency, drawn by `Form.moneyInput`. The value is
+an exact [`Money`](Klar-Money), never a `Float`. Empty is `Nothing`; add
+`required`, `minMoney` or `maxMoney`. Text that is not an amount is the problem
+"Must be an amount", and a negative amount is refused unless `minMoney` is below
+zero (as in `MoneyInput`).
+
+    Spec.money Money.nok "Credit limit"
+        |> Spec.required
+        |> Spec.maxMoney creditCeiling
+
+-}
+money : Currency -> String -> Spec (Maybe Money) (Maybe Money)
+money =
+    Core.money
+
+
+{-| An identifier with a fixed shape and often a check digit (an organisation
+number, an IBAN, a bank account, a postal code, a phone number), drawn by
+`Form.maskedInput`. The value is the identifier without separators, as
+`MaskedInput.value` gives it (`"974760673"`); empty is `Nothing`; add `required`.
+An identifier that is incomplete or has a wrong check digit is the problem
+"Incomplete or invalid" until it is fixed (the field itself says what is wrong).
+
+    Spec.masked MaskedInput.norwegianOrganisationNumber "Organisation number" |> Spec.required
+
+-}
+masked : MaskedInput.Mask -> String -> Spec (Maybe String) (Maybe String)
+masked =
+    Core.masked
 
 
 {-| The conditions of a rule, edited in a rule builder and drawn with
@@ -424,12 +555,23 @@ one =
     Core.one
 
 
-{-| A rule over the whole list of a list-valued field, for what is wrong with the
-items _together_: at most one contact is the primary, two emails are the same.
-It runs when every item is valid on its own, and a problem is the field's own
-(a group of rows shows it by its add button and in the summary), so it counts on
-its step like any other rule. The message is a function of the locale, like
-`withMessage`.
+{-| A rule on the value the field produces, for what the kind and the other rules
+cannot say: a quantity in whole boxes of 6, a box that must be ticked, at most one
+contact that is the primary. It runs when the field's own read succeeded (after
+`required`, a refused text and the other rules), and its problem is the field's
+own: it shows at the field and counts on the field's step, so a rule of step 1
+shows on step 1. On a group of rows it sees the list of the rows' values, and
+its problem shows by the add button. The message is a function of the locale,
+like `withMessage`.
+
+    Spec.toggle "I accept the terms of delivery"
+        |> Spec.rule identity
+            (\lang -> Locale.pick lang { nb = "Du må godta vilkårene", en = "Accept the terms to go on" })
+
+    Spec.number "Quantity"
+        |> Spec.required
+        |> Spec.rule (\n -> modBy 6 (round n) == 0)
+            (\lang -> Locale.pick lang { nb = "Bestill i hele esker à 6", en = "Order in whole boxes of 6" })
 
     Spec.rows { label = "Contacts", item = "Contact" } contact
         |> Spec.rule
@@ -437,7 +579,7 @@ its step like any other rule. The message is a function of the locale, like
             (\lang -> Locale.pick lang { nb = "Bare én kan være hovedkontakt", en = "Only one contact can be the primary" })
 
 -}
-rule : (List a -> Bool) -> (Locale -> String) -> Spec c (List a) -> Spec c (List a)
+rule : (o -> Bool) -> (Locale -> String) -> Spec c o -> Spec c o
 rule =
     Core.rule
 
@@ -458,7 +600,8 @@ rules =
 
 {-| A number from `low` to `high`, both included. The control shows the limits
 and keeps a number outside them as typed (it shows the problem, it does not move
-the number).
+the number). The message writes the numbers as the locale does ("Må være mellom
+0,5 og 1,5").
 -}
 range : Float -> Float -> Spec (Maybe Float) o -> Spec (Maybe Float) o
 range =
@@ -472,7 +615,50 @@ whole =
     Core.whole
 
 
-{-| A short help text under the field.
+{-| The earliest date a `date` field takes, included. The calendar does not offer
+the days before it, a typed date before it is refused at once, and a date put in
+with `Form.set` (a loaded record) is the problem "The date cannot be before ..."
+until it is changed. The declaration is a constant, so a limit that depends on
+today is an attribute of the view instead: `DatePicker.min model.today`.
+
+    Spec.date "Delivery date" |> Spec.minDate firstDeliveryDay
+
+-}
+minDate : Date -> Spec (Maybe Date) o -> Spec (Maybe Date) o
+minDate =
+    Core.minDate
+
+
+{-| The latest date a `date` field takes, included, in the same way as
+`minDate`.
+-}
+maxDate : Date -> Spec (Maybe Date) o -> Spec (Maybe Date) o
+maxDate =
+    Core.maxDate
+
+
+{-| The lowest amount a `money` field takes, included, in the currency of the
+field. An amount below it is kept as typed and is the problem "Must be at least
+...". A lowest amount below zero allows negative amounts down to it; without
+one, an amount must not be negative.
+
+    Spec.money Money.nok "Correction" |> Spec.minMoney largestRefund
+
+-}
+minMoney : Money -> Spec (Maybe Money) o -> Spec (Maybe Money) o
+minMoney =
+    Core.minMoney
+
+
+{-| The highest amount a `money` field takes, included, in the same way as
+`minMoney`.
+-}
+maxMoney : Money -> Spec (Maybe Money) o -> Spec (Maybe Money) o
+maxMoney =
+    Core.maxMoney
+
+
+{-| A short help text under the field. A later `withMessage` keeps it.
 -}
 hint : String -> Spec c o -> Spec c o
 hint =

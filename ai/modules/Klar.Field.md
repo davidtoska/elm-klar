@@ -11,7 +11,6 @@ Types: `Config`
 ```elm
 -- Wrapping a control
 view : Config -> Html msg -> Html msg
-viewStable : Config -> Html msg -> Html msg
 viewWithAside : Config -> Html msg -> Html msg -> Html msg
 viewGroup : Config -> Html msg -> Html msg
 
@@ -83,7 +82,7 @@ application. [Klar.Validate](Klar.Validate.md) turns values into a list of
 problems, each the `id` of a control and a message, and `Validate.errorFor` picks
 the message of one control, as above:
 
-    validate : Model -> List Validate.Error
+    validate : Model -> List Validate.Problem
     validate model =
         Validate.collect Locale.default
             [ ( "order-customer", [ Validate.required ], model.customer )
@@ -110,13 +109,15 @@ The label, the hint and the error message get the ids `<id>-label`,
 `aria-required`, so a group of checkboxes (`role="group"`) is joined to its hint
 and error message with `aria-describedby` alone (`describedByAttributes`).
 
-**Which view.** A control with no label, no hint and no error is not wrapped at
-all, so it moves into the wrapper when its first error appears. The browser
-rebuilds an element that moves, and the keyboard focus is lost. That matters for
-a control that makes messages of its own while the user types: it uses
-`viewStable`, which always wraps. A control that draws its own label, like a
-group with a legend, uses `viewGroup`, and a control with something small at the
-end of the line under it, like a character counter, uses `viewWithAside`.
+**Which view.** Every view always draws the wrapper, also around a control with
+no label, no hint and no error, and the control keeps its place in it when a
+hint or an error comes and goes. (A control that moved into a wrapper when its
+first error appeared would be rebuilt by the browser, and the keyboard focus in
+it would drop to the page.) `view` draws the label of the field; a control that
+draws its own label, like a group with a legend, uses `viewGroup`; and a control
+with something small at the end of the line under it, like a character counter,
+uses `viewWithAside`. A blank hint or error (`""`) counts as none, so there is
+never an empty message, nor a field marked invalid without one.
 
 **A control of your own.** Describe the field, put `controlAttributes` on the
 element that takes the keyboard focus, and wrap it:
@@ -162,23 +163,10 @@ view : Config -> Html msg -> Html msg
 ```
 
 Wraps a control in its field: the label (with the `*` of a required field
-or the optional text), the control, then the hint and the error message. When
-the field has no label, no hint and no error, the control is returned as it is,
-without a wrapper. Use `viewStable` for a control that must not move into the
-wrapper later.
-
-### `viewStable`
-
-```elm
-viewStable : Config -> Html msg -> Html msg
-```
-
-Like `view`, but the control is always inside the field wrapper, also when
-there is no label, hint or error to show. Use it for a control that makes
-messages of its own while the user types (a number that is not a number, a
-duplicate tag, a date that is not a date): with `view` the control would move
-into the wrapper at the moment the first message appears, the browser would
-rebuild it, and keyboard focus would be lost in the middle of typing.
+or the optional text), the control, then the hint and the error message. The
+wrapper is always drawn, also when the field has no label, no hint and no error,
+so the control stays where it is when an error comes and goes and keeps the
+keyboard focus.
 
 ### `viewWithAside`
 
@@ -188,9 +176,7 @@ viewWithAside : Config -> Html msg -> Html msg -> Html msg
 
 Like `view`, with something small at the end of the row under the control,
 level with the hint and the error message: a character counter, for example.
-That extra element is the second argument, the control the third. The field is
-always wrapped, so the control stays where it is when the hint or the error comes
-and goes.
+That extra element is the second argument, the control the third.
 
     Field.viewWithAside field (Html.text "12/200") control
 
@@ -202,12 +188,10 @@ viewGroup : Config -> Html msg -> Html msg
 
 For a control that draws its own label, like a group of radio buttons with
 a legend: the label is not drawn here (give the element that shows it the id
-`labelId`), but a field that has a label is always wrapped. With
-`view { config | label = Nothing }` the control would move in and out of the
-wrapper when an error comes and goes, the browser would rebuild it, and keyboard
-focus inside it would be lost (choosing a radio button with the arrow keys
-clears the error and drops the focus). A field without a label behaves as with
-`view`.
+`labelId`), and the hint and the error message are, under the control. Like
+`view`, it always draws the wrapper, so the control is not rebuilt when an error
+comes and goes (choosing a radio button with the arrow keys clears the error,
+and the focus stays on the button).
 
 ## Describing the field
 
@@ -277,7 +261,8 @@ setHint : String -> Config -> Config
 ```
 
 A line of help under the control. It is joined to the control with
-`aria-describedby`, so a screen reader reads it together with the control.
+`aria-describedby`, so a screen reader reads it together with the control. A
+blank text counts as no hint.
 
 ### `setError`
 
@@ -287,7 +272,8 @@ setError : Maybe String -> Config -> Config
 
 `Just message` shows the message in red under the control, marks the
 control invalid (`aria-invalid`) and has screen readers read the message when it
-appears (`role="alert"`). `Nothing` clears the error.
+appears (`role="alert"`). `Nothing` clears the error, and so does a blank
+message (`Just ""`): a field is never marked invalid without a message to say why.
 
 ### `setRequired`
 

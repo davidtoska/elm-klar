@@ -20,7 +20,6 @@ stickyActions : List (Html msg) -> Html msg
 -- Problems after a submit
 errorSummary : List (Attribute msg) -> List { field : String, message : String } -> Html msg
 focusSummary : String -> msg -> Cmd msg
-focusField : String -> msg -> Cmd msg
 
 -- The state of the submit
 type Status = Idle | Submitting | Succeeded String | Failed Remote.Problem
@@ -75,6 +74,7 @@ the values and disappear as the fields are fixed. The first part of each triple
 is the DOM id of the control, so the control gets the same `id`.
 
     import Html exposing (Html)
+    import Klar
     import Klar.Button as Button
     import Klar.Form.Layout as FormLayout
     import Klar.Layout as Layout
@@ -102,7 +102,7 @@ is the DOM id of the control, so the control gets the same `id`.
         | FocusField String
         | NoOp
 
-    problems : Model -> List Validate.Error
+    problems : Model -> List Validate.Problem
     problems model =
         Validate.collect Locale.default
             [ ( "order-customer", [ Validate.required ], model.customer )
@@ -197,7 +197,7 @@ a submit, so a form needs its `onSubmit`. Enter in a field sends it too, also
 while a request is running, so ignore it then. When there are problems, show
 them and move the focus to the summary, where a screen reader reads them; each
 problem is a button that sends `FocusField` with the id of its control, which
-`focusField` turns into the focus. When there are none, start the request
+`Klar.focus` turns into the focus. When there are none, start the request
 (`sendOrder` is your own function, this package has no HTTP) and answer the
 status with `Succeeded` or `Failed` when it comes back.
 
@@ -219,7 +219,7 @@ status with `Succeeded` or `Failed` when it comes back.
                     )
 
             FocusField fieldId ->
-                ( model, FormLayout.focusField fieldId NoOp )
+                ( model, Klar.focus fieldId NoOp )
 
             Retry ->
                 ( { model | status = FormLayout.Submitting }
@@ -356,7 +356,7 @@ errorSummary : List (Attribute msg) -> List { field : String, message : String }
 A red message at the top of the form that says how many problems there are
 ("The form has 2 errors", then "Fix the problems below before you continue.")
 and lists them, one line each. Nothing is drawn for an empty list. A problem is
-a `field`, the DOM id of its control, and a `message`; the `Validate.Error`
+a `field`, the DOM id of its control, and a `message`; the `Validate.Problem`
 records from [Klar.Validate](Klar.Validate.md) fit. Each line is a button that
 sends `onFocusField` with the id of its field (a plain link to `#<field id>`
 when there is no `onFocusField`), and the box itself can take focus
@@ -373,20 +373,6 @@ Moves focus to the error summary of the form with this id (the one given to
 `FormLayout.id`), so that a screen reader reads it. Call it in the update that finds
 problems on a submit, after the problems are in the model. The message is sent
 when it is done.
-
-### `focusField`
-
-```elm
-focusField : String -> msg -> Cmd msg
-```
-
-Moves keyboard focus to the element with this DOM id, normally a control
-(the `id` you gave it), and scrolls it into view. The message is sent when it is
-done, also when no element has that id. Use it to answer the message of
-`onFocusField`, with a message that does nothing:
-
-    FocusField fieldId ->
-        ( model, FormLayout.focusField fieldId NoOp )
 
 ## The state of the submit
 
@@ -412,7 +398,7 @@ and start with `Idle`.
 status : List (Attribute msg) -> Status -> Html msg
 ```
 
-The state of the submit as one line or message: nothing while `Idle`, a
+The state of the submit as one line or message: an empty line while `Idle`, a
 spinner with "Saving ..." while `Submitting`, a green message with the text of
 `Succeeded`, and a red message with the title, detail and code of the problem
 in `Failed` and, when `onRetry` is given and trying again could help, a "Try
@@ -420,12 +406,14 @@ again" button. Put it in the button row (`actions`). Reads `id`, `onRetry`,
 `onDismiss` and `locale`.
 
 **Focus.** The message sits in a region that can take focus (`tabindex="-1"`,
-with the DOM id `<form id>-status`), and the region stays in the page from
-"Saving ..." until the answer comes, also when the message inside it is
-replaced. The "Try again" button is replaced by "Saving ..." the moment it is
-pressed, so keyboard focus would fall back to the page: move it to the region
-with `focusStatus` in the same update, and a screen reader follows the retry
-from "Saving ..." to the result.
+with the DOM id `<form id>-status`), and the region is always in the page, in
+every state, also `Idle`: when a save that had the focus on the region ends in
+`Idle`, the focus stays on it and does not fall to the page. "Saving ..." is
+written into a polite live line (`role="status"`) that is always there, so a
+screen reader announces it. The "Try again" button is replaced by "Saving ..."
+the moment it is pressed, so keyboard focus would fall back to the page: move it
+to the region with `focusStatus` in the same update, and a screen reader follows
+the retry from "Saving ..." to the result.
 
     Retry ->
         ( { model | status = FormLayout.Submitting }
@@ -581,7 +569,7 @@ onFocusField : (String -> msg) -> Attribute msg
 ```
 
 What a click on a problem in the error summary sends: the DOM id of its
-field. Handle it with `focusField` (`errorSummary`). Without this each problem
+field. Handle it with `Klar.focus` (`errorSummary`). Without this each problem
 is a plain link to `#<field id>`, which an application built with
 `Browser.application` receives as a URL request; always give it.
 
@@ -607,7 +595,7 @@ onDismiss : msg -> Attribute msg
 Shows a close button on the success and failure messages and sends this
 message when it is pressed (`status`). The button goes away with the message, so
 in the update that handles it move focus to a control that makes sense (the
-submit button, `focusField`); otherwise keyboard focus falls back to the page.
+submit button, with `Klar.focus`); otherwise keyboard focus falls back to the page.
 
 The unsaved-changes banner (`unsavedChanges`):
 

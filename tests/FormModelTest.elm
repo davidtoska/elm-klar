@@ -146,6 +146,11 @@ typeAge text =
     fire (\v -> Form.numberInput v f.age []) (Event.input text)
 
 
+leaveName : Form.State () -> Form.State ()
+leaveName =
+    fire (\v -> Form.textInput v f.name []) Event.blur
+
+
 problemsOf : Form.State () -> List ( String, String )
 problemsOf state =
     case Form.toValues Locale.en form state of
@@ -523,12 +528,24 @@ visibility =
         [ test "a required field is quiet before the user has been there" <|
             \_ ->
                 Form.textInput (bound (Form.init form)) f.name [] |> hidesText "Required"
-        , test "editing a field shows its problem" <|
+        , test "typing alone does not show the problem of a text yet" <|
             \_ ->
                 typeName "x" filled
                     |> typeName ""
                     |> (\state -> Form.textInput (bound state) f.name [])
-                    |> showsText "Required"
+                    |> hidesText "Required"
+        , test "a text shows its problem once it is left, and from then on follows every keystroke" <|
+            \_ ->
+                let
+                    left =
+                        typeName "" filled |> leaveName
+                in
+                Expect.all
+                    [ \_ -> Form.textInput (bound left) f.name [] |> showsText "Required"
+                    , \_ -> Form.textInput (bound (typeName "a very long name" left)) f.name [] |> showsText "Must be at most 10 characters"
+                    , \_ -> Form.textInput (bound (typeName "Acme" left)) f.name [] |> hidesText "Required"
+                    ]
+                    ()
         , test "reveal shows the problems of every field" <|
             \_ ->
                 let
@@ -546,9 +563,10 @@ visibility =
                 Form.summary (bound (Form.init form))
                     |> Query.fromHtml
                     |> Query.hasNot [ Selector.text "Required" ]
-        , test "a number outside the range shows after the user typed it" <|
+        , test "a number outside the range shows after the user typed it and left the field" <|
             \_ ->
                 typeAge "17" filled
+                    |> fire (\v -> Form.numberInput v f.age []) Event.blur
                     |> (\state -> Form.numberInput (bound state) f.age [])
                     |> showsText "Must be between 18 and 99"
         ]

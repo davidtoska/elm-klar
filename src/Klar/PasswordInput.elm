@@ -853,7 +853,7 @@ view toMsg attributes (State state) =
     in
     -- stable: the application may show an error while the user types, and the
     -- input must not move into the wrapper then (it would lose the focus)
-    Field.viewStable field
+    Field.view field
         (Html.div
             [ Internal.cls [ "klar-password" ]
 

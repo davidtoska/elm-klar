@@ -970,7 +970,7 @@ view toMsg attributes (State s) =
             s.open && not inactive
     in
     -- stable: the field makes messages of its own while the user types
-    Field.viewStable field
+    Field.view field
         (Html.div [ Internal.cls [ "klar-anchor", "klar-anchor--block", "klar-datepicker" ] ]
             [ Html.div
                 [ Internal.cls

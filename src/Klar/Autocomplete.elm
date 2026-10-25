@@ -975,7 +975,7 @@ view toMsg attributes (State state) =
     in
     -- The field is always wrapped: the application may set an error while the
     -- user types, and an input that moves into the wrapper then loses focus.
-    Field.viewStable field
+    Field.view field
         (Html.div
             [ Internal.cls
                 [ "klar-anchor"

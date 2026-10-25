@@ -8,7 +8,7 @@ module SelectFixTest exposing (suite)
     is worth retrying (`Remote.isRetryable`) and the application gave an
     `onRetry`. Without the button, Enter must not send the retry message and Tab
     must close the list and move on.
-  - A field that is typed into keeps its wrapper (`Field.viewStable`), so the
+  - A field that is typed into keeps its wrapper (`Field.view`), so the
     browser does not rebuild the input, and drop keyboard focus, when the
     application sets an error while the user types.
 

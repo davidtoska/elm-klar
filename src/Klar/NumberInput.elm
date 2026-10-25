@@ -1090,7 +1090,7 @@ view toMsg attributes ((State state) as current) =
                     Internal.noAttr
     in
     -- stable: the field makes messages of its own while the user types
-    Field.viewStable field
+    Field.view field
         (Html.div
             [ Internal.cls
                 [ "klar-input"

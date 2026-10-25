@@ -565,7 +565,7 @@ view attributes =
                 control
 
         Nothing ->
-            Field.viewStable field control
+            Field.view field control
 
 
 {-| Ctrl+Enter or Cmd+Enter (and not the Enter that ends a composition).

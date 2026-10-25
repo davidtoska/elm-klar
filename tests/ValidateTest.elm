@@ -60,7 +60,27 @@ lengths =
             [ ok (Validate.maxLength 3) "abc"
             , bad (Validate.maxLength 3) "abcd"
             , ok (Validate.maxLength 3) ""
+            , describe "an emoji is one character, as a database counts it"
+                [ ok (Validate.maxLength 3) "a😀b"
+                , ok (Validate.maxLength 3) "😀😀😀"
+                , bad (Validate.maxLength 3) "😀😀😀😀"
+                ]
+            , describe "the spaces around the text do not count, as the form trims what it saves"
+                [ ok (Validate.maxLength 3) "abc "
+                , bad (Validate.minLength 3) "ab "
+                ]
             ]
+        , test "digits ignores the spaces around a pasted number" <|
+            \_ -> Expect.equal Nothing (Validate.run Locale.en (Validate.digits 9) " 912345678 ")
+        , test "numbers in messages are written as the locale writes them" <|
+            \_ ->
+                ( Validate.run Locale.nb (Validate.integerBetween 1 100000) "0"
+                , Validate.run Locale.en (Validate.maxLength 1000) (String.repeat 1001 "a")
+                )
+                    |> Expect.equal
+                        ( Just "Må være et heltall mellom 1 og 100\u{00A0}000"
+                        , Just "Must be at most 1,000 characters"
+                        )
         ]
 
 
