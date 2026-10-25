@@ -442,7 +442,7 @@ type Attribute msg  -- opaque: no constructors are exposed
 ```
 
 A setting of a period field. Make them with the functions below and pass a
-list to `view`, `validate` or `open`; later attributes win over earlier ones.
+list to `view`, `setLimits` or `open`; later attributes win over earlier ones.
 
 ### `today`
 
@@ -602,7 +602,7 @@ required : Attribute msg
 
 Marks the field as required: an asterisk after the label, and
 `aria-required` on both inputs. The picker does not enforce it; when the period
-is missing, test `range` for `Nothing` yourself and pass an `error`.
+is missing, test `value` for `Nothing` yourself and pass an `error`.
 
 ### `optionalText`
 

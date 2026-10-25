@@ -661,8 +661,9 @@ hint given =
 {-| An error message from your application, shown below the two fields and
 announced to screen readers (`role="alert"`): a required date and time that is
 missing, or one that conflicts with another field. It also describes the group
-that holds the fields, and it does not replace the messages of the parts about
-unreadable text, which appear below their own inputs.
+that holds the fields and marks both inputs `aria-invalid`, and it does not
+replace the messages of the parts about unreadable text, which appear below
+their own inputs.
 
     DateTimePicker.error "Choose a pick-up time"
 
@@ -685,7 +686,7 @@ errorMaybe given =
 
 {-| Marks the control as required: an asterisk after the label, and
 `aria-required` on both inputs. The control does not enforce it; when the date or
-the time is missing, test `dateTime` for `Nothing` yourself and pass an `error`.
+the time is missing, test `value` for `Nothing` yourself and pass an `error`.
 -}
 required : Attribute msg
 required =
@@ -964,7 +965,7 @@ partLabel config part =
 
 
 {-| What the date field gets from the attributes of the control. `view` draws it
-with these, and `validate` reads the text by the same rules. The field is
+with these, and `setLimits` reads the text by the same rules. The field is
 `required` when the control is, which puts `aria-required` on the input (the
 asterisk is in the hidden label, which nobody sees).
 -}
@@ -978,6 +979,7 @@ dateAttributesOf config =
         , Just (DatePicker.disabled config.disabled)
         , Just (DatePicker.readOnly config.readOnly)
         , Just (DatePicker.disabledWhen config.disabledWhen)
+        , Just (DatePicker.invalid (config.field.error /= Nothing))
         , Just (DatePicker.markers config.markers)
         , Maybe.map DatePicker.today config.today
         , Maybe.map DatePicker.min config.min
@@ -1019,6 +1021,7 @@ timeAttributesOf config =
         , Just (TimePicker.disabled config.disabled)
         , Just (TimePicker.readOnly config.readOnly)
         , Just (TimePicker.step config.step)
+        , Just (TimePicker.invalid (config.field.error /= Nothing))
         , Maybe.map TimePicker.min config.minTime
         , if config.alignEnd then
             Just TimePicker.alignEnd

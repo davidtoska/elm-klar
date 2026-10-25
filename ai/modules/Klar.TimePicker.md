@@ -50,6 +50,7 @@ labelHidden : Attribute msg
 hint : String -> Attribute msg
 error : String -> Attribute msg
 errorMaybe : Maybe String -> Attribute msg
+invalid : Bool -> Attribute msg
 required : Attribute msg
 optionalText : String -> Attribute msg
 
@@ -296,7 +297,9 @@ setValue : Maybe Time -> State -> State
 
 Sets the time, or empties the field with `Nothing`. The field shows the time
 as `hh:mm`; text that was being typed is dropped. The time is not checked
-against `min` and `max` until `setLimits` is called.
+against `min` and `max` until `setLimits` is called. A record that is not a
+time of day, such as `{ hour = 25, minute = 0 }`, is not taken: the field shows
+it with "Invalid time", `value` is `Nothing` and `isValid` is `False`.
 
     TimePicker.setValue (Just { hour = 16, minute = 0 }) model.cutoff
 
@@ -380,7 +383,7 @@ type Attribute msg  -- opaque: no constructors are exposed
 ```
 
 A setting of a time field. Make them with the functions below and pass a
-list to `view`, `validate` or `open`; later attributes win over earlier ones.
+list to `view`, `setLimits` or `open`; later attributes win over earlier ones.
 
 ### `min`
 
@@ -390,7 +393,8 @@ min : Time -> Attribute msg
 
 The earliest time that can be chosen or typed. The list starts at the first
 time of its step at or after it, and a typed time before it shows "The time
-cannot be before" followed by the limit. Default: 00:00.
+cannot be before" followed by the limit. A record outside 00:00 to 23:59 is
+moved to the nearest time of day. Default: 00:00.
 
     TimePicker.min { hour = 8, minute = 0 }
 
@@ -402,7 +406,8 @@ max : Time -> Attribute msg
 
 The latest time that can be chosen or typed. The list stops at the last time
 of its step at or before it, and a typed time after it shows "The time cannot be
-after" followed by the limit. Default: 23:59.
+after" followed by the limit. A record outside 00:00 to 23:59 is moved to the
+nearest time of day. Default: 23:59.
 
     TimePicker.max { hour = 16, minute = 0 }
 
@@ -472,6 +477,18 @@ the message lives in a `Maybe` in your model.
 
     TimePicker.errorMaybe model.cutoffError
 
+### `invalid`
+
+```elm
+invalid : Bool -> Attribute msg
+```
+
+Marks the field as invalid without a message of its own: `aria-invalid` on the
+input and the red border. For a field whose message is shown somewhere else, such
+as below a group of fields or in a summary of the form; to show a message below
+the field, use `error`. Takes a `Bool` so that it can come from your model.
+Default: `False`.
+
 ### `required`
 
 ```elm
@@ -480,7 +497,7 @@ required : Attribute msg
 
 Marks the field as required: an asterisk after the label, and
 `aria-required` on the input. The picker does not enforce it; when the time is
-missing, test `time` for `Nothing` yourself and pass an `error`.
+missing, test `value` for `Nothing` yourself and pass an `error`.
 
 ### `optionalText`
 

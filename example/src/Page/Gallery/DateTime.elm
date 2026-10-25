@@ -1213,11 +1213,18 @@ dateTimePicker pageLocale model key =
 
 describeDateTime : Locale -> DateTimePicker.State -> String
 describeDateTime lang state =
-    case DateTimePicker.value state of
-        Just value ->
-            "Value: " ++ Format.date lang value.date ++ " " ++ TimePicker.toString value.time
+    case ( DateTimePicker.value state, DateTimePicker.date state ) of
+        ( Just value, _ ) ->
+            "Value: " ++ Format.date lang value.date ++ " " ++ TimePicker.toString value.time ++ " (toIso: " ++ DateTimePicker.toIso value ++ ")"
 
-        Nothing ->
+        ( Nothing, Just day ) ->
+            if not (DateTimePicker.isValid state) then
+                "Value: none (a part was not accepted)"
+
+            else
+                "Value: none yet; the date part alone is " ++ Format.date lang day
+
+        ( Nothing, Nothing ) ->
             if not (DateTimePicker.isValid state) then
                 "Value: none (a part was not accepted)"
 
@@ -1659,4 +1666,8 @@ DateTimePicker.view SlotMsg
     model.slot
 
 -- read
-DateTimePicker.value model.slot   -- Maybe { date : Date, time : TimePicker.Time }"""
+DateTimePicker.value model.slot   -- Maybe { date : Date, time : TimePicker.Time }
+DateTimePicker.date model.slot    -- Maybe Date, also before a time is chosen
+
+-- store or send: local text, without a zone
+Maybe.map DateTimePicker.toIso (DateTimePicker.value model.slot)   -- Just "2026-10-20T14:30""""

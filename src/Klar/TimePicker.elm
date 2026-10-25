@@ -5,7 +5,7 @@ module Klar.TimePicker exposing
     , value, isValid, text, setValue, clear, setText, setLimits
     , isOpen, open, close
     , Attribute, min, max, step
-    , label, labelHidden, hint, error, errorMaybe, required, optionalText
+    , label, labelHidden, hint, error, errorMaybe, invalid, required, optionalText
     , placeholder, size, locale, disabled, readOnly, clearable, alignEnd, name
     )
 
@@ -110,7 +110,7 @@ built-in text (placeholder, button label and error messages) comes from
 
 # Label, hint and error
 
-@docs label, labelHidden, hint, error, errorMaybe, required, optionalText
+@docs label, labelHidden, hint, error, errorMaybe, invalid, required, optionalText
 
 
 # Look and behavior
@@ -799,7 +799,7 @@ move rules delta s =
 
 
 {-| A setting of a time field. Make them with the functions below and pass a
-list to `view`, `validate` or `open`; later attributes win over earlier ones.
+list to `view`, `setLimits` or `open`; later attributes win over earlier ones.
 -}
 type Attribute msg
     = Attribute (Config -> Config)
@@ -811,6 +811,7 @@ type alias Config =
     , disabled : Bool
     , readOnly : Bool
     , clearable : Bool
+    , invalid : Bool
     , size : Size
     , locale : Locale
     , min : Maybe Time
@@ -829,6 +830,7 @@ configure attributes =
         , disabled = False
         , readOnly = False
         , clearable = False
+        , invalid = False
         , size = Medium
         , locale = Locale.default
         , min = Nothing
@@ -895,11 +897,22 @@ errorMaybe given =
 
 {-| Marks the field as required: an asterisk after the label, and
 `aria-required` on the input. The picker does not enforce it; when the time is
-missing, test `time` for `Nothing` yourself and pass an `error`.
+missing, test `value` for `Nothing` yourself and pass an `error`.
 -}
 required : Attribute msg
 required =
     updateField (Field.setRequired True)
+
+
+{-| Marks the field as invalid without a message of its own: `aria-invalid` on the
+input and the red border. For a field whose message is shown somewhere else, such
+as below a group of fields or in a summary of the form; to show a message below
+the field, use `error`. Takes a `Bool` so that it can come from your model.
+Default: `False`.
+-}
+invalid : Bool -> Attribute msg
+invalid given =
+    Attribute (\config -> { config | invalid = given })
 
 
 {-| Text shown after the label of a field that is not `required`, such as
@@ -1131,7 +1144,7 @@ view toMsg attributes (State s) =
                     [ "klar-input"
                     , "klar-input--" ++ Internal.sizeSuffix config.size
                     , "klar-timepicker__box"
-                    , if field.error /= Nothing then
+                    , if field.error /= Nothing || config.invalid then
                         "klar-input--invalid"
 
                       else
@@ -1151,6 +1164,7 @@ view toMsg attributes (State s) =
                 [ Html.input
                     (Field.controlAttributes field
                         ++ [ Internal.cls [ "klar-input__control", "klar-timepicker__control" ]
+                           , Internal.attrIf (config.invalid && field.error == Nothing) (Attr.attribute "aria-invalid" "true")
                            , Attr.type_ "text"
                            , Attr.value shown
                            , Attr.placeholder (Maybe.withDefault words.placeholder config.placeholder)

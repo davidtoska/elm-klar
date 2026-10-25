@@ -624,8 +624,9 @@ error : String -> Attribute msg
 An error message from your application, shown below the two fields and
 announced to screen readers (`role="alert"`): a required date and time that is
 missing, or one that conflicts with another field. It also describes the group
-that holds the fields, and it does not replace the messages of the parts about
-unreadable text, which appear below their own inputs.
+that holds the fields and marks both inputs `aria-invalid`, and it does not
+replace the messages of the parts about unreadable text, which appear below
+their own inputs.
 
     DateTimePicker.error "Choose a pick-up time"
 
@@ -648,7 +649,7 @@ required : Attribute msg
 
 Marks the control as required: an asterisk after the label, and
 `aria-required` on both inputs. The control does not enforce it; when the date or
-the time is missing, test `dateTime` for `Nothing` yourself and pass an `error`.
+the time is missing, test `value` for `Nothing` yourself and pass an `error`.
 
 ### `optionalText`
 

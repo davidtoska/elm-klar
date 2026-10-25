@@ -51,6 +51,7 @@ labelHidden : Attribute msg
 hint : String -> Attribute msg
 error : String -> Attribute msg
 errorMaybe : Maybe String -> Attribute msg
+invalid : Bool -> Attribute msg
 required : Attribute msg
 optionalText : String -> Attribute msg
 
@@ -375,7 +376,7 @@ type Attribute msg  -- opaque: no constructors are exposed
 ```
 
 A setting of a date field. Make them with the functions below and pass a
-list to `view`, `validate` or `open`; later attributes win over earlier ones.
+list to `view`, `setLimits` or `open`; later attributes win over earlier ones.
 
 ### `today`
 
@@ -507,6 +508,18 @@ the message lives in a `Maybe` in your model.
 
     DatePicker.errorMaybe model.dueDateError
 
+### `invalid`
+
+```elm
+invalid : Bool -> Attribute msg
+```
+
+Marks the field as invalid without a message of its own: `aria-invalid` on the
+input and the red border. For a field whose message is shown somewhere else, such
+as below a group of fields or in a summary of the form; to show a message below
+the field, use `error`. Takes a `Bool` so that it can come from your model.
+Default: `False`.
+
 ### `required`
 
 ```elm
@@ -515,7 +528,7 @@ required : Attribute msg
 
 Marks the field as required: an asterisk after the label, and
 `aria-required` on the input. The picker does not enforce it; when the date is
-missing, test `date` for `Nothing` yourself and pass an `error`.
+missing, test `value` for `Nothing` yourself and pass an `error`.
 
 ### `optionalText`
 

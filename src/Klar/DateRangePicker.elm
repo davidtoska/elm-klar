@@ -792,7 +792,7 @@ toId id =
 
 
 {-| A setting of a period field. Make them with the functions below and pass a
-list to `view`, `validate` or `open`; later attributes win over earlier ones.
+list to `view`, `setLimits` or `open`; later attributes win over earlier ones.
 -}
 type Attribute msg
     = Attribute (Config -> Config)
@@ -916,7 +916,7 @@ errorMaybe given =
 
 {-| Marks the field as required: an asterisk after the label, and
 `aria-required` on both inputs. The picker does not enforce it; when the period
-is missing, test `range` for `Nothing` yourself and pass an `error`.
+is missing, test `value` for `Nothing` yourself and pass an `error`.
 -}
 required : Attribute msg
 required =
@@ -1605,7 +1605,7 @@ viewPopup toMsg config words s =
     in
     Popup.dialog
         { prefix = s.id ++ "-popup"
-        , label = words.dialog
+        , label = Popup.dialogLabel config.field.label words.dialog
         , describedBy = Just (s.id ++ "-popup-status")
         , classes = [ "klar-daterange__popup" ]
         , alignEnd = config.alignEnd

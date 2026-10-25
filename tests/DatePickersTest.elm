@@ -47,6 +47,7 @@ suite =
         , dateTimeMoments
         , dateTimeNames
         , dateTimePopups
+        , invalidAndNames
         ]
 
 
@@ -673,4 +674,87 @@ dateTimePopups =
                     |> Tuple.first
                     |> DateTimePicker.visibleMonth
                     |> Expect.equal { year = 2026, month = 10 }
+        ]
+
+
+invalidAndNames : Test
+invalidAndNames =
+    describe "invalid, and the names of the popups"
+        [ test "invalid marks the input without a message" <|
+            \_ ->
+                let
+                    html =
+                        DatePicker.view identity [ DatePicker.label "Due date", DatePicker.invalid True ] (DatePicker.init "due")
+                            |> Query.fromHtml
+                in
+                allOf
+                    [ html |> Query.find [ Selector.id "due" ] |> Query.has [ attributeIs "aria-invalid" "true" ]
+                    , html |> Query.findAll [ Selector.id "due-error" ] |> Query.count (Expect.equal 0)
+                    , html |> Query.findAll [ Selector.class "klar-input--invalid" ] |> Query.count (Expect.equal 1)
+                    ]
+        , test "invalid False leaves the input alone" <|
+            \_ ->
+                TimePicker.view identity [ TimePicker.invalid False ] (TimePicker.init "cutoff")
+                    |> Query.fromHtml
+                    |> Query.find [ Selector.id "cutoff" ]
+                    |> Query.hasNot [ attributeIs "aria-invalid" "true" ]
+        , test "the error of a date and time field marks both inputs, and is shown once" <|
+            \_ ->
+                let
+                    html =
+                        DateTimePicker.view identity [ DateTimePicker.label "Pick-up time", DateTimePicker.error "Choose a later time" ] (DateTimePicker.init "pickup")
+                            |> Query.fromHtml
+                in
+                allOf
+                    [ html |> Query.find [ Selector.id "pickup-date" ] |> Query.has [ attributeIs "aria-invalid" "true" ]
+                    , html |> Query.find [ Selector.id "pickup-time" ] |> Query.has [ attributeIs "aria-invalid" "true" ]
+                    , html |> Query.findAll [ Selector.text "Choose a later time" ] |> Query.count (Expect.equal 1)
+                    ]
+        , test "the calendar popup is named after the field" <|
+            \_ ->
+                let
+                    attributes =
+                        [ DatePicker.label "Due date" ]
+                in
+                DatePicker.open attributes (DatePicker.init "due")
+                    |> Tuple.first
+                    |> DatePicker.view identity attributes
+                    |> Query.fromHtml
+                    |> Query.find [ Selector.id "due-popup" ]
+                    |> Query.has [ attributeIs "aria-label" "Due date, choose date" ]
+        , test "the period popup is named after the field and described by its status line" <|
+            \_ ->
+                let
+                    attributes =
+                        [ DateRangePicker.label "Report period" ]
+
+                    html =
+                        DateRangePicker.open attributes (DateRangePicker.init "period")
+                            |> Tuple.first
+                            |> DateRangePicker.view identity attributes
+                            |> Query.fromHtml
+                in
+                allOf
+                    [ html |> Query.find [ Selector.id "period-popup" ] |> Query.has [ attributeIs "aria-label" "Report period, choose period", attributeIs "aria-describedby" "period-popup-status" ]
+                    , html |> Query.find [ Selector.id "period-popup-status" ] |> Query.has [ Selector.text "Choose the start date" ]
+                    ]
+        , test "Escape in the calendar closes it and prevents its default, so an overlay leaves it alone" <|
+            \_ ->
+                DatePicker.open [] (DatePicker.init "due")
+                    |> Tuple.first
+                    |> DatePicker.view identity []
+                    |> Query.fromHtml
+                    |> Query.find [ Selector.class "klar-layer" ]
+                    |> Event.simulate (Event.custom "keydown" (Encode.object [ ( "key", Encode.string "Escape" ) ]))
+                    |> Event.expectPreventDefault
+        , test "an Escape that ends an IME composition is not taken" <|
+            \_ ->
+                DatePicker.open [] (DatePicker.init "due")
+                    |> Tuple.first
+                    |> DatePicker.view identity []
+                    |> Query.fromHtml
+                    |> Query.find [ Selector.class "klar-layer" ]
+                    |> Event.simulate (Event.custom "keydown" (Encode.object [ ( "key", Encode.string "Escape" ), ( "isComposing", Encode.bool True ) ]))
+                    |> Event.toResult
+                    |> Expect.err
         ]

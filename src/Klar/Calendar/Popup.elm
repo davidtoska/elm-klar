@@ -1,5 +1,6 @@
 module Klar.Calendar.Popup exposing
     ( dialog
+    , dialogLabel
     , holdFocus
     , onBlurOutside
     , onBlurValue
@@ -228,16 +229,31 @@ keyName event =
         ]
 
 
-{-| The Escape key. It does not bubble, so an enclosing modal stays open.
+{-| The name of a field's popup: the label of the field and what the popup is
+for ("Due date, choose date"), so that a screen reader says which field it
+belongs to; the bare purpose without a label.
+-}
+dialogLabel : Maybe String -> String -> String
+dialogLabel fieldLabel purpose =
+    case fieldLabel of
+        Just name ->
+            name ++ ", " ++ String.toLower (String.left 1 purpose) ++ String.dropLeft 1 purpose
+
+        Nothing ->
+            purpose
+
+
+{-| The Escape key. It does not bubble and its default is prevented, so an
+enclosing modal or a page shortcut leaves it alone.
 -}
 onEscape : msg -> Html.Attribute msg
 onEscape msg =
-    Events.stopPropagationOn "keydown"
+    Events.custom "keydown"
         (Decode.map2 Tuple.pair (Decode.field "key" Decode.string) composing
             |> Decode.andThen
                 (\( key, isComposing ) ->
                     if key == "Escape" && not isComposing then
-                        Decode.succeed ( msg, True )
+                        Decode.succeed { message = msg, stopPropagation = True, preventDefault = True }
 
                     else
                         Decode.fail "not escape"
