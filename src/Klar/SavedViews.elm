@@ -1,7 +1,7 @@
 module Klar.SavedViews exposing
     ( view
     , State, init, Msg, update
-    , SavedView, savedView, withNote, asDefault, asShared, withQuery, withKey
+    , SavedView, savedView, withNote, asDefault, asShared, asLocked, withQuery, withKey
     , Change(..), changes
     , encode, decoder
     , views, active, defaultView, revision, isOpen, setViews, setActive, apply, startSave
@@ -102,7 +102,9 @@ the list just opens).
     -- ( { model | views = views }, Cmd.map ViewsMsg cmd )
 
 **Shared views**: a view is shared when the application says so (`asShared`, or
-`isShared = True` in stored data); the list shows a "Shared" badge. Klar stores
+`isShared = True` in stored data); the list shows a "Shared" badge. A view that someone
+else owns is also `asLocked`: it can be applied and made the default, not renamed,
+updated or deleted. Klar stores
 nothing, so who may see a view is the backend's business. A link to a view is a
 route of your own that names it, and `apply` is what that route does:
 
@@ -144,7 +146,7 @@ text follows `locale`, which is English by default.
 
 # Defining views
 
-@docs SavedView, savedView, withNote, asDefault, asShared, withQuery, withKey
+@docs SavedView, savedView, withNote, asDefault, asShared, asLocked, withQuery, withKey
 
 
 ## A backend that keeps each view
@@ -224,6 +226,7 @@ type alias SavedView =
     , isShared : Bool
     , query : Maybe Table.Query
     , key : Maybe String
+    , isLocked : Bool
     }
 
 
@@ -242,6 +245,7 @@ encode saved =
         , ( "shared", Encode.bool saved.isShared )
         , ( "query", Maybe.map Table.encodeQuery saved.query |> Maybe.withDefault Encode.null )
         , ( "key", Maybe.map Encode.string saved.key |> Maybe.withDefault Encode.null )
+        , ( "locked", Encode.bool saved.isLocked )
         ]
 
 
@@ -264,7 +268,7 @@ decoder =
                     Decode.fail ("This view was written by a newer version (v" ++ String.fromInt version ++ ")")
 
                 else
-                    Decode.map7 SavedView
+                    Decode.map8 SavedView
                         (Decode.field "name" Decode.string
                             |> Decode.andThen
                                 (\name ->
@@ -291,6 +295,7 @@ decoder =
                                 )
                         )
                         (Decode.oneOf [ Decode.field "key" (Decode.nullable Decode.string), Decode.succeed Nothing ])
+                        (Decode.oneOf [ Decode.field "locked" Decode.bool, Decode.succeed False ])
             )
 
 
@@ -301,7 +306,7 @@ decoder =
 -}
 savedView : String -> Rule -> SavedView
 savedView name rule =
-    { name = name, rule = rule, note = Nothing, isDefault = False, isShared = False, query = Nothing, key = Nothing }
+    { name = name, rule = rule, note = Nothing, isDefault = False, isShared = False, query = Nothing, key = Nothing, isLocked = False }
 
 
 {-| Adds a short description, shown under the name in the list.
@@ -329,6 +334,15 @@ asDefault saved =
 asShared : SavedView -> SavedView
 asShared saved =
     { saved | isShared = True }
+
+
+{-| Locks the view: the user can apply it and make it their default, but not rename,
+update or delete it, for a team view that someone else owns. The list shows a lock in
+place of those actions. `isLocked = True` in stored data does the same.
+-}
+asLocked : SavedView -> SavedView
+asLocked saved =
+    { saved | isLocked = True }
 
 
 {-| Gives the view a table query: search text, sort, column filters and page size
@@ -757,7 +771,7 @@ update msg (State s) =
                             in
                             ( State
                                 { s
-                                    | views = s.views ++ [ { name = name, rule = rule, note = note, isDefault = False, isShared = False, query = query, key = Nothing } ]
+                                    | views = s.views ++ [ { name = name, rule = rule, note = note, isDefault = False, isShared = False, query = query, key = Nothing, isLocked = False } ]
                                     , active = Just name
                                     , open = False
                                     , mode = Browsing
@@ -769,17 +783,21 @@ update msg (State s) =
                     ( State s, Cmd.none )
 
         RenameStarted name ->
-            ( State
-                { s
-                    | mode =
-                        Renaming name
-                            { name = name
-                            , note = find name s.views |> Maybe.andThen .note |> Maybe.withDefault ""
-                            , problem = Nothing
-                            }
-                }
-            , Internal.focus (renameDomId s.id) NoOp
-            )
+            if isLockedView name s.views then
+                ( State s, Cmd.none )
+
+            else
+                ( State
+                    { s
+                        | mode =
+                            Renaming name
+                                { name = name
+                                , note = find name s.views |> Maybe.andThen .note |> Maybe.withDefault ""
+                                , problem = Nothing
+                                }
+                    }
+                , Internal.focus (renameDomId s.id) NoOp
+                )
 
         RenameConfirmed ->
             case s.mode of
@@ -829,34 +847,42 @@ update msg (State s) =
                     ( State s, Cmd.none )
 
         DeleteAsked name ->
-            ( State { s | mode = Deleting name }, Internal.focus (confirmDomId s.id) NoOp )
+            if isLockedView name s.views then
+                ( State s, Cmd.none )
+
+            else
+                ( State { s | mode = Deleting name }, Internal.focus (confirmDomId s.id) NoOp )
 
         DeleteConfirmed name ->
-            let
-                index =
-                    indexOf name s.views
+            if isLockedView name s.views then
+                ( State s, Cmd.none )
 
-                remaining =
-                    List.filter (\saved -> saved.name /= name) s.views
-            in
-            ( State
-                { s
-                    | views = remaining
-                    , active =
-                        if s.active == Just name then
-                            Nothing
+            else
+                let
+                    index =
+                        indexOf name s.views
 
-                        else
-                            s.active
-                    , mode = Browsing
-                }
-            , if List.isEmpty remaining then
-                -- "Save current view" is there only with `currentRule`; "Reset" always is
-                Internal.focusFirst [ saveDomId s.id, resetDomId s.id ] NoOp
+                    remaining =
+                        List.filter (\saved -> saved.name /= name) s.views
+                in
+                ( State
+                    { s
+                        | views = remaining
+                        , active =
+                            if s.active == Just name then
+                                Nothing
 
-              else
-                Internal.focus (itemDomId s.id (min index (List.length remaining - 1))) NoOp
-            )
+                            else
+                                s.active
+                        , mode = Browsing
+                    }
+                , if List.isEmpty remaining then
+                    -- "Save current view" is there only with `currentRule`; "Reset" always is
+                    Internal.focusFirst [ saveDomId s.id, resetDomId s.id ] NoOp
+
+                  else
+                    Internal.focus (itemDomId s.id (min index (List.length remaining - 1))) NoOp
+                )
 
         DefaultToggled name ->
             ( State
@@ -915,6 +941,11 @@ update msg (State s) =
 
         NoOp ->
             ( State s, Cmd.none )
+
+
+isLockedView : String -> List SavedView -> Bool
+isLockedView name list =
+    List.any (\saved -> saved.name == name && saved.isLocked) list
 
 
 orElse : Maybe a -> Maybe a -> Maybe a
@@ -1567,20 +1598,31 @@ viewRow ctx index saved isActive navigation =
                 ]
                 Icon.star
                 (t.defaultView ++ ": " ++ saved.name)
-            , Button.iconOnly
-                [ Button.ghost
-                , Button.small
-                , Button.onClick (ctx.toMsg (RenameStarted saved.name))
-                ]
-                Icon.edit
-                (t.rename ++ ": " ++ saved.name)
-            , Button.iconOnly
-                [ Button.ghost
-                , Button.small
-                , Button.onClick (ctx.toMsg (DeleteAsked saved.name))
-                ]
-                Icon.trash
-                (t.delete ++ ": " ++ saved.name)
+            , if saved.isLocked then
+                Html.span [ Internal.cls [ "klar-savedviews__lock" ], Attr.title t.locked ]
+                    [ Icon.sized Icon.Small Icon.lock
+                    , Html.span [ Internal.cls [ "klar-sr-only" ] ] [ Html.text t.locked ]
+                    ]
+
+              else
+                Button.iconOnly
+                    [ Button.ghost
+                    , Button.small
+                    , Button.onClick (ctx.toMsg (RenameStarted saved.name))
+                    ]
+                    Icon.edit
+                    (t.rename ++ ": " ++ saved.name)
+            , if saved.isLocked then
+                Html.text ""
+
+              else
+                Button.iconOnly
+                    [ Button.ghost
+                    , Button.small
+                    , Button.onClick (ctx.toMsg (DeleteAsked saved.name))
+                    ]
+                    Icon.trash
+                    (t.delete ++ ": " ++ saved.name)
             ]
         ]
 
@@ -1618,7 +1660,7 @@ viewSaveArea ctx activeView =
                     }
                 , case activeView of
                     Just saved ->
-                        if ctx.modified then
+                        if ctx.modified && not saved.isLocked then
                             viewAction
                                 { id = s.id ++ "-update"
                                 , icon = Icon.refresh
@@ -1753,6 +1795,7 @@ type alias Texts =
     , taken : String
     , loading : String
     , retry : String
+    , locked : String
     }
 
 
@@ -1786,6 +1829,7 @@ texts lang =
             , taken = "Det finnes allerede en visning med dette navnet."
             , loading = "Laster lagrede visninger …"
             , retry = "Prøv igjen"
+            , locked = "Låst: kan ikke gis nytt navn eller slettes"
             }
         , en =
             { views = "Views"
@@ -1814,5 +1858,6 @@ texts lang =
             , taken = "There is already a view with this name."
             , loading = "Loading saved views …"
             , retry = "Try again"
+            , locked = "Locked: cannot be renamed or deleted"
             }
         }

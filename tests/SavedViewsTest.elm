@@ -284,6 +284,28 @@ changeTests =
                 Expect.equal
                     (SavedViews.changes [ SavedViews.asDefault open, late ] [ open, SavedViews.asDefault late ])
                     [ SavedViews.Updated open, SavedViews.Updated (SavedViews.asDefault late) ]
+        , test "a locked view can be made the default but not renamed or deleted" <|
+            \_ ->
+                Ok (SavedViews.setViews [ SavedViews.asLocked open, late ] (SavedViews.init "views"))
+                    |> on Event.click [ Selector.id "views-trigger" ]
+                    |> expectOk
+                        (\shown ->
+                            drawn shown
+                                |> Query.fromHtml
+                                |> Expect.all
+                                    [ Query.findAll (button "Rename: Open") >> Query.count (Expect.equal 0)
+                                    , Query.findAll (button "Delete: Open") >> Query.count (Expect.equal 0)
+                                    , Query.findAll (button "Default view: Open") >> Query.count (Expect.equal 1)
+                                    , Query.findAll (button "Rename: Late") >> Query.count (Expect.equal 1)
+                                    , Query.has [ Selector.text "Locked: cannot be renamed or deleted" ]
+                                    ]
+                        )
+        , test "the lock is kept in the JSON" <|
+            \_ ->
+                Encode.encode 0 (SavedViews.encode (SavedViews.asLocked open))
+                    |> Decode.decodeString SavedViews.decoder
+                    |> Result.map .isLocked
+                    |> Expect.equal (Ok True)
         , test "the key is kept in the JSON" <|
             \_ ->
                 Encode.encode 0 (SavedViews.encode open)

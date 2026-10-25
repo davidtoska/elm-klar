@@ -27,11 +27,13 @@ type alias SavedView =
     , isShared : Bool
     , query : Maybe Table.Query
     , key : Maybe String
+    , isLocked : Bool
     }
 savedView : String -> Rule.Rule -> SavedView
 withNote : String -> SavedView -> SavedView
 asDefault : SavedView -> SavedView
 asShared : SavedView -> SavedView
+asLocked : SavedView -> SavedView
 withQuery : Table.Query -> SavedView -> SavedView
 withKey : String -> SavedView -> SavedView
 
@@ -161,7 +163,9 @@ the list just opens).
     -- ( { model | views = views }, Cmd.map ViewsMsg cmd )
 
 **Shared views**: a view is shared when the application says so (`asShared`, or
-`isShared = True` in stored data); the list shows a "Shared" badge. Klar stores
+`isShared = True` in stored data); the list shows a "Shared" badge. A view that someone
+else owns is also `asLocked`: it can be applied and made the default, not renamed,
+updated or deleted. Klar stores
 nothing, so who may see a view is the backend's business. A link to a view is a
 route of your own that names it, and `apply` is what that route does:
 
@@ -263,6 +267,7 @@ type alias SavedView =
     , isShared : Bool
     , query : Maybe Table.Query
     , key : Maybe String
+    , isLocked : Bool
     }
 ```
 
@@ -315,6 +320,16 @@ asShared : SavedView -> SavedView
 
 Marks the view as shared (with colleagues, the team ...). The list shows a
 "Shared" badge. The application decides what that means and who may see the view.
+
+### `asLocked`
+
+```elm
+asLocked : SavedView -> SavedView
+```
+
+Locks the view: the user can apply it and make it their default, but not rename,
+update or delete it, for a team view that someone else owns. The list shows a lock in
+place of those actions. `isLocked = True` in stored data does the same.
 
 ### `withQuery`
 

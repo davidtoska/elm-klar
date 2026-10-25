@@ -834,6 +834,15 @@ css =
 
 .klar-savedviews__row-actions .klar-button[aria-pressed="true"] { --_fg: var(--klar-amber-600); }
 
+/* A locked view (a team view someone else owns): a lock where rename and delete are. */
+.klar-savedviews__lock {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: var(--klar-control-sm);
+  color: var(--klar-text-secondary);
+}
+
 .klar-savedviews__item--confirm {
   flex-wrap: wrap;
   gap: 6px;
