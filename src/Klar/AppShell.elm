@@ -105,15 +105,17 @@ That is the one wiring of the frame, and the only one to write (not a `SideNav.i
   - A link is followed: `pushUrl` for another address of the application, `load` for an
     address elsewhere. A link to the address the user is on (the current page in the side
     menu) enters the page again with `replaceUrl`, so Back never needs one press per click.
-    A link to an element of the page (`#field-id`, not a route like `#/orders`) moves focus
-    to that element and adds nothing to the history: a route in the fragment starts with
-    `/`, and any other fragment never changes the page.
+  - **A route in the fragment starts with `/`** (`#/orders`, `#/orders/10482`). Any other
+    fragment (`#field-id`, `#totals`) is an element of the page: the content scrolls to it,
+    it gets focus when it can take focus, and nothing is added to the history. So write
+    every hash route as `#/...`: a link to `#orders` never changes the page.
   - A new page (another path, or another route before the `?` of a `#/route?query`) closes
-    the drawer, scrolls the content to the top and moves focus to the content, because the
-    element that had it went with the old page. When the user chose the page with Enter on
-    a link of the side menu, focus stays on that link. An address that only changes the
-    query (filters, the sort, a tab kept in the address with `replaceUrl`) keeps the
-    scroll position, the drawer and the focus; it is still reported to you.
+    the drawer and scrolls the content to the top. After a link that the shell followed,
+    focus goes to the content, because the element that had it went with the old page;
+    when the user chose the page with Enter on a link of the side menu, focus stays on
+    that link. An address that only changes the query (filters, the sort, a tab kept in
+    the address with `replaceUrl`) keeps the scroll position, the drawer and the focus; it
+    is still reported to you.
   - The sidebar toggle, the drawer, the skip link and the focus that goes with each (the
     current link when the drawer opens, the menu button when it closes) are done for you.
 
@@ -184,11 +186,13 @@ the content of the current page:
 `PageHeader.title`) and `viewPage` stand for your own routing and page views. `elm/url` must be a direct
 dependency of the application, as for every `Browser.application`.
 
-A command of yours that goes to another page (the palette opened an order, a shortcut)
-needs nothing more: the new address is a new page, so focus goes to the content as for a
-link. A command that replaces the page without a new address loses the element that had
-focus; send it to the content with `AppShell.goToContent`. A shortcut that hides the
-sidebar is `AppShell.toggleSidebar`.
+An address you push yourself (`Nav.pushUrl` from tabs that choose a route, a row that
+opens its order, a step) and the Back and Forward buttons keep focus where it is, because
+the control that has it usually stays: the next arrow key still works in the tabs. When
+the control that pushed goes with the page (a Save button that opens the new order, a
+command of the palette), send focus to the content in the same update with
+`AppShell.goToContent`, as you do for a command that replaces the page without a new
+address. A shortcut that hides the sidebar is `AppShell.toggleSidebar`.
 
 **Links that must ask first.** When a click on a link must be held back (a
 [Klar.LeaveGuard](Klar-LeaveGuard) asks about unsaved changes), give `Browser.application`
@@ -388,13 +392,13 @@ type alias StateParts msg =
     , onToggleDrawer : msg
     , onCloseDrawer : msg
     , onSkip : msg
-    , onSidebarLinkKey : msg
+    , onSidebarLinkKey : String -> msg
     }
 
 
 type alias Config msg =
     { fromState : Maybe (StateParts msg)
-    , onSidebarLinkKey : Maybe msg
+    , onSidebarLinkKey : Maybe (String -> msg)
     , pageTitle : String
     , id : String
     , brand : Maybe (Html msg)
@@ -890,9 +894,12 @@ type alias Inner page =
     , collapsed : Bool
     , drawerOpen : Bool
 
-    -- Enter was pressed on a link of the side menu: when the page changes, focus
-    -- stays on that link instead of going to the content.
-    , fromSidebar : Bool
+    -- The link of the side menu that Enter was pressed on, before its click: when
+    -- that link is followed, focus stays on it instead of going to the content.
+    , enterOn : Maybe Url
+
+    -- Where focus goes when the next new page arrives (see Address.Landing).
+    , landing : Address.Landing
     }
 
 
@@ -901,7 +908,8 @@ the DOM id of the shell, unique on the page; the ids inside it (`-content`, `-si
 `-search`, `-menu`) and the side menu (`-nav`) start with it. The `key` and the `url`
 are the ones `Browser.application` gave to your `init`: the shell pushes the address of
 a link with the key, so you do not write the `LinkClicked` branch, and compares every
-new address with the last one, to tell a new page from a new query.
+new address with the last one, to tell a new page from a new query. Routes in the
+fragment start with `/` (`#/orders`); any other fragment names an element of the page.
 
     AppShell.init { id = "app-shell", key = key, url = url }
 
@@ -916,7 +924,8 @@ init options =
         , current = Nothing
         , collapsed = False
         , drawerOpen = False
-        , fromSidebar = False
+        , enterOn = Nothing
+        , landing = Address.Stay
         }
 
 
@@ -944,7 +953,7 @@ type Msg
     = UrlRequested Browser.UrlRequest
     | UrlChanged Url
     | SideNavMsg SideNav.Msg
-    | SidebarLinkKey
+    | SidebarLinkKey String
     | ToggleSidebar
     | ToggleDrawer
     | CloseDrawer
@@ -957,9 +966,10 @@ type Msg
 sidebar and the drawer open and close, a drawer that opens sends focus to the current
 link, one that closes gives it back to the menu button, the skip link goes to the
 content, and a link is followed (see the module docs for the rules). A new page closes
-the drawer, scrolls the content to the top and moves focus to the content, unless the
-user chose it with Enter in the side menu; a new query on the same page changes none of
-that.
+the drawer and scrolls the content to the top. Focus goes to the content after a link
+the shell followed (unless the user chose it with Enter in the side menu) and when the
+open drawer closes; an address the application pushed itself and the Back and Forward
+buttons leave focus where it is. A new query on the same page changes none of that.
 
 The third part is the one place where the application learns that the route changed:
 it is the address, once, after the browser has changed it (a link, the Back button, a
@@ -994,42 +1004,20 @@ update msg (State inner) =
 
         UrlChanged url ->
             let
-                newPage =
-                    not (Address.samePage inner.url url)
+                ( nav, effects ) =
+                    Address.arrive url (navOf inner)
             in
-            ( State
-                { inner
-                    | url = url
-                    , drawerOpen = inner.drawerOpen && not newPage
-                    , fromSidebar = False
-                }
-            , if newPage then
-                Cmd.batch
-                    [ resetScroll inner.id NoOp
-                    , if inner.fromSidebar && not inner.drawerOpen then
-                        -- The link of the side menu is still there, with focus on it.
-                        Cmd.none
-
-                      else
-                        -- The element that had focus went with the old page (or with
-                        -- the drawer that closes).
-                        focusContent inner.id NoOp
-                    ]
-
-              else
-                Cmd.none
-            , Just url
-            )
+            ( State (withNav nav inner), run inner effects, Just url )
 
         SideNavMsg m ->
             let
                 ( menu, cmd ) =
                     SideNav.update m inner.sideNav
             in
-            ( State { inner | sideNav = menu, fromSidebar = False }, Cmd.map SideNavMsg cmd, Nothing )
+            ( State { inner | sideNav = menu }, Cmd.map SideNavMsg cmd, Nothing )
 
-        SidebarLinkKey ->
-            ( State { inner | fromSidebar = True }, Cmd.none, Nothing )
+        SidebarLinkKey href ->
+            ( State { inner | enterOn = Url.fromString href }, Cmd.none, Nothing )
 
         ToggleSidebar ->
             ( State { inner | collapsed = not inner.collapsed }, Cmd.none, Nothing )
@@ -1092,7 +1080,7 @@ state toMsg (State inner) =
                         , onToggleDrawer = toMsg ToggleDrawer
                         , onCloseDrawer = toMsg CloseDrawer
                         , onSkip = toMsg SkipToContent
-                        , onSidebarLinkKey = toMsg SidebarLinkKey
+                        , onSidebarLinkKey = \href -> toMsg (SidebarLinkKey href)
                         }
             }
         )
@@ -1101,8 +1089,10 @@ state toMsg (State inner) =
 {-| Follows a click on a link the way the shell does it: another address of the
 application with `pushUrl`, the address the user is on with `replaceUrl` (the page is
 entered again, without another entry in the history), a link to an element of the page
-(`#field-id`) by moving focus to that element, and an address elsewhere with `load`. A
-link chosen in the open drawer closes it.
+(`#field-id`: a fragment that does not start with `/`) by scrolling the content to that
+element and moving focus there, and an address elsewhere with `load`. The new page that
+comes gets focus in its content. A link chosen in the open drawer closes it and sends
+focus to the content.
 
 `AppShell.onUrlRequest` does this for every click. Call it yourself only from an
 `onUrlRequest` of your own that asks first, such as a
@@ -1114,35 +1104,81 @@ link chosen in the open drawer closes it.
 -}
 follow : Browser.UrlRequest -> State page -> ( State page, Cmd Msg )
 follow request (State inner) =
-    case request of
-        Browser.Internal url ->
-            let
-                -- A link in the open drawer: the drawer closes, and the new page (or
-                -- the same one, entered again) gets the focus its link had.
-                leaving =
-                    { inner | drawerOpen = False, fromSidebar = inner.fromSidebar && not inner.drawerOpen }
+    let
+        ( nav, effects ) =
+            Address.followLink request (navOf inner)
+    in
+    ( State (withNav nav inner), run inner effects )
 
-                fromDrawer =
-                    if inner.drawerOpen then
+
+navOf : Inner page -> Address.Nav
+navOf inner =
+    { url = inner.url
+    , drawerOpen = inner.drawerOpen
+    , enterOn = inner.enterOn
+    , landing = inner.landing
+    }
+
+
+withNav : Address.Nav -> Inner page -> Inner page
+withNav nav inner =
+    { inner
+        | url = nav.url
+        , drawerOpen = nav.drawerOpen
+        , enterOn = nav.enterOn
+        , landing = nav.landing
+    }
+
+
+{-| The commands of the effects that `Address` decided on.
+-}
+run : Inner page -> List Address.Effect -> Cmd Msg
+run inner effects =
+    Cmd.batch
+        (List.map
+            (\effect ->
+                case effect of
+                    Address.PushUrl href ->
+                        Nav.pushUrl inner.key href
+
+                    Address.ReplaceUrl href ->
+                        Nav.replaceUrl inner.key href
+
+                    Address.Load href ->
+                        Nav.load href
+
+                    Address.FocusContent ->
                         focusContent inner.id NoOp
 
-                    else
-                        Cmd.none
-            in
-            case Address.follow inner.url url of
-                Address.Push href ->
-                    ( State leaving, Nav.pushUrl inner.key href )
+                    Address.ResetScroll ->
+                        resetScroll inner.id NoOp
 
-                Address.Replace href ->
-                    ( State leaving, Cmd.batch [ Nav.replaceUrl inner.key href, fromDrawer ] )
+                    Address.ShowElement target ->
+                        showElement inner.id target
+            )
+            effects
+        )
 
-                Address.Anchor target ->
-                    -- A fragment that does not start with `/` is never a route: focus
-                    -- the element it names, if there is one, and stay on the page.
-                    ( State { inner | fromSidebar = False }, Internal.focus target NoOp )
 
-        Browser.External href ->
-            ( State inner, Nav.load href )
+{-| A link to an element of the page: the content scrolls so that the element is at its
+top (the browser does that for a focusable element only), and the element gets focus
+when it can take it (a heading or a section without a `tabindex` cannot; the scroll is
+then the whole answer).
+-}
+showElement : String -> String -> Cmd Msg
+showElement shellId target =
+    Cmd.batch
+        [ Task.map3
+            (\area viewport element ->
+                ( viewport.viewport.x, viewport.viewport.y + element.element.y - area.element.y )
+            )
+            (Dom.getElement (contentId shellId))
+            (Dom.getViewportOf (contentId shellId))
+            (Dom.getElement target)
+            |> Task.andThen (\( x, y ) -> Dom.setViewportOf (contentId shellId) x y)
+            |> Task.attempt (\_ -> NoOp)
+        , Internal.focus target NoOp
+        ]
 
 
 {-| Whether the sidebar is collapsed to icons on a wide shell (the toggle in the top bar
@@ -1267,8 +1303,9 @@ toggleSidebar (State inner) =
 
 
 {-| Moves keyboard focus to the content area: the answer to the skip link, and what
-to do when a page has been replaced by a command, because the element that had
-focus went with the old page.
+to do when a command of yours replaced the page or pushed a new address from a control
+that goes with the old page (a Save button, a command of the palette), because the
+element that had focus went with it. Links that the shell follows do this by themselves.
 
     Cmd.map ShellMsg (AppShell.goToContent model.shell)
 
@@ -1442,37 +1479,40 @@ view attributes content =
                     , viewBackdrop config
                     , viewContent config content
                     ]
-
-                -- Always in the page, so that a new title is a change a screen
-                -- reader announces (a region that appears with its text is not).
-                , Html.div
-                    [ Internal.cls [ "klar-sr-only" ]
-                    , Attr.attribute "aria-live" "polite"
-                    , Attr.attribute "aria-atomic" "true"
-                    ]
-                    [ Html.text config.pageTitle ]
                 ]
+
+            -- Always in the page, so that a new title is a change a screen reader
+            -- announces (a region that appears with its text is not), and outside
+            -- the chrome, which is inert while a dialog is open.
+            , Html.div
+                [ Internal.cls [ "klar-sr-only" ]
+                , Attr.attribute "aria-live" "polite"
+                , Attr.attribute "aria-atomic" "true"
+                ]
+                [ Html.text config.pageTitle ]
             , Html.div [ Internal.cls [ "klar-app-shell__overlays" ] ] layer.overlays
             ]
         )
 
 
-{-| An Escape that nothing inside used: a control that handles Escape itself (a popup
-that closes, a field that clears) prevents its default, and the drawer leaves that key
-alone, so one press does one thing. The Escape that ends an IME composition is not
-one either. The drawer prevents the default of the Escape it takes, for the shortcuts
-of the application on the root.
+{-| An Escape that nothing inside used: a control that handles Escape itself (a field
+that clears) prevents its default, and the drawer leaves that key alone, so one press
+does one thing. An Escape inside an open popup (a `klar-layer`: a menu, a select, a date
+picker) belongs to the popup too, whether it prevents its default or not. The Escape that
+ends an IME composition is not one either. The drawer prevents the default of the Escape
+it takes, for the shortcuts of the application on the root.
 -}
 unusedEscape : msg -> Decoder ( msg, Bool )
 unusedEscape msg =
-    Decode.map4
-        (\key prevented composing keyCode ->
-            key == "Escape" && not prevented && not composing && keyCode /= 229
+    Decode.map5
+        (\key prevented composing keyCode inPopup ->
+            key == "Escape" && not prevented && not composing && keyCode /= 229 && not inPopup
         )
         (Decode.field "key" Decode.string)
         (Decode.oneOf [ Decode.field "defaultPrevented" Decode.bool, Decode.succeed False ])
         (Decode.oneOf [ Decode.field "isComposing" Decode.bool, Decode.succeed False ])
         (Decode.oneOf [ Decode.field "keyCode" Decode.int, Decode.succeed 0 ])
+        (Decode.oneOf [ Decode.field "target" (withinClass "klar-layer"), Decode.succeed False ])
         |> Decode.andThen
             (\unused ->
                 if unused then
@@ -1483,18 +1523,40 @@ unusedEscape msg =
             )
 
 
-{-| Enter on a link of the sidebar, before its click follows the link: the page that
-comes is chosen in the side menu, whose link keeps focus.
+{-| Whether the element or one of its ancestors has the class.
 -}
-enterOnLink : msg -> Decoder msg
-enterOnLink msg =
-    Decode.map2 Tuple.pair
+withinClass : String -> Decoder Bool
+withinClass name =
+    Decode.oneOf [ Decode.field "className" Decode.string, Decode.succeed "" ]
+        |> Decode.andThen
+            (\className ->
+                if List.member name (String.words className) then
+                    Decode.succeed True
+
+                else
+                    Decode.oneOf
+                        [ Decode.field "parentElement" (Decode.null False)
+                        , Decode.field "parentElement" (Decode.lazy (\_ -> withinClass name))
+                        , Decode.succeed False
+                        ]
+            )
+
+
+{-| Enter on a link of the sidebar, before its click follows the link: the page that
+comes is chosen in the side menu, whose link keeps focus. The message gets the address
+of the link, so that only a click on that same link counts (a link the browser opens
+itself, such as one with a `target`, never reaches the shell).
+-}
+enterOnLink : (String -> msg) -> Decoder msg
+enterOnLink toMsg =
+    Decode.map3 (\key tag href -> ( key, tag, href ))
         (Decode.field "key" Decode.string)
         (Decode.at [ "target", "tagName" ] Decode.string)
+        (Decode.oneOf [ Decode.at [ "target", "href" ] Decode.string, Decode.succeed "" ])
         |> Decode.andThen
-            (\( key, tag ) ->
-                if key == "Enter" && String.toUpper tag == "A" then
-                    Decode.succeed msg
+            (\( key, tag, href ) ->
+                if key == "Enter" && String.toUpper tag == "A" && href /= "" then
+                    Decode.succeed (toMsg href)
 
                 else
                     Decode.fail "not Enter on a link"
@@ -1718,7 +1780,7 @@ viewSidebar config =
                 [ Internal.cls [ "klar-app-shell__sidebar" ]
                 , Attr.id (sidebarId config.id)
                 , Attr.attribute "aria-label" (texts config.locale).sidebar
-                , Internal.attrMaybe (\msg -> Events.on "keydown" (enterOnLink msg)) config.onSidebarLinkKey
+                , Internal.attrMaybe (\toMsg -> Events.on "keydown" (enterOnLink toMsg)) config.onSidebarLinkKey
                 ]
                 [ content ]
 
