@@ -129,3 +129,7 @@ Execution notes for resuming a long run:
 - Next: Bulk.
 
 - Bulk: format, full check, byte-identical docs and 22 identical table roots passed.
+- Commit 5d992c1: Bulk complete.
+- Next: HeaderFilters.
+
+- HeaderFilters: format, full check, byte-identical docs and 22 identical table roots passed.
