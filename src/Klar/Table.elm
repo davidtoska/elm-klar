@@ -517,6 +517,7 @@ import Klar.Table.Core as Core
 import Klar.Table.Csv as Csv
 import Klar.Table.Identity exposing (idsOf, isJust, keysBetween, keysOf, lookup, toggled)
 import Klar.Table.Index as Index exposing (Index)
+import Klar.Table.Query as Query
 import Klar.Table.Selection as Selection
 import Klar.Table.Sort as Sorting
 import Klar.Table.State as State
@@ -665,7 +666,7 @@ A filter is written as `contains` (text), `oneOf` (a list of texts) or `between`
 -}
 encodeQuery : Query -> Encode.Value
 encodeQuery arg1 =
-    Core.encodeQuery (toCoreQuery arg1)
+    Query.encodeQuery (toCoreQuery arg1)
 
 
 {-| Reads what `encodeQuery` wrote. It is made for text that has been kept for a long
@@ -680,7 +681,7 @@ reading it as version 1 could be wrong. A page or page size below 1 becomes 1.
 -}
 queryDecoder : Decoder Query
 queryDecoder =
-    Decode.map fromCoreQuery Core.queryDecoder
+    Decode.map fromCoreQuery Query.queryDecoder
 
 
 {-| Sets the search, sort, filters, page and page size from a query, for example

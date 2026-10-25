@@ -15,16 +15,23 @@ Internal implementations keep their original bodies. No markup or styles change.
 ## Dependency order (low to high)
 
 1. Existing Csv, Index, Sort, Texts remain independent.
-2. Types: internal data vocabulary; Identity: row/column keys and small helpers.
-3. Filter, Selection, Window, ColumnLogic: pure filtering, selection, geometry and column decisions.
-4. State and Query: state accessors, setters and JSON; Columns: constructors/attributes;
-   Rows: preparation and source access; Config: table attributes.
-5. Update: state transitions and commands; Processing: client/server row pipeline.
-6. ViewTypes and DomIds: view context and stable element names; Popup and Keyboard:
-   event decoding and focus helpers; Layout: shared geometry and cell attributes.
-7. Export, Bulk, Toolbar, HeaderFilters, Header, Body, Footer: separate view jobs.
-8. View: composition of toolbar, frame and footer.
-9. Klar.Table: documented public boundary.
+2. Types: internal data vocabulary (including the view context); Identity: row/column
+   keys and small helpers; DomIds: stable element names.
+3. Numeric, Filter, Selection, ColumnLogic: pure numeric values, filtering,
+   selection and column decisions.
+4. Query and State: JSON, accessors and setters; Columns: constructors/attributes;
+   Window: pagination and virtual geometry (uses ColumnLogic.hasFooter).
+5. Rows: preparation and source access; Config: table attributes; Update: transitions
+   and focus, timer, scroll and download commands.
+6. Processing: the client/server row pipeline.
+7. Popup and Keyboard: markup/event decoding and focus helpers; Layout: shared
+   geometry, column sizing and cell attributes.
+8. Export, HeaderFilters, Footer: separate export, filter-input and footer view jobs.
+9. Bulk, Header: bulk selection controls and table headings.
+10. Toolbar: search, summaries, density and column choices (uses HeaderFilters).
+11. Body: states, keyed rows, detail rows and cells (uses Toolbar's reset action).
+12. View: composition of toolbar, frame and footer.
+13. Klar.Table: documented public boundary.
 
 The exact assignments may be refined from the actual function dependency graph before
 each move. Every new dependency must point down this order; record refinements here.

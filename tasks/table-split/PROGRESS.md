@@ -17,6 +17,23 @@
 
 ## Decisions
 
+Execution notes for resuming a long run:
+
+- Original task: C:/Users/DavidToska/code/elm-klar/tasks/codex-split-table.md.
+- Scratch automation and logs live alongside docs-before.json. split.mjs moves
+  named groups from temporary Core, preserving declaration bodies. pipeline.mjs
+  adds focused new tests, runs validate.mjs, commits only on success, and stops on
+  failure. verify-original.mjs confirms all 312 original declarations have one
+  unchanged internal implementation and checks the dependency graph.
+- Current second pipeline: State, Query, Columns, ColumnLogic, Rows, Config,
+  Window, Update, Processing (exec session 84947). Inspect its result before any
+  further edits. State is complete; later completion hashes are appended below.
+- After that: Popup, Layout, Keyboard, Export, Bulk, HeaderFilters, Header,
+  Toolbar, Body, Footer, then rename remaining Core composition to View and clean
+  imports. Recheck dependencies before each move; Toolbar depends on HeaderFilters.
+- Table must satisfy every done condition and have its REPORT.md committed before
+  starting the separately requested Chart split.
+
 - Preserve opaque public unions rather than replacing them with aliases, because the
   required byte-identical documentation JSON distinguishes these representations.
 - Preserve their original payload shapes too: existing CSV tests stringify opaque
@@ -52,3 +69,7 @@
 - Next: State, Query, Columns, ColumnLogic, Rows, Config, Window, Update, Processing.
 
 - State: format, full check, byte-identical docs and 22 identical table roots passed.
+- Commit 602c859: State complete.
+- Next: Query.
+
+- Query: format, full check, byte-identical docs and 22 identical table roots passed.
