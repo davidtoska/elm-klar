@@ -487,6 +487,26 @@ retryFocusTests =
                     , \_ -> Expect.equal (caught [] "klar-tree__state") (caught [] "klar-tree__notice")
                     ]
                     ()
+        , test "a press on the magnifier of the filter box puts the focus in the field, not in the tree" <|
+            \_ ->
+                let
+                    pressOn tag =
+                        renderRemote [ Tree.filterBox, Tree.onRetry Reload ] start (Remote.Failed retryable)
+                            |> Query.find [ Selector.class "klar-tree__filter" ]
+                            |> Event.simulate (Event.custom "mousedown" (Encode.object [ ( "target", Encode.object [ ( "tagName", Encode.string tag ) ] ) ]))
+                            |> Event.toResult
+
+                    toField =
+                        renderRemote [ Tree.filterBox, Tree.onRetry Reload ] start (Remote.Failed retryable)
+                            |> Query.find [ Selector.class "klar-tree__state" ]
+                            |> Event.simulate Event.click
+                            |> Event.toResult
+                in
+                Expect.all
+                    [ \_ -> Expect.equal toField (pressOn "SPAN")
+                    , \_ -> Expect.err (pressOn "INPUT")
+                    ]
+                    ()
         , test "the top level retry sends onRetry" <|
             \_ ->
                 renderRemote [ Tree.onRetry Reload ] start (Remote.Failed retryable)

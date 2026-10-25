@@ -1931,6 +1931,21 @@ render toMsg config s data =
                                 Nothing
                             ]
                         )
+
+                    -- A press on the box around the field (the magnifier, the
+                    -- padding, the clear button) puts the focus in the field,
+                    -- as a click on a label would, instead of on the page.
+                    , Events.preventDefaultOn "mousedown"
+                        (Decode.at [ "target", "tagName" ] Decode.string
+                            |> Decode.andThen
+                                (\tag ->
+                                    if tag == "INPUT" then
+                                        Decode.fail "the field takes the press itself"
+
+                                    else
+                                        Decode.succeed ( toMsg (Refocus filterId), True )
+                                )
+                        )
                     ]
                     [ TextInput.view
                         [ TextInput.id filterId
