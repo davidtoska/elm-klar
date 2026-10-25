@@ -590,8 +590,8 @@ problemText locale problem =
 
         StartDayNotInMonth month day ->
             Locale.pick locale
-                { nb = "Regelen tar dagen fra startdatoen, og " ++ String.fromInt day ++ ". " ++ Locale.monthName locale month ++ " finnes ikke. Gi dagen med BYMONTHDAY."
-                , en = "The rule takes its day from the start date, and " ++ String.fromInt day ++ " " ++ Locale.monthName locale month ++ " does not exist. Give the day with BYMONTHDAY."
+                { nb = "Regelen tar dagen fra startdatoen, og " ++ String.fromInt day ++ ". " ++ Locale.monthLong locale month ++ " finnes ikke. Gi dagen med BYMONTHDAY."
+                , en = "The rule takes its day from the start date, and " ++ String.fromInt day ++ " " ++ Locale.monthLong locale month ++ " does not exist. Give the day with BYMONTHDAY."
                 }
 
 
