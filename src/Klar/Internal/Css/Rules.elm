@@ -72,6 +72,7 @@ css =
   --_indent: 18px;  /* from the trunk to the child: elbow + air */
   --_gap: 18px;     /* between siblings, room for the quiet "og" / "eller" */
   --_lead: 5px;     /* from the chevron's lower edge to the first child */
+  --_nest: var(--klar-space-1);  /* the top and left padding of a nested group */
   min-width: 0;
   background: var(--klar-surface);
   border: 1px solid var(--klar-border);
@@ -91,7 +92,7 @@ css =
 }
 
 .klar-rules__group--nested {
-  padding: 4px 8px 8px 4px;
+  padding: var(--_nest) calc(var(--_nest) + var(--klar-space-1)) calc(var(--_nest) + var(--klar-space-1)) var(--_nest);
   border: 1px solid var(--klar-border);
   border-radius: var(--klar-radius);
 }
@@ -107,7 +108,7 @@ css =
   flex-wrap: wrap;
   align-items: center;
   gap: 4px 8px;
-  min-height: 28px;
+  min-height: max(28px, var(--klar-control-sm));
   min-width: 0;
 }
 
@@ -167,7 +168,7 @@ css =
 .klar-rules__child + .klar-rules__child { margin-top: var(--_gap); }
 
 .klar-rules__child--condition { --_elbow: calc(var(--klar-control) / 2); }  /* middle of a control, at every density */
-.klar-rules__child--group { --_elbow: 19px; }                               /* middle of a nested group's header */
+.klar-rules__child--group { --_elbow: calc(1px + var(--_nest) + max(28px, var(--klar-control-sm)) / 2); } /* middle of a nested group's header: border, padding, half the header */
 .klar-rules__child--add { --_elbow: calc(var(--klar-control-sm) / 2); }     /* middle of a small button */
 
 /* the trunk piece next to a child: up to its previous sibling (or the
@@ -444,14 +445,20 @@ css =
 }
 
 /* Density: the tree, the header lines and the footer follow the application */
-:where([data-klar-density="compact"]) .klar-rules { --_gap: 14px; --_lead: 3px; }
-:where([data-klar-density="compact"]) .klar-rules__group--root { padding: var(--klar-space-2) var(--klar-space-2) var(--klar-space-2) 6px; }
-:where([data-klar-density="compact"]) .klar-rules__group--nested { padding: 2px 6px 6px 2px; }
-:where([data-klar-density="compact"]) .klar-rules__footer { gap: var(--klar-space-1); padding: 6px 10px; }
-:where([data-klar-density="comfortable"]) .klar-rules { --_gap: 22px; --_lead: 7px; }
-:where([data-klar-density="comfortable"]) .klar-rules__group--root { padding: 14px var(--klar-space-4) var(--klar-space-4) 14px; }
-:where([data-klar-density="comfortable"]) .klar-rules__group--nested { padding: 6px 10px 10px 6px; }
-:where([data-klar-density="comfortable"]) .klar-rules__footer { gap: var(--klar-space-2); padding: 10px var(--klar-space-4); }
+:where([data-klar-density="compact"]) .klar-rules {
+  --_gap: calc(var(--klar-space-3) + var(--klar-space-1) / 2);
+  --_lead: calc(var(--klar-space-1) * 0.75);
+  --_nest: calc(var(--klar-space-1) / 2);
+}
+:where([data-klar-density="compact"]) .klar-rules__group--root { padding: var(--klar-space-2) var(--klar-space-2) var(--klar-space-2) calc(var(--klar-space-1) * 1.5); }
+:where([data-klar-density="compact"]) .klar-rules__footer { gap: var(--klar-space-1); padding: calc(var(--klar-space-1) * 1.5) calc(var(--klar-space-1) * 2.5); }
+:where([data-klar-density="comfortable"]) .klar-rules {
+  --_gap: calc(var(--klar-space-5) + var(--klar-space-1) / 2);
+  --_lead: calc(var(--klar-space-1) * 1.75);
+  --_nest: calc(var(--klar-space-1) * 1.5);
+}
+:where([data-klar-density="comfortable"]) .klar-rules__group--root { padding: calc(var(--klar-space-3) + var(--klar-space-1) / 2) var(--klar-space-4) var(--klar-space-4) calc(var(--klar-space-3) + var(--klar-space-1) / 2); }
+:where([data-klar-density="comfortable"]) .klar-rules__footer { gap: var(--klar-space-2); padding: calc(var(--klar-space-1) * 2.5) var(--klar-space-4); }
 
 /* Forced colors: the states that are only a color or a shadow get a system color */
 @media (forced-colors: active) {
