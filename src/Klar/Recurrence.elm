@@ -519,7 +519,7 @@ exceptions (Rule spec) =
 rule that `fromRRule` read: the `EXDATE` of an iCalendar event is not part of
 the RRULE, so it comes from elsewhere.
 
-    Recurrence.fromRRule text
+    Recurrence.fromRRule { start = firstDelivery } text
         |> Result.map (Recurrence.withExceptions skippedDates)
 
 -}
@@ -692,7 +692,7 @@ skipped dates (`EXDATE`), so `exceptions` gives those separately.
 "The 31st, or the last day of a shorter month" is written the way the RFC asks
 for it, `BYMONTHDAY=-1` or `BYMONTHDAY=28,29,30;BYSETPOS=-1`.
 
-`fromRRule (toRRule rule)` is `Ok rule` for every rule without skipped dates.
+`fromRRule { start = start } (toRRule rule)` is `Ok rule` for every rule without skipped dates and any start.
 
 Two things to know before the text goes to a calendar. RFC 5545 counts the
 `DTSTART` of an event as its first instance even when it does not fit the rule
@@ -721,23 +721,28 @@ list of plain weekdays, without an interval) as a weekly rule on those days, and
 `BYMONTH=3;BYMONTHDAY=-1` as the last day of March every year. Both come out in
 their usual form when written again.
 
+The `start` is the first date of the series (the `DTSTART` of the event), and
+the parts a rule leaves out are taken from it, as RFC 5545 says: a weekly rule
+without `BYDAY` repeats on the start's weekday, a monthly rule without
+`BYMONTHDAY` or `BYDAY` on its day of the month, and `FREQ=YEARLY` alone (how
+Google Calendar writes "every year on 20 October") on its date. The rule that
+comes back has those parts, and `toRRule` writes them.
+
 Everything else is a `Problem` that names it and nothing is guessed: `HOURLY`,
 `BYWEEKNO`, a fifth Tuesday, several days of the month, `UNTIL` with a time (the
-problem says to give the last day as a date). A
-rule needs the days in the text, since it has no start date to take them from,
-so a weekly rule without `BYDAY` is a `Problem` too. `WKST` is accepted when it
-cannot change the dates, and refused for a weekly rule every second week or
-less often unless it is Monday, because weeks are counted from Monday here.
+problem says to give the last day as a date). `WKST` is accepted when it cannot
+change the dates, and refused for a weekly rule every second week or less often
+unless it is Monday, because weeks are counted from Monday here.
 
-    Recurrence.fromRRule "FREQ=WEEKLY;INTERVAL=2;BYDAY=MO,TH"
+    Recurrence.fromRRule { start = firstDelivery } "FREQ=WEEKLY;INTERVAL=2;BYDAY=MO,TH"
 
-    Recurrence.fromRRule "FREQ=HOURLY"
+    Recurrence.fromRRule { start = firstDelivery } "FREQ=HOURLY"
         |> Result.mapError (Recurrence.problemText Locale.en)
     --> Err "Not supported in a recurrence rule: FREQ=HOURLY."
 
 -}
-fromRRule : String -> Result Problem Rule
-fromRRule text =
-    RRule.fromText text
+fromRRule : { start : Date } -> String -> Result Problem Rule
+fromRRule series text =
+    RRule.fromText (RRule.withStart series.start text)
         |> Result.map Rule
         |> Result.mapError Problem

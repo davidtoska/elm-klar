@@ -26,11 +26,20 @@ suite =
         , bounds
         , words
         , againstTheReference
+        , partsFromTheStart
         ]
 
 
 
 -- HELPERS
+
+
+{-| A start for `fromRRule` where the text has every part, so the start
+changes nothing: a Tuesday, the 20th of October.
+-}
+anyStart : { start : Date }
+anyStart =
+    { start = date 2026 10 20 }
 
 
 type alias Built =
@@ -468,7 +477,7 @@ rrule =
             rruleOf (build pattern options)
 
         read input =
-            text (Result.map Recurrence.toRRule (Recurrence.fromRRule input))
+            text (Result.map Recurrence.toRRule (Recurrence.fromRRule anyStart input))
     in
     describe "RRULE text"
         [ test "every day" <|
@@ -656,7 +665,7 @@ bounds =
                     Recurrence.problemText Locale.en value
 
         read input =
-            text (Result.map Recurrence.toRRule (Recurrence.fromRRule input))
+            text (Result.map Recurrence.toRRule (Recurrence.fromRRule anyStart input))
     in
     describe "bounds and interchange"
         [ test "the largest interval and count are accepted and survive the RRULE" <|
@@ -710,14 +719,14 @@ bounds =
             \_ ->
                 Expect.equal
                     (Ok ( "FREQ=WEEKLY;BYDAY=MO,TU,WE,TH,FR", "Every weekday" ))
-                    (Recurrence.fromRRule "FREQ=DAILY;BYDAY=MO,TU,WE,TH,FR"
+                    (Recurrence.fromRRule anyStart "FREQ=DAILY;BYDAY=MO,TU,WE,TH,FR"
                         |> Result.map (\rule -> ( Recurrence.toRRule rule, Recurrence.describe Locale.en rule ))
                         |> Result.mapError (Recurrence.problemText Locale.en)
                     )
         , test "and equals the weekly rule that was built" <|
             \_ ->
                 Expect.equal (build (Recurrence.weekly Mon [ Tue, Wed, Thu, Fri ]) [])
-                    (Recurrence.fromRRule "FREQ=DAILY;BYDAY=FR,MO,TU,WE,TH")
+                    (Recurrence.fromRRule anyStart "FREQ=DAILY;BYDAY=FR,MO,TU,WE,TH")
         , test "the last day of a month, every year" <|
             \_ ->
                 Expect.equal
@@ -730,7 +739,7 @@ bounds =
                     (combine
                         (List.map
                             (\input ->
-                                Recurrence.fromRRule input
+                                Recurrence.fromRRule anyStart input
                                     |> Result.map (\rule -> ( Recurrence.toRRule rule, Recurrence.describe Locale.en rule ))
                                     |> Result.mapError (Recurrence.problemText Locale.en)
                             )
@@ -743,7 +752,7 @@ bounds =
         , test "the last day of February has the dates of the last day of February" <|
             \_ ->
                 Expect.equal (Ok [ "2027-02-28", "2028-02-29", "2029-02-28" ])
-                    (case Recurrence.fromRRule "FREQ=YEARLY;BYMONTH=2;BYMONTHDAY=-1" of
+                    (case Recurrence.fromRRule anyStart "FREQ=YEARLY;BYMONTH=2;BYMONTHDAY=-1" of
                         Ok rule ->
                             Ok (iso (Recurrence.occurrences { start = date 2027 1 1, from = date 2027 1 1, limit = 3 } rule))
 
@@ -919,7 +928,7 @@ words =
                     )
         , test "problems have words in both languages" <|
             \_ ->
-                case Recurrence.fromRRule "FREQ=HOURLY" of
+                case Recurrence.fromRRule anyStart "FREQ=HOURLY" of
                     Err problem ->
                         Expect.equal
                             ( "Not supported in a recurrence rule: FREQ=HOURLY.", "Støttes ikke i en gjentakelsesregel: FREQ=HOURLY." )
@@ -946,7 +955,7 @@ words =
                 ]
                     |> List.filterMap
                         (\given ->
-                            case Recurrence.fromRRule given of
+                            case Recurrence.fromRRule anyStart given of
                                 Err problem ->
                                     let
                                         said =
@@ -964,7 +973,7 @@ words =
                     |> Expect.equal []
         , test "the English words name the part and the reason" <|
             \_ ->
-                Recurrence.fromRRule "FREQ=MONTHLY;BYDAY=MO"
+                Recurrence.fromRRule anyStart "FREQ=MONTHLY;BYDAY=MO"
                     |> Result.mapError (Recurrence.problemText Locale.en)
                     |> Expect.equal (Err "Not supported in a recurrence rule: BYDAY=MO with FREQ=MONTHLY (every such day of the month). Give the number, such as 2MO.")
         , test "fifty thousand skipped dates do not overflow the stack" <|
@@ -1144,13 +1153,13 @@ againstTheReference =
                     (\rule _ _ ->
                         Expect.equal
                             (Ok (Recurrence.withExceptions [] rule))
-                            (Recurrence.fromRRule (Recurrence.toRRule rule))
+                            (Recurrence.fromRRule anyStart (Recurrence.toRRule rule))
                     )
         , fuzzWith runs caseFuzzer "a rule without skipped dates survives the RRULE round trip with ==" <|
             \c ->
                 case Reference.build c.start (withoutSkipped c.params) of
                     Ok rule ->
-                        Expect.equal (Ok rule) (Recurrence.fromRRule (Recurrence.toRRule rule))
+                        Expect.equal (Ok rule) (Recurrence.fromRRule anyStart (Recurrence.toRRule rule))
 
                     Err problem ->
                         Expect.fail (Recurrence.problemText Locale.en problem)
@@ -1168,7 +1177,7 @@ againstTheReference =
             \c ->
                 withRule c
                     (\rule from_ _ ->
-                        case Recurrence.fromRRule (Recurrence.toRRule rule) of
+                        case Recurrence.fromRRule anyStart (Recurrence.toRRule rule) of
                             Ok again ->
                                 Expect.equal
                                     (Recurrence.occurrences { start = c.start, from = from_, limit = 20 } (Recurrence.withExceptions [] rule))
@@ -1177,4 +1186,39 @@ againstTheReference =
                             Err problem ->
                                 Expect.fail (Recurrence.problemText Locale.en problem)
                     )
+        ]
+
+
+
+-- PARTS FROM THE START
+
+
+partsFromTheStart : Test
+partsFromTheStart =
+    let
+        readFrom start input =
+            Recurrence.fromRRule { start = start } input
+                |> Result.map Recurrence.toRRule
+                |> Result.mapError (Recurrence.problemText Locale.en)
+    in
+    describe "fromRRule takes the parts a rule leaves out from the start (RFC 5545)"
+        [ test "a weekly rule without BYDAY repeats on the start's weekday" <|
+            \_ -> Expect.equal (Ok "FREQ=WEEKLY;INTERVAL=2;BYDAY=TU") (readFrom (date 2026 10 20) "FREQ=WEEKLY;INTERVAL=2")
+        , test "a monthly rule without a day repeats on the start's day of the month" <|
+            \_ -> Expect.equal (Ok "FREQ=MONTHLY;BYMONTHDAY=20") (readFrom (date 2026 10 20) "FREQ=MONTHLY")
+        , test "FREQ=YEARLY alone is every year on the start's date" <|
+            \_ -> Expect.equal (Ok "FREQ=YEARLY;BYMONTH=10;BYMONTHDAY=20") (readFrom (date 2026 10 20) "RRULE:FREQ=YEARLY")
+        , test "a yearly rule with a month and no day takes the day" <|
+            \_ -> Expect.equal (Ok "FREQ=YEARLY;BYMONTH=3;BYMONTHDAY=20") (readFrom (date 2026 10 20) "FREQ=YEARLY;BYMONTH=3")
+        , test "the parts that are there are kept" <|
+            \_ -> Expect.equal (Ok "FREQ=WEEKLY;BYDAY=MO,TH") (readFrom (date 2026 10 20) "FREQ=WEEKLY;BYDAY=MO,TH")
+        , test "lower case and a COUNT are read too" <|
+            \_ -> Expect.equal (Ok "FREQ=WEEKLY;BYDAY=FR;COUNT=4") (readFrom (date 2026 10 23) "freq=weekly;count=4")
+        , test "a yearly rule with a day and no month is still a problem: it means every month" <|
+            \_ -> Expect.equal True (Result.toMaybe (readFrom (date 2026 10 20) "FREQ=YEARLY;BYMONTHDAY=15") == Nothing)
+        , test "the 31st as the start skips the months without one, as the RFC says" <|
+            \_ ->
+                Recurrence.fromRRule { start = date 2026 1 31 } "FREQ=MONTHLY"
+                    |> Result.map (\rule -> Recurrence.next { start = date 2026 1 31, after = date 2026 1 31 } rule)
+                    |> Expect.equal (Ok (Just (date 2026 3 31)))
         ]

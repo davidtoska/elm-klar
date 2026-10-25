@@ -1,4 +1,4 @@
-module Klar.Recurrence.RRule exposing (fromText, toText)
+module Klar.Recurrence.RRule exposing (fromText, toText, withStart)
 
 {-| Reading and writing the value of an iCalendar RRULE (RFC 5545, section
 3.3.10) for the rules `Klar.Recurrence` can express.
@@ -164,6 +164,86 @@ dayCode weekday =
 
 
 -- READING
+
+
+{-| Fills in the parts that RFC 5545 (3.3.10) takes from `DTSTART` when a rule
+leaves them out, so that the rule says its days itself: the weekday of a weekly
+rule, the day of the month of a monthly rule, and the month and day of a yearly
+rule (`FREQ=YEARLY` alone is how many calendars write "every year on this
+day"). A part that is there is never touched, and a yearly rule with a day but
+no month stays as it is (it means every month), for `fromText` to name. A text
+of several lines is left alone too.
+-}
+withStart : Date.Date -> String -> String
+withStart start text =
+    let
+        trimmed =
+            String.trim text
+
+        body =
+            if String.toUpper (String.left 6 trimmed) == "RRULE:" then
+                String.dropLeft 6 trimmed
+
+            else
+                trimmed
+
+        given =
+            String.split ";" body
+                |> List.map String.trim
+                |> List.filter (\part -> part /= "")
+
+        keyOf part =
+            String.split "=" part |> List.head |> Maybe.withDefault part |> String.trim |> String.toUpper
+
+        has name =
+            List.any (\part -> keyOf part == name) given
+
+        freqValue =
+            given
+                |> List.filter (\part -> keyOf part == "FREQ")
+                |> List.head
+                |> Maybe.map (String.split "=" >> List.drop 1 >> String.join "=" >> String.trim >> String.toUpper)
+
+        hasDay =
+            has "BYDAY" || has "BYMONTHDAY"
+
+        day =
+            "BYMONTHDAY=" ++ String.fromInt (Date.day start)
+
+        extra =
+            case freqValue of
+                Just "WEEKLY" ->
+                    if has "BYDAY" then
+                        []
+
+                    else
+                        [ "BYDAY=" ++ dayCode (Date.weekday start) ]
+
+                Just "MONTHLY" ->
+                    if hasDay then
+                        []
+
+                    else
+                        [ day ]
+
+                Just "YEARLY" ->
+                    if hasDay then
+                        []
+
+                    else if has "BYMONTH" then
+                        [ day ]
+
+                    else
+                        [ "BYMONTH=" ++ String.fromInt (Date.month start), day ]
+
+                _ ->
+                    []
+    in
+    if List.isEmpty extra || String.contains "\n" trimmed then
+        text
+
+    else
+        String.join ";" (given ++ extra)
 
 
 {-| Reads the value of an RRULE. See the module documentation for what is
