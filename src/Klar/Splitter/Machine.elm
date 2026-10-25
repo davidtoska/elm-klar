@@ -6,6 +6,7 @@ module Klar.Splitter.Machine exposing
     , Sample
     , State
     , effective
+    , foldPane
     , gutter
     , init
     , isFolded
@@ -13,6 +14,7 @@ module Klar.Splitter.Machine exposing
     , paneDomId
     , separatorDomId
     , setSizes
+    , unfoldPane
     , update
     )
 
@@ -106,6 +108,69 @@ init domId sizes =
 setSizes : List Float -> State -> State
 setSizes sizes state =
     { state | sizes = Layout.normalise sizes, remembered = Dict.empty }
+
+
+{-| The pane that a pane at this place folds into and opens from: the next one, or
+the one before for the last pane.
+-}
+neighbourOf : Int -> List Float -> Int
+neighbourOf index sizes =
+    if index + 1 < List.length sizes then
+        index + 1
+
+    else
+        index - 1
+
+
+{-| Folds the pane at this place away from the application: its room goes to its
+neighbour, and how much it had is remembered for `unfoldPane`. A pane that has no
+room, or is not there, changes nothing.
+-}
+foldPane : Int -> State -> State
+foldPane index state =
+    let
+        size =
+            List.drop index state.sizes |> List.head |> Maybe.withDefault 0
+    in
+    if index < 0 || size <= 1.0e-9 then
+        state
+
+    else
+        let
+            ( folded, had ) =
+                Layout.collapse index (neighbourOf index state.sizes) state.sizes
+        in
+        if had <= 0 then
+            state
+
+        else
+            { state | sizes = folded, remembered = Dict.insert index had state.remembered }
+
+
+{-| Gives a pane that has no room its room back from its neighbour: what it had
+when it was folded, or a fifth when that is not known (the layout was restored
+folded). The neighbour gives no more than it has.
+-}
+unfoldPane : Int -> State -> State
+unfoldPane index state =
+    let
+        size =
+            List.drop index state.sizes |> List.head |> Maybe.withDefault 1
+
+        free =
+            List.map (\_ -> { min = 0, max = 1 }) state.sizes
+
+        wanted =
+            Dict.get index state.remembered |> Maybe.withDefault 0.2
+
+        opened =
+            Layout.expand index (neighbourOf index state.sizes) wanted free state.sizes
+    in
+    if index < 0 || size > 1.0e-9 || opened == state.sizes then
+        state
+
+    else
+        { state | sizes = opened, remembered = Dict.remove index state.remembered }
 
 
 type alias Sample =

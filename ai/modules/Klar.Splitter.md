@@ -28,6 +28,12 @@ sizes : State -> List Share
 setSizes : List Share -> State -> State
 isDragging : State -> Bool
 
+-- Folding a pane from the application
+fold : Int -> State -> State
+unfold : Int -> State -> State
+isFolded : Int -> State -> Bool
+separatorId : Int -> State -> String
+
 -- Shares
 type Share  -- opaque: no constructors are exposed
 percent : Float -> Share
@@ -279,9 +285,10 @@ line when the user moves a separator.
 setSizes : List Share -> State -> State
 ```
 
-Sets the sizes of all the panes, for example to restore a saved layout, or
-`[ percent 0, percent 100 ]` to fold the first pane away. They are scaled to add up
-to 100 percent, like those of `init`.
+Sets the sizes of all the panes, for example to restore a saved layout. They are
+scaled to add up to 100 percent, like those of `init`. A size of 0 folds a
+`collapsible` pane away, but the room it had is forgotten; to fold and unfold a pane
+from a button, use `fold` and `unfold`.
 
 ### `isDragging`
 
@@ -290,6 +297,77 @@ isDragging : State -> Bool
 ```
 
 Is a separator being dragged with the mouse, a finger or a pen right now?
+
+## Folding a pane from the application
+
+A "Hide details" button, or the close button of a pane, folds a `collapsible` pane
+away the way `Enter` on its separator does, and a "Show details" button gives it back
+the room it had:
+
+    DetailsToggled ->
+        ( { model
+            | split =
+                if Splitter.isFolded 1 model.split then
+                    Splitter.unfold 1 model.split
+
+                else
+                    Splitter.fold 1 model.split
+          }
+        , Cmd.none
+        )
+
+A folded pane is hidden, so a button inside it that folds it loses the focus: send
+the focus to the separator in the same `update`, with
+`Klar.focus (Splitter.separatorId 0 model.split) NoOp`.
+
+### `fold`
+
+```elm
+fold : Int -> State -> State
+```
+
+Folds the pane at this place (counting from 0) away, as `Enter` on its separator
+does: its room goes to the pane after it (the pane before it, for the last pane),
+and the state remembers how much room it had, so that `unfold` gives it back. A pane
+that has no room, or is not there, changes nothing. Fold only a `collapsible` pane:
+another pane is drawn with no room, but not hidden.
+
+    Splitter.fold 1 model.split
+
+### `unfold`
+
+```elm
+unfold : Int -> State -> State
+```
+
+Gives the pane at this place the room it had before `fold`, or `Enter` on its
+separator, took it away; when that is not known (the layout was restored folded) it
+gets a fifth of the room. The room comes from the same neighbour, and the neighbour
+gives no more than it has. A pane that has room changes nothing.
+
+    Splitter.unfold 1 model.split
+
+### `isFolded`
+
+```elm
+isFolded : Int -> State -> Bool
+```
+
+Has the pane at this place no room: is it folded away? Use it to draw the toggle
+that folds and unfolds it ("Hide details" or "Show details"). A place that is not
+there is not folded.
+
+### `separatorId`
+
+```elm
+separatorId : Int -> State -> String
+```
+
+The DOM id of the separator after the pane at this place (`0` is the separator
+between the first and the second pane), for `Klar.focus`: the place for the focus
+when a button inside a pane folds that pane away.
+
+    Klar.focus (Splitter.separatorId 0 model.split) NoOp
 
 ## Shares
 
