@@ -152,7 +152,7 @@ operatorState (Controls c) node operator =
         state
 
     else
-        Select.setValue operator state
+        Select.setValue (Just operator) state
 
 
 syncSelect : String -> Select.State String -> Select.State String
