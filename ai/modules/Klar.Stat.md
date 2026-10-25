@@ -27,6 +27,8 @@ icon : Icon.Icon -> Attribute msg
 
 -- Change since last time
 delta : Float -> Attribute msg
+deltaBy : Float -> Attribute msg
+deltaPoints : Float -> Attribute msg
 change : { current : Float, previous : Float } -> Attribute msg
 moneyChange : { current : Money.Money, previous : Money.Money } -> Attribute msg
 deltaText : String -> Attribute msg
@@ -97,7 +99,9 @@ separators of its `locale` (English by default: `1,284`, `4.2M`), or pass a
 string you have formatted yourself to `value`. A long number is set in a smaller
 type so that it is always written out in full.
 
-The change is a percentage: `4.2` is shown as "+4.2%". Its color follows
+The change is a percentage (`delta`: `4.2` is shown as "+4.2%"), a difference
+in the tile's own units (`deltaBy`: "+12") or, for a number that is itself a
+rate, percentage points (`deltaPoints`: "+0.3 pp"). Its color follows
 direction and meaning: up is good unless the tile says `lowerIsBetter`. The arrow
 and a visually hidden word ("increase" or "decrease") carry the direction, so
 color is never the only signal.
@@ -248,6 +252,34 @@ The change since last time, as a percentage: `4.2` is shown as "+4.2%" and
 `-8` as "−8%" (with a true minus sign), rounded to one decimal. The sign picks the arrow and, together
 with `lowerIsBetter`, the color. A change smaller than 0.05 counts as unchanged
 and gets a dash. A value that is not a number (NaN or infinity) shows no change.
+
+### `deltaBy`
+
+```elm
+deltaBy : Float -> Attribute msg
+```
+
+The change since last time as a difference in the tile's own units: `12` is
+shown as "+12" and `-3.5` as "−3.5", in the separators of the `locale`, rounded to
+one decimal. Use it when a percentage would mislead: "+12 orders" on a small
+count. The sign picks the arrow and the color, as with `delta`; `delta`,
+`deltaBy` and `deltaPoints` replace each other.
+
+    Stat.view [ Stat.label "Open orders", Stat.int 112, Stat.deltaBy 12, Stat.deltaLabel "since Monday" ]
+
+### `deltaPoints`
+
+```elm
+deltaPoints : Float -> Attribute msg
+```
+
+The change of a number that is itself a rate, in percentage points: a
+conversion rate from 3.2% to 3.5% is `deltaPoints 0.3`, shown as "+0.3 pp"
+("+0,3 p.p." in Norwegian). A relative change of a rate ("+9.4%") is almost never
+what the reader thinks it is. The sign picks the arrow and the color, as with
+`delta`.
+
+    Stat.view [ Stat.label "Conversion", Stat.decimal 1 3.5, Stat.unit "%", Stat.deltaPoints 0.3 ]
 
 ### `change`
 

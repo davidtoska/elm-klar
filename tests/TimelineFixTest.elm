@@ -71,6 +71,31 @@ suite =
             \_ ->
                 timeline [ Timeline.loadMore More (Remote.Loaded True), Timeline.total 340, Timeline.locale Locale.nb ]
                     |> Query.has [ Selector.text "Viser 1 av 340 hendelser" ]
+        , test "withHref makes the title a link" <|
+            \_ ->
+                Timeline.view [] [ Timeline.event "a" (Time.millisToPosix 1000) "Order 1042 shipped" |> Timeline.withHref "/orders/1042" ]
+                    |> Query.fromHtml
+                    |> Query.find [ Selector.tag "a", Selector.class "klar-timeline__title" ]
+                    |> Query.has [ Selector.attribute (Html.Attributes.href "/orders/1042"), Selector.text "Order 1042 shipped" ]
+        , test "withOnClick makes the title a button that sends the message" <|
+            \_ ->
+                Timeline.view [] [ Timeline.event "a" (Time.millisToPosix 1000) "Order 1042 shipped" |> Timeline.withOnClick More ]
+                    |> Query.fromHtml
+                    |> Query.find [ Selector.tag "button", Selector.class "klar-timeline__title" ]
+                    |> Event.simulate Event.click
+                    |> Event.expect More
+        , test "a day after now is Tomorrow" <|
+            \_ ->
+                Timeline.view [ Timeline.now (Time.millisToPosix 1000) ] [ Timeline.event "a" (Time.millisToPosix (86400000 + 1000)) "Delivery" ]
+                    |> Query.fromHtml
+                    |> Query.has [ Selector.text "Tomorrow" ]
+        , test "until the zone is known the time column is wide enough for UTC" <|
+            \_ ->
+                timeline [] |> Query.has [ Selector.class "klar-timeline--utc" ]
+        , test "a known zone needs no wide column" <|
+            \_ ->
+                timeline [ Timeline.settings (Settings.withZone Time.utc Settings.default) ]
+                    |> Query.hasNot [ Selector.class "klar-timeline--utc" ]
         , test "the day groups are keyed by their date" <|
             \_ ->
                 Timeline.view [ Timeline.settings Settings.default ]

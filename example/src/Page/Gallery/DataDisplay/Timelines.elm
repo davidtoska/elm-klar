@@ -102,6 +102,7 @@ view settings locale model =
     , Timeline.total 40
     ]
     [ Timeline.event "e1" confirmedAt "Order ORD-10042 confirmed"
+        |> Timeline.withHref "/orders/10042"
         |> Timeline.withAuthor "Maya Patel"
         |> Timeline.withIcon Icon.clipboardCheck
         |> Timeline.withDescription "Stock is reserved for all lines."
@@ -255,6 +256,8 @@ orderEventOfKind kind id time who =
     case kind of
         0 ->
             Timeline.event id time ("Order " ++ who.orderId ++ " confirmed")
+                -- the title is a link to the record (withHref)
+                |> Timeline.withHref "#/orders"
                 |> Timeline.withAuthor who.owner
                 |> Timeline.withIcon Icon.clipboardCheck
                 |> Timeline.withDescription ("Confirmed by " ++ who.customer ++ ". Stock is reserved for all lines.")

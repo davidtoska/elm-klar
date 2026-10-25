@@ -1,6 +1,6 @@
 module Klar.Timeline exposing
     ( view, viewRemote
-    , Event, event, dayEvent, withDescription, withTone, withIcon, withAuthor, withAuthorImage, withDetails
+    , Event, event, dayEvent, withDescription, withTone, withIcon, withAuthor, withAuthorImage, withDetails, withHref, withOnClick
     , Attribute, settings, now, compact, ungrouped, ariaLabel, maxHeight, headingLevel, id, locale
     , loadMore, total
     , onRetry, skeletonRows, emptyTitle, emptyDescription
@@ -70,7 +70,7 @@ share a heading, so give them sorted by time. The headings are `h3` elements: un
 page title with no heading in between, say `headingLevel 2`.
 Something that happened on a day, with no time of day (a delivery date, a
 deadline), is a `dayEvent`: it sits under its day and draws no clock time. Give the
-timeline `now` and the headings say "Today" and "Yesterday". A thin gray line connects the markers of a day; a marker is an icon
+timeline `now` and the headings say "Today", "Yesterday" and "Tomorrow". A thin gray line connects the markers of a day; a marker is an icon
 in the tone of the event, or a dot. The marker is decoration only (hidden from
 screen readers), so the title of an event must say what its color means.
 
@@ -95,7 +95,7 @@ text is English unless you set `locale`.
 
 # Events
 
-@docs Event, event, dayEvent, withDescription, withTone, withIcon, withAuthor, withAuthorImage, withDetails
+@docs Event, event, dayEvent, withDescription, withTone, withIcon, withAuthor, withAuthorImage, withDetails, withHref, withOnClick
 
 
 # Look and time
@@ -116,6 +116,7 @@ text is English unless you set `locale`.
 
 import Html exposing (Html)
 import Html.Attributes as Attr
+import Html.Events as Events
 import Html.Keyed as Keyed
 import Klar.Avatar as Avatar
 import Klar.Button as Button
@@ -161,7 +162,15 @@ type alias EventData msg =
     , author : Maybe String
     , authorImage : Maybe String
     , details : Maybe (Html msg)
+    , action : Maybe (Action msg)
     }
+
+
+{-| Where the title of an event leads: a page, or a message.
+-}
+type Action msg
+    = GoTo String
+    | Send msg
 
 
 {-| An event with an id, the time it happened and a short title.
@@ -205,6 +214,7 @@ eventWhen key when title =
         , author = Nothing
         , authorImage = Nothing
         , details = Nothing
+        , action = Nothing
         }
 
 
@@ -263,6 +273,54 @@ the keyboard and whether it is open is not part of your model.
 withDetails : Html msg -> Event msg -> Event msg
 withDetails html (Event data) =
     Event { data | details = Just html }
+
+
+{-| Makes the title a link to this URL: the record the event is about ("Order
+1042 shipped" opens the order). It is a real `<a href>`, so it can be opened in a
+new tab, and in a `Browser.application` a click is a `UrlRequest`. `withHref` and
+`withOnClick` replace each other.
+
+    Timeline.event "ev-1042" shippedAt "Order 1042 shipped"
+        |> Timeline.withHref "/orders/1042"
+
+-}
+withHref : String -> Event msg -> Event msg
+withHref url (Event data) =
+    Event { data | action = Just (GoTo url) }
+
+
+{-| Makes the title a button that sends this message, for an action that is not
+a page: opening the record in a drawer. Use `withHref` when it is a page.
+`withHref` and `withOnClick` replace each other.
+
+    Timeline.event "ev-1042" shippedAt "Order 1042 shipped"
+        |> Timeline.withOnClick (OpenOrder orderId)
+
+-}
+withOnClick : msg -> Event msg -> Event msg
+withOnClick msg (Event data) =
+    Event { data | action = Just (Send msg) }
+
+
+{-| The title of an event: plain text, a link or a button.
+-}
+viewTitle : EventData msg -> List (Html.Attribute msg) -> Html msg
+viewTitle data extra =
+    case data.action of
+        Just (GoTo url) ->
+            Html.a (Internal.cls [ "klar-timeline__title", "klar-timeline__title--link" ] :: Attr.href url :: extra) [ Html.text data.title ]
+
+        Just (Send msg) ->
+            Html.button
+                (Internal.cls [ "klar-timeline__title", "klar-timeline__title--link" ]
+                    :: Attr.type_ "button"
+                    :: Events.onClick msg
+                    :: extra
+                )
+                [ Html.text data.title ]
+
+        Nothing ->
+            Html.span (Internal.cls [ "klar-timeline__title" ] :: extra) [ Html.text data.title ]
 
 
 
@@ -350,7 +408,7 @@ locale value =
     Attribute (\config -> { config | locale = value })
 
 
-{-| The current time. It lets the day headings say "Today" and "Yesterday" and
+{-| The current time. It lets the day headings say "Today", "Yesterday" and "Tomorrow" and
 the tooltip of each time add how long ago it was ("3 hours ago"). Without it the
 headings always show the full date. The timeline does not read the clock itself:
 keep the value in your model and update it, for example with `Time.every`.
@@ -505,6 +563,7 @@ type alias Texts =
     , events : String
     , today : String
     , yesterday : String
+    , tomorrow : String
     , retry : String
     , shown : Int -> String
     , shownOf : Int -> Int -> String
@@ -527,6 +586,7 @@ texts loc =
     , events = pick "Hendelser" "Events"
     , today = pick "I dag" "Today"
     , yesterday = pick "I går" "Yesterday"
+    , tomorrow = pick "I morgen" "Tomorrow"
     , retry = pick "Prøv igjen" "Try again"
     , shown =
         \n ->
@@ -626,6 +686,13 @@ view attributes events =
                         ""
                     , if config.maxHeight /= Nothing then
                         "klar-timeline--scroll"
+
+                      else
+                        ""
+
+                    -- Until the zone is known every time ends in UTC: a wider column.
+                    , if String.endsWith "UTC" (Settings.time config.settings (Time.millisToPosix 0)) then
+                        "klar-timeline--utc"
 
                       else
                         ""
@@ -803,15 +870,21 @@ viewDay config ( day, events ) =
         relativeName =
             case config.now of
                 Just current ->
-                    case Date.diffDays day (Settings.toDate config.settings current) of
-                        0 ->
-                            Just t.today
+                    let
+                        daysAgo =
+                            Date.diffDays day (Settings.toDate config.settings current)
+                    in
+                    if daysAgo == 0 then
+                        Just t.today
 
-                        1 ->
-                            Just t.yesterday
+                    else if daysAgo == 1 then
+                        Just t.yesterday
 
-                        _ ->
-                            Nothing
+                    else if daysAgo == -1 then
+                        Just t.tomorrow
+
+                    else
+                        Nothing
 
                 Nothing ->
                     Nothing
@@ -931,7 +1004,7 @@ viewEvent config (Event data) =
             [ Html.span [ Internal.cls [ "klar-timeline__rail" ], Attr.attribute "aria-hidden" "true" ] [ marker ]
             , Html.div [ Internal.cls [ "klar-timeline__content" ] ]
                 [ Html.div [ Internal.cls [ "klar-timeline__line" ] ]
-                    [ Html.span [ Internal.cls [ "klar-timeline__title" ], Attr.title data.title ] [ Html.text data.title ]
+                    [ viewTitle data [ Attr.title data.title ]
                     , byline
                     , Internal.viewMaybe
                         (\text -> Html.span [ Internal.cls [ "klar-timeline__description", "klar-truncate" ], Attr.title text ] [ Html.text text ])
@@ -947,7 +1020,7 @@ viewEvent config (Event data) =
             , Html.span [ Internal.cls [ "klar-timeline__rail" ], Attr.attribute "aria-hidden" "true" ] [ marker ]
             , Html.div [ Internal.cls [ "klar-timeline__content" ] ]
                 [ Html.div [ Internal.cls [ "klar-timeline__headline" ] ]
-                    [ Html.span [ Internal.cls [ "klar-timeline__title" ] ] [ Html.text data.title ]
+                    [ viewTitle data []
                     , byline
                     ]
                 , Internal.viewMaybe (\text -> Html.p [ Internal.cls [ "klar-timeline__description" ] ] [ Html.text text ]) data.description

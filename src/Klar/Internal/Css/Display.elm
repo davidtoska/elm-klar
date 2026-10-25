@@ -1406,6 +1406,10 @@ css =
   padding-right: 4px;
 }
 
+/* Until the application gives the zone every time ends in " UTC": the time
+   column is wide enough for "14:05 UTC", so the text never runs under the rail. */
+.klar-timeline--utc { --_time-w: 84px; }
+
 .klar-timeline__days {
   display: flex;
   flex-direction: column;
@@ -1532,6 +1536,33 @@ css =
   line-height: 20px;
   color: var(--klar-text);
   overflow-wrap: anywhere;
+}
+
+/* An event that leads somewhere (withHref, withOnClick): a link in the title. */
+.klar-timeline__title--link {
+  margin: 0;
+  padding: 0;
+  border: 0;
+  border-radius: var(--klar-radius-sm);
+  background: none;
+  color: var(--klar-text-link);
+  font: inherit;
+  font-weight: var(--klar-weight-medium);
+  text-align: start;
+  text-decoration: none;
+  cursor: pointer;
+}
+
+.klar-timeline__title--link:hover { text-decoration: underline; }
+
+.klar-timeline__title--link:focus-visible {
+  outline: 2px solid var(--klar-focus-color);
+  outline-offset: 1px;
+}
+
+@media (forced-colors: active) {
+  .klar-timeline__title--link { color: LinkText; }
+  .klar-timeline__title--link:focus-visible { outline-color: Highlight; }
 }
 
 .klar-timeline__author {

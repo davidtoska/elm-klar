@@ -1,7 +1,7 @@
 module Klar.Stat exposing
     ( view, row
     , Attribute, label, value, int, decimal, abbreviated, money, unit, caption, icon
-    , delta, change, moneyChange, deltaText, deltaLabel, lowerIsBetter, deltaTone
+    , delta, deltaBy, deltaPoints, change, moneyChange, deltaText, deltaLabel, lowerIsBetter, deltaTone
     , trend, trendTone
     , size, flat, onClick, id, locale, settings
     , remote, onRetry
@@ -51,7 +51,9 @@ separators of its `locale` (English by default: `1,284`, `4.2M`), or pass a
 string you have formatted yourself to `value`. A long number is set in a smaller
 type so that it is always written out in full.
 
-The change is a percentage: `4.2` is shown as "+4.2%". Its color follows
+The change is a percentage (`delta`: `4.2` is shown as "+4.2%"), a difference
+in the tile's own units (`deltaBy`: "+12") or, for a number that is itself a
+rate, percentage points (`deltaPoints`: "+0.3 pp"). Its color follows
 direction and meaning: up is good unless the tile says `lowerIsBetter`. The arrow
 and a visually hidden word ("increase" or "decrease") carry the direction, so
 color is never the only signal.
@@ -77,7 +79,7 @@ only its retry button is a control).
 
 # Change since last time
 
-@docs delta, change, moneyChange, deltaText, deltaLabel, lowerIsBetter, deltaTone
+@docs delta, deltaBy, deltaPoints, change, moneyChange, deltaText, deltaLabel, lowerIsBetter, deltaTone
 
 
 # Trend
@@ -128,6 +130,15 @@ type Number
     | Amount Money
 
 
+{-| What the number of a change is: a percentage of the old value, a difference
+in the tile's units, or percentage points.
+-}
+type DeltaKind
+    = Relative
+    | Absolute
+    | Points
+
+
 type State
     = Ready
     | Busy
@@ -139,6 +150,7 @@ type alias Config msg =
     , value : Maybe Number
     , unit : Maybe String
     , delta : Maybe Float
+    , deltaKind : DeltaKind
     , deltaText : Maybe String
     , deltaLabel : Maybe String
     , deltaTone : Maybe Tone
@@ -167,6 +179,7 @@ configure attributes =
         , value = Nothing
         , unit = Nothing
         , delta = Nothing
+        , deltaKind = Relative
         , deltaText = Nothing
         , deltaLabel = Nothing
         , deltaTone = Nothing
@@ -265,15 +278,49 @@ and gets a dash. A value that is not a number (NaN or infinity) shows no change.
 -}
 delta : Float -> Attribute msg
 delta percent =
+    changeOf Relative percent
+
+
+{-| The change since last time as a difference in the tile's own units: `12` is
+shown as "+12" and `-3.5` as "−3.5", in the separators of the `locale`, rounded to
+one decimal. Use it when a percentage would mislead: "+12 orders" on a small
+count. The sign picks the arrow and the color, as with `delta`; `delta`,
+`deltaBy` and `deltaPoints` replace each other.
+
+    Stat.view [ Stat.label "Open orders", Stat.int 112, Stat.deltaBy 12, Stat.deltaLabel "since Monday" ]
+
+-}
+deltaBy : Float -> Attribute msg
+deltaBy difference =
+    changeOf Absolute difference
+
+
+{-| The change of a number that is itself a rate, in percentage points: a
+conversion rate from 3.2% to 3.5% is `deltaPoints 0.3`, shown as "+0.3 pp"
+("+0,3 p.p." in Norwegian). A relative change of a rate ("+9.4%") is almost never
+what the reader thinks it is. The sign picks the arrow and the color, as with
+`delta`.
+
+    Stat.view [ Stat.label "Conversion", Stat.decimal 1 3.5, Stat.unit "%", Stat.deltaPoints 0.3 ]
+
+-}
+deltaPoints : Float -> Attribute msg
+deltaPoints points =
+    changeOf Points points
+
+
+changeOf : DeltaKind -> Float -> Attribute msg
+changeOf kind amount =
     Attribute
         (\config ->
             { config
                 | delta =
-                    if isNaN percent || isInfinite percent then
+                    if isNaN amount || isInfinite amount then
                         Nothing
 
                     else
-                        Just percent
+                        Just amount
+                , deltaKind = kind
             }
         )
 
@@ -843,7 +890,15 @@ viewDelta config =
                             custom
 
                         ( Nothing, Just d ) ->
-                            signedPercent config.locale d
+                            case config.deltaKind of
+                                Relative ->
+                                    signedPercent config.locale d
+
+                                Absolute ->
+                                    signedNumber config.locale d
+
+                                Points ->
+                                    signedNumber config.locale d ++ Locale.pick config.locale { nb = "\u{00A0}p.p.", en = "\u{00A0}pp" }
 
                         ( Nothing, Nothing ) ->
                             ""
@@ -884,16 +939,23 @@ viewDelta config =
                 ]
 
 
-{-| "+4,2 %", "-8 %", "0 %".
+{-| "+4,2 %", "−8 %", "0 %".
 -}
 signedPercent : Locale -> Float -> String
 signedPercent loc d =
+    signedNumber loc d ++ Locale.pick loc { nb = "\u{00A0}%", en = "%" }
+
+
+{-| "+12", "−3.5", "0": rounded to one decimal, with a true minus sign.
+-}
+signedNumber : Locale -> Float -> String
+signedNumber loc d =
     let
         rounded =
             toFloat (round (abs d * 10)) / 10
 
         body =
-            trimZeros loc (Format.decimal loc 1 rounded) ++ Locale.pick loc { nb = "\u{00A0}%", en = "%" }
+            trimZeros loc (Format.decimal loc 1 rounded)
     in
     if rounded == 0 then
         body

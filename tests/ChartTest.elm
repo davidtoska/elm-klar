@@ -261,4 +261,31 @@ statTests =
                 Stat.view [ Stat.int 5, Stat.delta -8 ]
                     |> Query.fromHtml
                     |> Query.has [ Selector.text "−8%" ]
+        , test "deltaBy is a difference in the tile's units, with its direction" <|
+            \_ ->
+                Stat.view [ Stat.int 112, Stat.deltaBy 12 ]
+                    |> Query.fromHtml
+                    |> Expect.all
+                        [ Query.has [ Selector.text "+12" ]
+                        , Query.hasNot [ Selector.text "+12%" ]
+                        , Query.has [ Selector.class "klar-stat__delta--success" ]
+                        ]
+        , test "deltaPoints is in percentage points" <|
+            \_ ->
+                Stat.view [ Stat.decimal 1 3.5, Stat.deltaPoints -0.3 ]
+                    |> Query.fromHtml
+                    |> Expect.all
+                        [ Query.has [ Selector.text "−0.3\u{00A0}pp" ]
+                        , Query.has [ Selector.text ", decrease" ]
+                        ]
+        , test "and in Norwegian" <|
+            \_ ->
+                Stat.view [ Stat.decimal 1 3.5, Stat.deltaPoints 0.3, Stat.locale Locale.nb ]
+                    |> Query.fromHtml
+                    |> Query.has [ Selector.text "+0,3\u{00A0}p.p." ]
+        , test "the last of delta, deltaBy and deltaPoints wins" <|
+            \_ ->
+                Stat.view [ Stat.int 5, Stat.deltaPoints 2, Stat.delta 4 ]
+                    |> Query.fromHtml
+                    |> Query.has [ Selector.text "+4%" ]
         ]

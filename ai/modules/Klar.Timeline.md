@@ -23,6 +23,8 @@ withIcon : Icon.Icon -> Event msg -> Event msg
 withAuthor : String -> Event msg -> Event msg
 withAuthorImage : String -> Event msg -> Event msg
 withDetails : Html msg -> Event msg -> Event msg
+withHref : String -> Event msg -> Event msg
+withOnClick : msg -> Event msg -> Event msg
 
 -- Look and time
 type Attribute msg  -- opaque: no constructors are exposed
@@ -113,7 +115,7 @@ share a heading, so give them sorted by time. The headings are `h3` elements: un
 page title with no heading in between, say `headingLevel 2`.
 Something that happened on a day, with no time of day (a delivery date, a
 deadline), is a `dayEvent`: it sits under its day and draws no clock time. Give the
-timeline `now` and the headings say "Today" and "Yesterday". A thin gray line connects the markers of a day; a marker is an icon
+timeline `now` and the headings say "Today", "Yesterday" and "Tomorrow". A thin gray line connects the markers of a day; a marker is an icon
 in the tone of the event, or a dot. The marker is decoration only (hidden from
 screen readers), so the title of an event must say what its color means.
 
@@ -267,6 +269,33 @@ the keyboard and whether it is open is not part of your model.
     Timeline.event "ev-7" changedAt "Address changed"
         |> Timeline.withDetails (Text.paragraph "From 1 Main Street to 5 Park Lane.")
 
+### `withHref`
+
+```elm
+withHref : String -> Event msg -> Event msg
+```
+
+Makes the title a link to this URL: the record the event is about ("Order
+1042 shipped" opens the order). It is a real `<a href>`, so it can be opened in a
+new tab, and in a `Browser.application` a click is a `UrlRequest`. `withHref` and
+`withOnClick` replace each other.
+
+    Timeline.event "ev-1042" shippedAt "Order 1042 shipped"
+        |> Timeline.withHref "/orders/1042"
+
+### `withOnClick`
+
+```elm
+withOnClick : msg -> Event msg -> Event msg
+```
+
+Makes the title a button that sends this message, for an action that is not
+a page: opening the record in a drawer. Use `withHref` when it is a page.
+`withHref` and `withOnClick` replace each other.
+
+    Timeline.event "ev-1042" shippedAt "Order 1042 shipped"
+        |> Timeline.withOnClick (OpenOrder orderId)
+
 ## Look and time
 
 ### `Attribute`
@@ -296,7 +325,7 @@ the times are written in UTC and end in "UTC".
 now : Time.Posix -> Attribute msg
 ```
 
-The current time. It lets the day headings say "Today" and "Yesterday" and
+The current time. It lets the day headings say "Today", "Yesterday" and "Tomorrow" and
 the tooltip of each time add how long ago it was ("3 hours ago"). Without it the
 headings always show the full date. The timeline does not read the clock itself:
 keep the value in your model and update it, for example with `Time.every`.
