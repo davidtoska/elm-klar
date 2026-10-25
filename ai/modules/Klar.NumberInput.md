@@ -175,7 +175,8 @@ away from zero, on the decimal digits, as `Klar.Format` rounds: `1.005` is
 `1.01`) and formats it; Enter still lets a surrounding form submit. Escape
 throws away the text being typed and brings back the number from before; its
 default is then prevented, so a dialog around the field stays open. The + and -
-buttons are not in the Tab order.
+buttons are not in the Tab order; held down with the mouse, they step again and
+again (after 400 ms, every 60 ms) until they are let go or a limit is reached.
 
 **Phones.** A field whose `min` is 0 or more asks for the numeric keyboard
 (`inputmode` decimal, or numeric with `decimals 0`). A field that takes

@@ -119,7 +119,8 @@ away from zero, on the decimal digits, as `Klar.Format` rounds: `1.005` is
 `1.01`) and formats it; Enter still lets a surrounding form submit. Escape
 throws away the text being typed and brings back the number from before; its
 default is then prevented, so a dialog around the field stays open. The + and -
-buttons are not in the Tab order.
+buttons are not in the Tab order; held down with the mouse, they step again and
+again (after 400 ms, every 60 ms) until they are let go or a limit is reached.
 
 **Phones.** A field whose `min` is 0 or more asks for the numeric keyboard
 (`inputmode` decimal, or numeric with `decimals 0`). A field that takes
@@ -194,6 +195,8 @@ import Klar.Internal as Internal
 import Klar.Internal.TextField as TextField
 import Klar.Locale as Locale exposing (Locale)
 import Klar.Theme as Theme exposing (Size(..))
+import Process
+import Task
 
 
 
@@ -218,6 +221,10 @@ type alias Fields =
     -- the number before the text being typed, for Escape
     , before : Maybe Float
 
+    -- a stepper button that is held down, and a counter that drops old timers
+    , holding : Maybe Hold
+    , presses : Int
+
     -- the `min` and `max` the field last saw (in a message of the view, or from
     -- `setLimits`), so that `isValid` can tell whether the number is inside them
     , range : ( Maybe Float, Maybe Float )
@@ -233,7 +240,17 @@ number, use `setValue`.
 -}
 init : String -> State
 init id =
-    State { id = id, value = Nothing, draft = Nothing, touched = False, focused = False, before = Nothing, range = ( Nothing, Nothing ) }
+    State
+        { id = id
+        , value = Nothing
+        , draft = Nothing
+        , touched = False
+        , focused = False
+        , before = Nothing
+        , holding = Nothing
+        , presses = 0
+        , range = ( Nothing, Nothing )
+        }
 
 
 {-| The number in the field, or `Nothing` when the field is empty or the text
@@ -372,6 +389,15 @@ type alias Rules =
     }
 
 
+{-| A stepper button held down: which press it is, and how it steps.
+-}
+type alias Hold =
+    { press : Int
+    , rules : Rules
+    , multiplier : Float
+    }
+
+
 {-| The messages a number field sends: typing, focus, leaving the field and the
 steppers. `view` wraps them with the function you give it; hand them to `update`
 when they come back.
@@ -382,6 +408,9 @@ type Msg
     | Committed Rules
     | Entered Rules
     | Stepped Rules Float
+    | Pressed Rules Float
+    | Held Int
+    | Released
     | Reverted
     | Noop
 
@@ -422,27 +451,50 @@ update msg (State state) =
             ( State (commit rules state), Cmd.none )
 
         Stepped rules multiplier ->
+            ( State (stepBy rules multiplier state), Internal.focus state.id Noop )
+
+        Pressed rules multiplier ->
             let
-                base =
-                    case state.draft of
-                        Just raw ->
-                            readTyped rules raw |> Maybe.withDefault (Maybe.withDefault 0 state.value)
+                press =
+                    state.presses + 1
 
-                        Nothing ->
-                            Maybe.withDefault 0 state.value
-
-                places =
-                    Basics.max (decimalPlaces rules.step)
-                        (Basics.max (decimalPlaces base) (Maybe.withDefault 0 rules.decimals))
-
-                next =
-                    roundTo places (onGrid rules base multiplier)
-                        |> roundToDecimals rules
-                        |> keepInRange rules
+                stepped =
+                    stepBy rules multiplier state
             in
-            ( State { state | value = Just next, draft = Nothing, touched = True, range = rangeOf rules }
-            , Internal.focus state.id Noop
+            ( State { stepped | presses = press, holding = Just { press = press, rules = rules, multiplier = multiplier } }
+            , Cmd.batch
+                [ Process.sleep 400 |> Task.perform (\_ -> Held press)
+                , Internal.focus state.id Noop
+                ]
             )
+
+        Held press ->
+            case state.holding of
+                Just hold ->
+                    if hold.press == press then
+                        let
+                            stepped =
+                                stepBy hold.rules hold.multiplier state
+                        in
+                        if stepped.value == state.value then
+                            -- a limit is reached
+                            ( State { stepped | holding = Nothing }, Cmd.none )
+
+                        else
+                            ( State stepped, Process.sleep 60 |> Task.perform (\_ -> Held press) )
+
+                    else
+                        ( State state, Cmd.none )
+
+                Nothing ->
+                    ( State state, Cmd.none )
+
+        Released ->
+            if state.holding == Nothing then
+                ( State state, Cmd.none )
+
+            else
+                ( State { state | holding = Nothing }, Cmd.none )
 
         Reverted ->
             -- Escape: the text being typed goes, the number from before is back
@@ -450,6 +502,32 @@ update msg (State state) =
 
         Noop ->
             ( State state, Cmd.none )
+
+
+{-| One step (or ten) from the number in the field, on the grid of the steps and
+inside the limits.
+-}
+stepBy : Rules -> Float -> Fields -> Fields
+stepBy rules multiplier state =
+    let
+        base =
+            case state.draft of
+                Just raw ->
+                    readTyped rules raw |> Maybe.withDefault (Maybe.withDefault 0 state.value)
+
+                Nothing ->
+                    Maybe.withDefault 0 state.value
+
+        places =
+            Basics.max (decimalPlaces rules.step)
+                (Basics.max (decimalPlaces base) (Maybe.withDefault 0 rules.decimals))
+
+        next =
+            roundTo places (onGrid rules base multiplier)
+                |> roundToDecimals rules
+                |> keepInRange rules
+    in
+    { state | value = Just next, draft = Nothing, touched = True, range = rangeOf rules }
 
 
 {-| The field was left (or Enter was pressed): the text becomes a formatted
@@ -1139,17 +1217,24 @@ viewSteppers toMsg lang rules atMin atMax =
             (Locale.pick lang { nb = "Reduser verdien", en = "Decrease value" })
             Icon.minus
             atMin
+            (Pressed rules -1)
             (Stepped rules -1)
         , stepper toMsg
             (Locale.pick lang { nb = "Øk verdien", en = "Increase value" })
             Icon.plus
             atMax
+            (Pressed rules 1)
             (Stepped rules 1)
         ]
 
 
-stepper : (Msg -> msg) -> String -> Icon.Icon -> Bool -> Msg -> Html msg
-stepper toMsg label_ icon blocked msg =
+{-| A stepper button. A press of the mouse steps at once and, held, again and
+again (after 400 ms, then every 60 ms) until it is let go, leaves the button or
+reaches a limit; the press is kept from moving the focus. A click without a press
+(assistive technology) steps once.
+-}
+stepper : (Msg -> msg) -> String -> Icon.Icon -> Bool -> Msg -> Msg -> Html msg
+stepper toMsg label_ icon blocked press once =
     Html.button
         [ Internal.cls [ "klar-number__step" ]
         , Attr.type_ "button"
@@ -1157,8 +1242,30 @@ stepper toMsg label_ icon blocked msg =
         , Attr.attribute "aria-label" label_
         , Attr.title label_
         , Attr.disabled blocked
-        , Internal.onMouseDownPrevent (toMsg Noop)
-        , Events.onClick (toMsg msg)
+        , Events.preventDefaultOn "mousedown"
+            (Decode.oneOf [ Decode.field "button" Decode.int, Decode.succeed 0 ]
+                |> Decode.map
+                    (\button ->
+                        if button == 0 then
+                            ( toMsg press, True )
+
+                        else
+                            ( toMsg Noop, True )
+                    )
+            )
+        , Events.on "mouseup" (Decode.succeed (toMsg Released))
+        , Events.on "mouseleave" (Decode.succeed (toMsg Released))
+        , Events.on "click"
+            (Decode.oneOf [ Decode.field "detail" Decode.int, Decode.succeed 0 ]
+                |> Decode.andThen
+                    (\clicks ->
+                        if clicks > 0 then
+                            Decode.fail "the press has stepped"
+
+                        else
+                            Decode.succeed (toMsg once)
+                    )
+            )
         ]
         [ Icon.sized Icon.Small icon ]
 

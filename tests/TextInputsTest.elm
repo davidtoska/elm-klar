@@ -763,6 +763,41 @@ numberInputTests =
                 numberStep [ NumberInput.min 1, NumberInput.step 5 ] (key [] "ArrowUp") (NumberInput.setValue (Just 1) (NumberInput.init "n"))
                     |> Result.map NumberInput.value
                     |> Expect.equal (Ok (Just 6))
+        , test "a press on + steps at once, and the click that follows does not step again" <|
+            \_ ->
+                let
+                    plus =
+                        [ Selector.attribute (Attr.attribute "aria-label" "Increase value") ]
+
+                    start =
+                        NumberInput.setValue (Just 3) (NumberInput.init "n")
+
+                    pressed =
+                        NumberInput.view Number [] start
+                            |> sends plus (Event.custom "mousedown" (Encode.object [ ( "button", Encode.int 0 ) ]))
+                            |> Result.andThen
+                                (\msg ->
+                                    case msg of
+                                        Number inner ->
+                                            Ok (Tuple.first (NumberInput.update inner start))
+
+                                        _ ->
+                                            Err "not a message of the number field"
+                                )
+                in
+                Expect.all
+                    [ \_ -> pressed |> Result.map NumberInput.value |> Expect.equal (Ok (Just 4))
+                    , \_ ->
+                        NumberInput.view Number [] start
+                            |> sends plus (Event.custom "click" (Encode.object [ ( "detail", Encode.int 1 ) ]))
+                            |> sendsNothing
+                    , \_ ->
+                        NumberInput.view Number [] start
+                            |> sends plus (Event.custom "click" (Encode.object [ ( "detail", Encode.int 0 ) ]))
+                            |> Result.map (\_ -> ())
+                            |> Expect.equal (Ok ())
+                    ]
+                    ()
         , test "aria-valuenow stays inside the limits; the text says the number" <|
             \_ ->
                 has input
