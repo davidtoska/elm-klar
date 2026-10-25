@@ -133,8 +133,9 @@ onRemove : msg -> Attribute msg
 ```
 
 Shows a small × button after the label that sends this message when it is
-pressed. The tag does not remove itself: take the value out of your model when
-the message arrives.
+pressed: a click, `Enter` or `Space`, or `Delete` or `Backspace` while the button
+has the focus. The tag does not remove itself: take the value out of your model
+when the message arrives.
 
 ### `removeId`
 

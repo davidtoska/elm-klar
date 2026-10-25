@@ -12,6 +12,7 @@ found by `findAll` too.
 import Expect exposing (Expectation)
 import Html exposing (Html)
 import Html.Attributes as Attr
+import Json.Encode as Encode
 import Klar.Alert as Alert
 import Klar.Avatar as Avatar
 import Klar.Badge as Badge
@@ -172,6 +173,34 @@ tagTests =
                     |> Query.find button
                     |> Event.simulate Event.click
                     |> Event.expect Removed
+        , test "Delete and Backspace on the button send the message" <|
+            \_ ->
+                Expect.all
+                    (List.map
+                        (\key ->
+                            \_ ->
+                                Tag.view [ Tag.onRemove Removed ] "Warehouse A"
+                                    |> inDiv
+                                    |> Query.find button
+                                    |> Event.simulate (Event.custom "keydown" (keyDown key))
+                                    |> Event.expect Removed
+                        )
+                        [ "Delete", "Backspace" ]
+                    )
+                    ()
+        ]
+
+
+keyDown : String -> Encode.Value
+keyDown key =
+    Encode.object
+        [ ( "key", Encode.string key )
+        , ( "ctrlKey", Encode.bool False )
+        , ( "metaKey", Encode.bool False )
+        , ( "shiftKey", Encode.bool False )
+        , ( "altKey", Encode.bool False )
+        , ( "isComposing", Encode.bool False )
+        , ( "keyCode", Encode.int 0 )
         ]
 
 
