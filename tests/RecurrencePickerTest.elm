@@ -1462,6 +1462,33 @@ fixTests =
                 run [ frequency "weekly", typeInto (id ++ "-interval") "2" ] fresh
                     |> Result.map (\state -> query [ RecurrencePicker.locale Locale.nb ] state |> Query.has [ Selector.text ". uke" ])
                     |> Result.withDefault (Expect.fail "the form did not take the steps")
+        , test "a start on the last day of a short month offers the last day of the month" <|
+            \_ ->
+                run [ frequency "monthly", by "last-day" ] (from 2027 4 30)
+                    |> Result.map RecurrencePicker.value
+                    |> Expect.equal (Ok (monthlyOn 31))
+        , test "which reads 'On the last day of the month', and in Norwegian too" <|
+            \_ ->
+                run [ frequency "monthly" ] (from 2027 4 30)
+                    |> Result.map
+                        (\state ->
+                            Expect.all
+                                [ \_ -> query [] state |> Query.has [ Selector.text "On the last day of the month" ]
+                                , \_ -> query [ RecurrencePicker.locale Locale.nb ] state |> Query.has [ Selector.text "Den siste dagen i måneden" ]
+                                ]
+                                ()
+                        )
+                    |> Result.withDefault (Expect.fail "the form did not take the steps")
+        , test "yearly from 28 February it is the last day of February, the 29th in leap years" <|
+            \_ ->
+                run [ frequency "yearly", by "last-day" ] (from 2027 2 28)
+                    |> Result.map RecurrencePicker.value
+                    |> Expect.equal (Ok (Recurrence.rule (Recurrence.yearlyOnDate Feb 29) [] |> Result.toMaybe))
+        , test "a start that is not the last day of its month has no such choice" <|
+            \_ ->
+                run [ frequency "monthly" ] fresh
+                    |> Result.map (\state -> query [] state |> Query.hasNot [ Selector.text "On the last day of the month" ])
+                    |> Result.withDefault (Expect.fail "the form did not take the steps")
         , test "and the plain unit for one: Hver uke" <|
             \_ ->
                 run [ frequency "weekly" ] fresh

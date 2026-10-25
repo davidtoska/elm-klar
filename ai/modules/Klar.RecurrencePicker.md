@@ -102,8 +102,9 @@ value and there are no out-messages: compare `value` before and after `update`
 to react to a change.
 
 The application gives the start date. The options for a monthly rule follow it
-("On day 20", "On the third Tuesday", and "On the last Tuesday" when the start
-is the last one), and so does the weekday that is ticked first. Call `setStart`
+("On day 20", "On the third Tuesday", "On the last Tuesday" when the start is
+the last one, and "On the last day of the month" when the start is the last day
+of a month shorter than 31 days), and so does the weekday that is ticked first. Call `setStart`
 when the date changes. A rule loaded from a server is put in with `setValue`.
 
 **The form.** "Repeat" chooses between no repetition, daily, weekly, monthly and

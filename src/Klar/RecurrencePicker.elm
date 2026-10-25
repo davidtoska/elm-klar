@@ -59,8 +59,9 @@ value and there are no out-messages: compare `value` before and after `update`
 to react to a change.
 
 The application gives the start date. The options for a monthly rule follow it
-("On day 20", "On the third Tuesday", and "On the last Tuesday" when the start
-is the last one), and so does the weekday that is ticked first. Call `setStart`
+("On day 20", "On the third Tuesday", "On the last Tuesday" when the start is
+the last one, and "On the last day of the month" when the start is the last day
+of a month shorter than 31 days), and so does the weekday that is ticked first. Call `setStart`
 when the date changes. A rule loaded from a server is put in with `setValue`.
 
 **The form.** "Repeat" chooses between no repetition, daily, weekly, monthly and
@@ -211,12 +212,14 @@ type By
     = ByDay
     | ByNth
     | ByLast
+    | ByLastDay
     | Own Anchor
 
 
 type Anchor
     = AnchorDay Int Int
     | AnchorNth Spec.Ordinal Int Int
+    | AnchorLastDay Int
 
 
 intervalLimits : List (NumberInput.Attribute msg)
@@ -385,6 +388,10 @@ patternOf s =
                 AnchorNth ordinal weekday _ ->
                     Recurrence.monthlyOnWeekday (toOrdinal ordinal) (toWeekday weekday)
 
+                AnchorLastDay _ ->
+                    -- the 31st, or the last day of a shorter month
+                    Recurrence.monthlyOnDay 31
+
         Yearly ->
             case anchorOf s of
                 AnchorDay month day ->
@@ -392,6 +399,10 @@ patternOf s =
 
                 AnchorNth ordinal weekday month ->
                     Recurrence.yearlyOnWeekday (toOrdinal ordinal) (toWeekday weekday) (toMonth month)
+
+                AnchorLastDay month ->
+                    -- 29 February is 28 February in the other years
+                    Recurrence.yearlyOnDate (toMonth month) (Date.daysInMonth 2024 month)
 
         _ ->
             Recurrence.daily
@@ -595,6 +606,13 @@ anchorFor startDate by =
             else
                 anchorFor startDate ByNth
 
+        ByLastDay ->
+            if offersLastDay startDate then
+                AnchorLastDay (Date.month startDate)
+
+            else
+                anchorFor startDate ByDay
+
         Own anchor ->
             followStart startDate anchor
 
@@ -610,6 +628,9 @@ followStart startDate anchor =
 
         AnchorNth ordinal weekday 0 ->
             AnchorNth ordinal weekday (Date.month startDate)
+
+        AnchorLastDay 0 ->
+            AnchorLastDay (Date.month startDate)
 
         _ ->
             anchor
@@ -636,6 +657,9 @@ withoutMonth anchor =
 
         AnchorNth ordinal weekday _ ->
             AnchorNth ordinal weekday 0
+
+        AnchorLastDay _ ->
+            AnchorLastDay 0
 
 
 {-| The question about a missing day is only asked for a day that can be
@@ -694,6 +718,15 @@ offersLast date =
     endsMonth date && ordinalOfStart date /= Spec.Last
 
 
+{-| Whether "the last day of the month" is a choice of its own: the start date is
+the last day of its month and not the 31st, which `ByDay` already makes the last
+day of a shorter month.
+-}
+offersLastDay : Date -> Bool
+offersLastDay date =
+    Date.day date == Date.daysInMonth (Date.year date) (Date.month date) && Date.day date < 31
+
+
 {-| The choices a monthly or yearly rule offers: the day, the n-th weekday and the
 last weekday when the start gives it. A rule that was loaded has its own choice,
 which stands in the place of the one that means the same, or comes last when the
@@ -706,6 +739,12 @@ choices s =
             [ ByDay, ByNth ]
                 ++ (if offersLast s.start then
                         [ ByLast ]
+
+                    else
+                        []
+                   )
+                ++ (if offersLastDay s.start then
+                        [ ByLastDay ]
 
                     else
                         []
@@ -1233,6 +1272,9 @@ byKey by =
         ByLast ->
             "last"
 
+        ByLastDay ->
+            "last-day"
+
         Own _ ->
             "own"
 
@@ -1317,6 +1359,22 @@ anchorLabel lang frequency anchor =
 
                     else
                         "On the " ++ phrase ++ " of the month"
+                }
+
+        AnchorLastDay month ->
+            Locale.pick lang
+                { nb =
+                    if frequency == Yearly then
+                        "Den siste dagen i " ++ Locale.monthName lang month
+
+                    else
+                        "Den siste dagen i måneden"
+                , en =
+                    if frequency == Yearly then
+                        "On the last day of " ++ Locale.monthName lang month
+
+                    else
+                        "On the last day of the month"
                 }
 
 
@@ -1686,6 +1744,9 @@ shownBy : Inner -> By
 shownBy s =
     if s.by == ByLast && not (offersLast s.start) then
         ByNth
+
+    else if s.by == ByLastDay && not (offersLastDay s.start) then
+        ByDay
 
     else
         s.by
