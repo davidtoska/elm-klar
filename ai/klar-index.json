@@ -910,6 +910,41 @@
       "reference": "ai/modules/Klar.ErrorState.md"
     },
     {
+      "name": "Klar.NotificationCenter",
+      "import": "import Klar.NotificationCenter as Notifications",
+      "group": "Status and feedback",
+      "purpose": "Persistent notifications with an unread filter and explicit read and dismiss actions.",
+      "whenToUse": "people need a durable inbox of notifications, alongside transient toasts.",
+      "whenNot": "feedback should disappear after a few seconds; use `Klar.Toast`.",
+      "state": [],
+      "msg": [],
+      "ids": [],
+      "stateful": false,
+      "quickPath": [],
+      "mainFunctions": [
+        "view",
+        "notification",
+        "id",
+        "unreadOnly",
+        "onOpen",
+        "onRead",
+        "onDismiss",
+        "onReadAll"
+      ],
+      "related": [],
+      "keywords": [
+        "notification center",
+        "notificationcenter",
+        "status and feedback",
+        "persistent",
+        "notifications",
+        "unread",
+        "filter",
+        "explicit"
+      ],
+      "reference": "ai/modules/Klar.NotificationCenter.md"
+    },
+    {
       "name": "Klar.Form",
       "import": "import Klar.Form as Form",
       "group": "Forms",
@@ -1860,6 +1895,52 @@
         "currency"
       ],
       "reference": "ai/modules/Klar.MoneyInput.md"
+    },
+    {
+      "name": "Klar.QuantityInput",
+      "import": "import Klar.QuantityInput as Quantity",
+      "group": "Inputs",
+      "purpose": "A quantity with an application's own unit type, keeping exactly the number text entered until the application explicitly changes it.",
+      "whenToUse": "a number must be entered together with a unit such as kg, m or percent.",
+      "whenNot": "the unit is fixed, use `Klar.NumberInput.suffixText`, or for currency use `Klar.MoneyInput`.",
+      "state": [
+        "State"
+      ],
+      "msg": [
+        "Msg"
+      ],
+      "ids": [],
+      "stateful": true,
+      "quickPath": [
+        "unit",
+        "init",
+        "setUnit",
+        "update",
+        "view",
+        "value"
+      ],
+      "mainFunctions": [
+        "view",
+        "unit",
+        "init",
+        "update",
+        "raw",
+        "selected",
+        "setValue",
+        "setUnit"
+      ],
+      "related": [],
+      "keywords": [
+        "quantity input",
+        "quantityinput",
+        "inputs",
+        "quantity",
+        "application",
+        "keeping",
+        "exactly",
+        "number"
+      ],
+      "reference": "ai/modules/Klar.QuantityInput.md"
     },
     {
       "name": "Klar.Select",
@@ -2866,6 +2947,83 @@
       "reference": "ai/modules/Klar.Tree.md"
     },
     {
+      "name": "Klar.CardList",
+      "import": "import Klar.CardList as CardList",
+      "group": "Tables and lists",
+      "purpose": "A responsive collection of records as compact cards, with labelled fields, selection and actions that remain ordinary keyboard controls.",
+      "whenToUse": "a product catalogue or overview needs cards that fit a narrow screen.",
+      "whenNot": "rows must be sorted, filtered or edited in columns; use `Klar.Table`.",
+      "state": [],
+      "msg": [],
+      "ids": [],
+      "stateful": false,
+      "quickPath": [],
+      "mainFunctions": [
+        "view",
+        "field",
+        "id",
+        "selection",
+        "onOpen",
+        "actions",
+        "onLoadMore",
+        "onRetry"
+      ],
+      "related": [],
+      "keywords": [
+        "card list",
+        "cardlist",
+        "tables and lists",
+        "responsive",
+        "collection",
+        "records",
+        "compact",
+        "cards"
+      ],
+      "reference": "ai/modules/Klar.CardList.md"
+    },
+    {
+      "name": "Klar.WorkQueue",
+      "import": "import Klar.WorkQueue as WorkQueue",
+      "group": "Tables and lists",
+      "purpose": "A keyboard-driven work list beside a detail pane, for processing one record at a time without losing the surrounding queue.",
+      "whenToUse": "a person works through cases, approvals or incoming orders one by one.",
+      "whenNot": "the main task is comparing rows and columns; use `Klar.Table`.",
+      "state": [
+        "State"
+      ],
+      "msg": [
+        "Msg"
+      ],
+      "ids": [],
+      "stateful": true,
+      "quickPath": [
+        "init",
+        "update",
+        "view",
+        "selected"
+      ],
+      "mainFunctions": [
+        "view",
+        "init",
+        "update",
+        "selected",
+        "setSelected",
+        "query"
+      ],
+      "related": [],
+      "keywords": [
+        "work queue",
+        "workqueue",
+        "tables and lists",
+        "keyboard",
+        "driven",
+        "beside",
+        "detail",
+        "processing"
+      ],
+      "reference": "ai/modules/Klar.WorkQueue.md"
+    },
+    {
       "name": "Klar.Overlay",
       "import": "import Klar.Overlay as Overlay",
       "group": "Overlays",
@@ -3842,6 +4000,51 @@
       "reference": "ai/modules/Klar.Splitter.md"
     },
     {
+      "name": "Klar.Kanban",
+      "import": "import Klar.Kanban as Kanban",
+      "group": "Arranging",
+      "purpose": "A dense board of ordered work columns, with explicit card moves, work-in-progress limits and keyboard operation that does not depend on dragging.",
+      "whenToUse": "work moves between stages and the order inside a stage matters.",
+      "whenNot": "one list only needs reordering; use `Klar.Sortable`, or `Klar.WorkQueue` for reviewing one record beside its details.",
+      "state": [
+        "State"
+      ],
+      "msg": [
+        "Msg"
+      ],
+      "ids": [],
+      "stateful": true,
+      "quickPath": [
+        "column",
+        "init",
+        "update",
+        "move",
+        "applyMove",
+        "view"
+      ],
+      "mainFunctions": [
+        "view",
+        "column",
+        "cards",
+        "limit",
+        "withLimit",
+        "init",
+        "update",
+        "focusCard"
+      ],
+      "related": [],
+      "keywords": [
+        "kanban",
+        "arranging",
+        "dense",
+        "board",
+        "ordered",
+        "columns",
+        "explicit"
+      ],
+      "reference": "ai/modules/Klar.Kanban.md"
+    },
+    {
       "name": "Klar.StatusPage",
       "import": "import Klar.StatusPage as StatusPage",
       "group": "Pages and flow",
@@ -4183,6 +4386,158 @@
         "versions"
       ],
       "reference": "ai/modules/Klar.Compare.md"
+    },
+    {
+      "name": "Klar.AuditLog",
+      "import": "import Klar.AuditLog as AuditLog",
+      "group": "Text and change",
+      "purpose": "An immutable activity history with actors, exact times and expandable diffs.",
+      "whenToUse": "people need to trace who changed a record and inspect the change.",
+      "whenNot": "the events describe a schedule or milestones; use `Klar.Timeline`.",
+      "state": [],
+      "msg": [],
+      "ids": [],
+      "stateful": false,
+      "quickPath": [],
+      "mainFunctions": [
+        "view",
+        "entry",
+        "withDetail",
+        "withDiff"
+      ],
+      "related": [],
+      "keywords": [
+        "audit log",
+        "auditlog",
+        "text and change",
+        "immutable",
+        "activity",
+        "history",
+        "actors",
+        "exact"
+      ],
+      "reference": "ai/modules/Klar.AuditLog.md"
+    },
+    {
+      "name": "Klar.ConflictResolver",
+      "import": "import Klar.ConflictResolver as Conflict",
+      "group": "Text and change",
+      "purpose": "A three-way field merge that makes concurrent edits explicit and requires a decision for every conflicting value before the result can be applied.",
+      "whenToUse": "saving a record failed because someone else edited the same version.",
+      "whenNot": "a person only needs to inspect changes; use `Klar.Diff` or `Klar.Compare`.",
+      "state": [
+        "State"
+      ],
+      "msg": [
+        "Msg"
+      ],
+      "ids": [],
+      "stateful": true,
+      "quickPath": [
+        "field",
+        "init",
+        "update",
+        "view",
+        "resolved"
+      ],
+      "mainFunctions": [
+        "view",
+        "field",
+        "init",
+        "update",
+        "resolved",
+        "reset",
+        "onApply",
+        "saving"
+      ],
+      "related": [],
+      "keywords": [
+        "conflict resolver",
+        "conflictresolver",
+        "text and change",
+        "three",
+        "field",
+        "merge",
+        "concurrent",
+        "edits"
+      ],
+      "reference": "ai/modules/Klar.ConflictResolver.md"
+    },
+    {
+      "name": "Klar.CodeBlock",
+      "import": "import Klar.CodeBlock as CodeBlock",
+      "group": "Text and change",
+      "purpose": "Read-only source code with lexical highlighting, line numbers and an honest preview limit; source is always escaped text and is never executed.",
+      "whenToUse": "a person must inspect a payload, query, configuration or generated code.",
+      "whenNot": "the text must be edited, use `Klar.TextArea` or `Klar.MarkdownEditor`.",
+      "state": [],
+      "msg": [],
+      "ids": [],
+      "stateful": false,
+      "quickPath": [],
+      "mainFunctions": [
+        "view",
+        "plain",
+        "json",
+        "elm"
+      ],
+      "related": [],
+      "keywords": [
+        "code block",
+        "codeblock",
+        "text and change",
+        "source",
+        "lexical",
+        "highlighting",
+        "numbers",
+        "honest"
+      ],
+      "reference": "ai/modules/Klar.CodeBlock.md"
+    },
+    {
+      "name": "Klar.CommentThread",
+      "import": "import Klar.CommentThread as Thread",
+      "group": "Text and change",
+      "purpose": "A reply thread with safe Markdown, exact timestamps and a draft that survives failed posting, refreshes and late acknowledgements.",
+      "whenToUse": "people discuss a case, order or document and need replies in context.",
+      "whenNot": "the content records immutable system changes; use `Klar.AuditLog`.",
+      "state": [
+        "State"
+      ],
+      "msg": [
+        "Msg"
+      ],
+      "ids": [],
+      "stateful": true,
+      "quickPath": [
+        "comment",
+        "init",
+        "update",
+        "view",
+        "acknowledge"
+      ],
+      "mainFunctions": [
+        "view",
+        "comment",
+        "replyTo",
+        "edited",
+        "removed",
+        "resolved",
+        "init",
+        "update"
+      ],
+      "related": [],
+      "keywords": [
+        "comment thread",
+        "commentthread",
+        "text and change",
+        "reply",
+        "thread",
+        "markdown",
+        "exact",
+        "timestamps"
+      ],
+      "reference": "ai/modules/Klar.CommentThread.md"
     },
     {
       "name": "Klar.PermissionMatrix",
@@ -5474,6 +5829,51 @@
         "icons"
       ],
       "reference": "ai/modules/Klar.Icon.Science.md"
+    },
+    {
+      "name": "Klar.UploadQueue",
+      "import": "import Klar.UploadQueue as UploadQueue",
+      "group": "Files and media",
+      "purpose": "A local file-transfer workbench: validated file staging, an explicit add action, and an application-controlled queue with exact byte progress.",
+      "whenToUse": "users upload several files and need to inspect validation, progress, failures and cancellation per file.",
+      "whenNot": "choosing attachments is the whole task; use `Klar.FileDrop`.",
+      "state": [
+        "State"
+      ],
+      "msg": [
+        "Msg"
+      ],
+      "ids": [],
+      "stateful": true,
+      "quickPath": [
+        "init",
+        "update",
+        "view",
+        "upload",
+        "withStatus"
+      ],
+      "mainFunctions": [
+        "view",
+        "init",
+        "update",
+        "files",
+        "rawFiles",
+        "rejected",
+        "canAdd",
+        "clear"
+      ],
+      "related": [],
+      "keywords": [
+        "upload queue",
+        "uploadqueue",
+        "files and media",
+        "local",
+        "transfer",
+        "workbench",
+        "validated",
+        "staging"
+      ],
+      "reference": "ai/modules/Klar.UploadQueue.md"
     }
   ]
 }

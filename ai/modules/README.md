@@ -34,6 +34,7 @@ One file per exposed module, generated from the doc comments by `npm run gen:ai-
 - [Klar.Progress](Klar.Progress.md): Progress: a linear bar, a bar divided into steps, and a ring.
 - [Klar.EmptyState](Klar.EmptyState.md): What to show when there is nothing to show: an empty list, no search results, a first-run screen.
 - [Klar.ErrorState](Klar.ErrorState.md): What to show when a request failed: a clear title, the reason, and a button to try again when trying again can help.
+- [Klar.NotificationCenter](Klar.NotificationCenter.md): Persistent notifications with an unread filter and explicit read and dismiss actions.
 ## Forms
 
 - [Klar.Form](Klar.Form.md): A form as one value: the text and choices of every field, which fields the user has left, what the server refused, the rows of a repeating group, the step the user is on, and whether anything has ...
@@ -61,6 +62,7 @@ One file per exposed module, generated from the doc comments by `npm run gen:ai-
 - [Klar.MaskedInput](Klar.MaskedInput.md): A field for an identifier that has a fixed shape and, often, a check digit: an IBAN, an organisation number, a bank account, a postal code, a phone number, or a code of your own such as `AB-1234`.
 - [Klar.Money](Klar.Money.md): An exact amount of money: a whole number of minor units (øre, cents, yen) together with its currency.
 - [Klar.MoneyInput](Klar.MoneyInput.md): A field for an amount of money in one currency.
+- [Klar.QuantityInput](Klar.QuantityInput.md): A quantity with an application's own unit type, keeping exactly the number text entered until the application explicitly changes it.
 ## Choosing
 
 - [Klar.Select](Klar.Select.md): A single select with a search box, for lists from a handful to many thousands of options.
@@ -88,6 +90,8 @@ One file per exposed module, generated from the doc comments by `npm run gen:ai-
 - [Klar.Pagination](Klar.Pagination.md): Page navigation for long lists and tables: the range shown ("1–25 of 3,000"), rows per page, first / previous / page numbers with ellipsis / next / last, and "Go to page".
 - [Klar.ListItem](Klar.ListItem.md): A dense list row, and the list that holds the rows.
 - [Klar.Tree](Klar.Tree.md): A tree view for hierarchies: regions and warehouses, folders, product categories, code lists.
+- [Klar.CardList](Klar.CardList.md): A responsive collection of records as compact cards, with labelled fields, selection and actions that remain ordinary keyboard controls.
+- [Klar.WorkQueue](Klar.WorkQueue.md): A keyboard-driven work list beside a detail pane, for processing one record at a time without losing the surrounding queue.
 ## Overlays
 
 - [Klar.Overlay](Klar.Overlay.md): The layer above the page: dialogs, drawers, the command palette, the shortcut sheet and the toasts.
@@ -117,6 +121,7 @@ One file per exposed module, generated from the doc comments by `npm run gen:ai-
 
 - [Klar.Sortable](Klar.Sortable.md): A list the user can put in a new order: by dragging an item by its handle, or with the keyboard.
 - [Klar.Splitter](Klar.Splitter.md): Two or more panes side by side (or one above the other) that the user can make larger and smaller by moving the separators between them, with the mouse, a finger or the keyboard.
+- [Klar.Kanban](Klar.Kanban.md): A dense board of ordered work columns, with explicit card moves, work-in-progress limits and keyboard operation that does not depend on dragging.
 ## Pages and flow
 
 - [Klar.StatusPage](Klar.StatusPage.md): A page that stands for a whole result: "Order created", "No access", "Page not found", "Something went wrong on our side", "Down for maintenance".
@@ -129,6 +134,10 @@ One file per exposed module, generated from the doc comments by `npm run gen:ai-
 - [Klar.MarkdownEditor](Klar.MarkdownEditor.md): A text area for Markdown with a toolbar and a live preview: the editor of a note, a description, a comment, or the instruction to a language model.
 - [Klar.Diff](Klar.Diff.md): What changed between two versions of a text, of a JSON document or of a record, shown so that a person can see it and decide.
 - [Klar.Compare](Klar.Compare.md): Records side by side, with the differences marked: two or more products, two versions of an order, "your version" against "theirs".
+- [Klar.AuditLog](Klar.AuditLog.md): An immutable activity history with actors, exact times and expandable diffs.
+- [Klar.ConflictResolver](Klar.ConflictResolver.md): A three-way field merge that makes concurrent edits explicit and requires a decision for every conflicting value before the result can be applied.
+- [Klar.CodeBlock](Klar.CodeBlock.md): Read-only source code with lexical highlighting, line numbers and an honest preview limit; source is always escaped text and is never executed.
+- [Klar.CommentThread](Klar.CommentThread.md): A reply thread with safe Markdown, exact timestamps and a draft that survives failed posting, refreshes and late acknowledgements.
 ## Access and approval
 
 - [Klar.PermissionMatrix](Klar.PermissionMatrix.md): A grid of roles and permissions that says what each role may do, and lets an administrator change it: the classic screen of an application with users.
@@ -172,3 +181,6 @@ One file per exposed module, generated from the doc comments by `npm run gen:ai-
 - [Klar.Icon.Nature](Klar.Icon.Nature.md): Nature, weather and animals: 16 icons.
 - [Klar.Icon.People](Klar.Icon.People.md): People and expressions: 16 icons.
 - [Klar.Icon.Science](Klar.Icon.Science.md): Science, health and everyday objects: 16 icons.
+## Files and media
+
+- [Klar.UploadQueue](Klar.UploadQueue.md): A local file-transfer workbench: validated file staging, an explicit add action, and an application-controlled queue with exact byte progress.

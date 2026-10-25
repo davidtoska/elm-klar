@@ -41,11 +41,13 @@ type Section
     | Recurring
     | StaleData
     | ServerLists
+    | Workbench
+    | NextComponents
 
 
 all : List Section
 all =
-    [ Examples, Foundations, Basics, Selects, Tables, Forms, FormModel, DateTime, Overlays, Navigation, DataDisplay, Rules, Arranging, Actions, Flow, Markdown, Review, Structured, Picking, Access, Recurring, StaleData, ServerLists ]
+    [ Examples, Foundations, Basics, Selects, Tables, Forms, FormModel, DateTime, Overlays, Navigation, DataDisplay, Rules, Arranging, Actions, Flow, Markdown, Review, Structured, Picking, Access, Recurring, StaleData, ServerLists, Workbench, NextComponents ]
 
 
 slug : Section -> String
@@ -119,6 +121,12 @@ slug section =
 
         Examples ->
             "examples"
+
+        Workbench ->
+            "workbench"
+
+        NextComponents ->
+            "workflow-toolkit"
 
 
 fromSlug : String -> Maybe Section
@@ -198,6 +206,12 @@ title section =
         Examples ->
             "Examples"
 
+        Workbench ->
+            "Data workbench"
+
+        NextComponents ->
+            "Workflow toolkit"
+
 
 icon : Section -> Icon
 icon section =
@@ -271,6 +285,12 @@ icon section =
         Examples ->
             Icon.layout
 
+        Workbench ->
+            Icon.clipboardCheck
+
+        NextComponents ->
+            Icon.layers
+
 
 description : Section -> String
 description section =
@@ -342,7 +362,13 @@ description section =
             "A table, a filter bar and saved views over rows on a server, with no glue: tickets, page reset, saved views. Make the server slow, jumbled or failing."
 
         Examples ->
-            "Six complete applications for the common screens, each one Elm file: an inbox, an edit form, delete with confirmation, a dashboard, a multi-step flow, a command palette."
+            "Seven complete applications, each one Elm file: an inbox, an edit form, delete with confirmation, a dashboard, a multi-step flow, a command palette and a review desk."
+
+        Workbench ->
+            "Cards, keyboard work queues, three-way conflict resolution, audit diffs and persistent notifications."
+
+        NextComponents ->
+            "Kanban work stages, threaded discussion, explicit file uploads, safe source code and typed quantities."
 
 
 {-| The components shown on each page.
@@ -418,6 +444,12 @@ components section =
 
         Examples ->
             [ "Inbox", "Edit form", "Confirm delete", "Dashboard", "Multi-step flow", "Command palette" ]
+
+        Workbench ->
+            [ "CardList", "WorkQueue", "ConflictResolver", "AuditLog", "NotificationCenter" ]
+
+        NextComponents ->
+            [ "Kanban", "CommentThread", "UploadQueue", "CodeBlock", "QuantityInput" ]
 
 
 componentCount : Int

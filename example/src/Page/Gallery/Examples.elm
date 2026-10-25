@@ -55,6 +55,11 @@ examples =
       , title = "Command palette with a search as you type"
       , task = "Ctrl K opens a palette with fixed actions and a section that asks the backend while the user types, with a retry when the search fails."
       }
+    , { file = "ReviewDesk"
+      , page = "review-desk"
+      , title = "Order review desk"
+      , task = "Five components in one workflow: review orders with the keyboard, select cards, resolve concurrent edits, inspect audit diffs and manage persistent notifications. Includes every remote state."
+      }
     ]
 
 
@@ -62,7 +67,7 @@ view : Html msg
 view =
     Doc.page
         { title = "Examples"
-        , description = "Six complete applications for the screens that every application has. Each is one Elm file that uses only Klar, with no CSS and no class names, and it is the program an AI copies: example/src/Examples/<Name>.elm."
+        , description = "Seven complete applications for common screens. Each is one Elm file that uses only Klar, with no CSS and no class names, and it is the program an AI copies: example/src/Examples/<Name>.elm."
         }
         [ Doc.section "Programs" "Each one opens in a tab of its own, because it is an application of its own." (List.map viewExample examples) ]
 
